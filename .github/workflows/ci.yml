@@ -22,9 +22,9 @@ jobs:
         node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -35,7 +35,7 @@ jobs:
     name: commit standard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Check every commit message in this change
@@ -47,6 +47,8 @@ jobs:
           [ -n "$BASE" ] || range="$HEAD~1..$HEAD"
           failed=0
           for commit in $(git rev-list --no-merges "$range"); do
+            # Bots write their own fixed format; the standard is for people and for our agents.
+            case "$(git log -1 --format='%an' "$commit")" in dependabot*) continue ;; esac
             git log -1 --format=%B "$commit" > "$RUNNER_TEMP/message"
             if ! .githooks/commit-msg "$RUNNER_TEMP/message"; then
               echo "::error::$(git log -1 --format='%h %s' "$commit")"

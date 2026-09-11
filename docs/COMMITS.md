@@ -65,6 +65,8 @@ git config core.hooksPath .githooks
 ```
 
 CI re-checks the messages of every commit in a pull request, so the standard holds even if a hook is missing.
+Dependabot's own commits are exempt: its format is fixed and capitalised, and we would rather keep the standard
+strict for people and agents than loosen it for a bot. Squash a dependency pull request with a subject in our format.
 
 ## Releases
 
