@@ -3,6 +3,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { pathInScope, type DiffStat, type PlanLine } from "@fanout/core";
+import { deniedFiles, DenyListError } from "./deny.ts";
 import { git, lines, zeroSeparated, GitError } from "./git.ts";
 import type {
   RunDiff,
@@ -26,60 +27,18 @@ import type {
 
 const runProcess = promisify(execFile);
 
-/** Files an agent must never receive, even when the repository tracks them. */
-export const DEFAULT_DENY_LIST: readonly string[] = [
-  "**/.env",
-  "**/.env.*",
-  "**/*.pem",
-  "**/*.key",
-  "**/*.p12",
-  "**/*.pfx",
-  "**/*.keystore",
-  "**/id_rsa*",
-  "**/id_ed25519*",
-  "**/.npmrc",
-  "**/.netrc",
-  "**/.pgpass",
-  "**/.ssh/**",
-  "**/.aws/**",
-  "**/.gnupg/**",
-  "**/secrets.*",
-  "**/credentials",
-  "**/credentials.*",
-  "**/service-account*.json",
-];
-
-/** A workspace was not created because the repository holds something an agent must not see. */
-export class DenyListError extends Error {
-  override name = "DenyListError";
-  readonly files: readonly string[];
-
-  constructor(files: readonly string[]) {
-    super(
-      `The repository tracks ${files.length} file(s) an agent must never receive: ${files.slice(0, 5).join(", ")}` +
-        `${files.length > 5 ? ", …" : ""}. Remove them from the commit, or narrow the deny-list on purpose.`,
-    );
-    this.files = files;
-  }
-}
+export { DEFAULT_DENY_LIST, DenyListError } from "./deny.ts";
 
 export function createWorkspaceManager(options: WorkspaceManagerOptions): WorkspaceManager {
   const { repoRoot, workspaceRoot } = options;
-  const denyList = options.denyList ?? DEFAULT_DENY_LIST;
   const inRepo = { cwd: repoRoot };
 
   const missionDir = (missionId: string): string => join(workspaceRoot, missionId);
   const runDir = (missionId: string, runId: string): string => join(missionDir(missionId), runId);
 
-  /** Tracked files at a commit that the deny-list covers. Checked before any workspace exists. */
-  const deniedFiles = async (baseCommit: string): Promise<string[]> => {
-    const tracked = zeroSeparated(await git(["ls-tree", "-r", "-z", "--name-only", baseCommit], inRepo));
-    return tracked.filter((file) => denyList.some((pattern) => pathInScope(file, pattern)));
-  };
-
   const create = async (request: WorkspaceRequest): Promise<Workspace> => {
     const { missionId, runId, baseCommit, line } = request;
-    const denied = await deniedFiles(baseCommit);
+    const denied = await deniedFiles(repoRoot, baseCommit, options.denyList);
     if (denied.length > 0) throw new DenyListError(denied);
 
     const path = runDir(missionId, runId);
