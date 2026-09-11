@@ -58,6 +58,21 @@ describe("pathInScope", () => {
   });
 });
 
+describe("pathInScope refuses anything that is not a plain repo-relative path", () => {
+  it.each([
+    ["src/../private/key", "src/**"],
+    ["src/../../outside", "src/**"],
+    ["../outside", "**"],
+    ["/etc/passwd", "**"],
+    ["./src/a.ts", "src/**"],
+    ["src//a.ts", "src/**"],
+    ["src/", "src/**"],
+    ["", "**"],
+  ])("%j is not inside %j", (path, glob) => {
+    expect(pathInScope(path, glob)).toBe(false);
+  });
+});
+
 describe("scopesMayOverlap", () => {
   it.each([
     ["src/api/**", "src/ui/**", false],
@@ -75,6 +90,13 @@ describe("scopesMayOverlap", () => {
   ])("%j and %j: %s", (a, b, expected) => {
     expect(scopesMayOverlap(a, b)).toBe(expected);
     expect(scopesMayOverlap(b, a)).toBe(expected);
+  });
+
+  it("answers adversarial but perfectly valid patterns quickly", () => {
+    const started = performance.now();
+    expect(scopesMayOverlap(`${"a*".repeat(24)}z`, "a".repeat(48))).toBe(false);
+    expect(pathInScope(Array(48).fill("a").join("/"), `${Array(24).fill("**/a").join("/")}/z`)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(250);
   });
 
   it("never says no when a path lies in both scopes (randomized)", () => {
