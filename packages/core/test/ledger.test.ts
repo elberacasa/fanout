@@ -173,6 +173,24 @@ describe("Ledger", () => {
     ledger.close();
   });
 
+  it("refuses a row whose routing columns disagree with its body", () => {
+    const ledger = Ledger.open(path);
+    const raw = new DatabaseSync(path);
+    raw
+      .prepare(
+        "INSERT INTO events (id, ts, v, type, mission_id, body) VALUES (?, ?, 1, 'mission.created', 'other', ?)",
+      )
+      .run(
+        "2f6c7b1e-4a52-4c3e-9a0f-4f1d7c9e8b21",
+        "2026-09-11T17:00:00.000Z",
+        JSON.stringify(samples["mission.created"]),
+      );
+    raw.close();
+    expect(() => ledger.read({ missionId: "other" })).toThrow(LedgerError);
+    expect(() => ledger.read()).toThrow(LedgerError);
+    ledger.close();
+  });
+
   it("gives unique, increasing sequence numbers to two writers on one file", () => {
     const a = Ledger.open(path);
     const b = Ledger.open(path);

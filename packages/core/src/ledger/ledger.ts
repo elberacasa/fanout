@@ -15,7 +15,8 @@ import {
  * The ledger is the single source of truth: an append-only SQLite table of validated events.
  * Append-only is enforced by the database, not just by this API: triggers abort any UPDATE, any DELETE, and any
  * INSERT that would replace an existing row (INSERT OR REPLACE deletes the old row without firing DELETE triggers).
- * This guards against rewriting history through SQL; it is not a defense against someone who edits the file itself.
+ * This guards against rewriting history with ordinary SQL. It is not a defense against someone with raw access to
+ * the file: they own it, and `DROP TABLE` or replacing a trigger would still succeed. Opening checks the guards exist.
  * Every row is validated on the way in and again on the way out, so a damaged ledger fails loudly.
  */
 
@@ -85,6 +86,9 @@ const Row = z.object({
   id: z.string(),
   ts: z.string(),
   v: z.number(),
+  type: z.string(),
+  mission_id: z.string().nullable(),
+  run_id: z.string().nullable(),
   body: z.string(),
 });
 
@@ -104,9 +108,12 @@ export class Ledger {
     this.#insert = db.prepare(
       "INSERT INTO events (id, ts, v, type, mission_id, run_id, body) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
-    this.#readAll = db.prepare("SELECT seq, id, ts, v, body FROM events WHERE seq > ? ORDER BY seq LIMIT ?");
+    this.#readAll = db.prepare(
+      "SELECT seq, id, ts, v, type, mission_id, run_id, body FROM events WHERE seq > ? ORDER BY seq LIMIT ?",
+    );
     this.#readMission = db.prepare(
-      "SELECT seq, id, ts, v, body FROM events WHERE seq > ? AND mission_id = ? ORDER BY seq LIMIT ?",
+      "SELECT seq, id, ts, v, type, mission_id, run_id, body FROM events " +
+        "WHERE seq > ? AND mission_id = ? ORDER BY seq LIMIT ?",
     );
     this.#lastSeq = db.prepare("SELECT COALESCE(MAX(seq), 0) AS seq FROM events");
   }
@@ -261,5 +268,18 @@ function decode(raw: unknown): StoredEvent {
         (detail === undefined ? "" : `\n${z.prettifyError(detail)}`),
     );
   }
+
+  // The indexed columns are how events are found; if they disagree with the body, queries would silently lie.
+  const routed =
+    row.type === event.data.type &&
+    row.mission_id === ("missionId" in event.data ? event.data.missionId : null) &&
+    row.run_id === ("runId" in event.data ? event.data.runId : null);
+  if (!routed) {
+    throw new LedgerError(
+      `Event ${row.seq} is indexed as ${row.type} (mission ${row.mission_id ?? "none"}, ` +
+        `run ${row.run_id ?? "none"}) but its body says otherwise; the ledger is damaged.`,
+    );
+  }
+
   return { ...event.data, ...stamp.data };
 }
