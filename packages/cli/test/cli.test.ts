@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Ledger } from "@fanout/core";
@@ -101,6 +102,61 @@ describe("fanout status", () => {
 
     await main(["status"], io());
     expect(printed()).toMatch(/csv-export\s+running\s+1 run · 1 running/);
+  });
+});
+
+describe("fanout clean", () => {
+  const gitEnv = {
+    PATH: process.env["PATH"] ?? "",
+    HOME: process.env["HOME"] ?? "",
+    GIT_CONFIG_NOSYSTEM: "1",
+    LC_ALL: "C",
+  };
+
+  function repoWithWorkspace(): { repo: string; workspace: string; branch: string } {
+    const repo = join(home, "repo");
+    mkdirSync(repo);
+    const run = (args: string[]): string =>
+      execFileSync("git", args, { cwd: repo, encoding: "utf8", env: gitEnv });
+    run(["init", "--quiet", "-b", "main"]);
+    run(["config", "user.email", "crew@example.invalid"]);
+    run(["config", "user.name", "Fanout tests"]);
+    writeFileSync(join(repo, "a.txt"), "hello\n");
+    run(["add", "-A"]);
+    run(["commit", "--quiet", "-m", "seed"]);
+
+    const branch = "fanout/csv-export/api-1";
+    const workspace = join(home, "workspaces", "csv-export", "api-1");
+    mkdirSync(join(home, "workspaces", "csv-export"), { recursive: true });
+    run(["worktree", "add", "--quiet", "-b", branch, workspace, "HEAD"]);
+    return { repo, workspace, branch };
+  }
+
+  it("removes the worktrees and branches a mission left, and nothing else", async () => {
+    const { repo, workspace, branch } = repoWithWorkspace();
+    const mine = "my-own-work";
+    execFileSync("git", ["branch", mine], { cwd: repo, env: gitEnv });
+
+    expect(await main(["clean"], io({ cwd: repo }))).toBe(0);
+
+    expect(existsSync(workspace)).toBe(false);
+    const branches = execFileSync("git", ["branch", "--list"], { cwd: repo, encoding: "utf8", env: gitEnv });
+    expect(branches).not.toContain(branch);
+    expect(branches).toContain(mine);
+    expect(printed()).toContain("Your own branches were not touched");
+  });
+
+  it("says there is nothing to clean rather than pretending it did something", async () => {
+    const { repo } = repoWithWorkspace();
+    await main(["clean"], io({ cwd: repo }));
+    out = [];
+    expect(await main(["clean"], io({ cwd: repo }))).toBe(0);
+    expect(printed()).toContain("Nothing to clean");
+  });
+
+  it("asks to be run inside a repository", async () => {
+    expect(await main(["clean"], io({ cwd: home }))).toBe(64);
+    expect(err.join("")).toContain("run this inside the repository");
   });
 });
 

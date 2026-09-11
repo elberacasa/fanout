@@ -6,7 +6,7 @@ export { startRun, type ActiveRun, type RunLimits, type StartRunOptions } from "
 export type * from "./workspace/types.ts";
 export { createWorkspaceManager } from "./workspace/manager.ts";
 export { DEFAULT_DENY_LIST, DenyListError, deniedFiles } from "./workspace/deny.ts";
-export { git, GitError, type GitOptions } from "./workspace/git.ts";
+export { git, GitError, lines, zeroSeparated, type GitOptions } from "./workspace/git.ts";
 
 export type * from "./safety/types.ts";
 export { safetyReport, type RepositoryState, type SafetyDependencies } from "./safety/report.ts";
