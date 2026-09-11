@@ -66,9 +66,10 @@ export function supervise(options: SuperviseOptions): RunHandle {
     }
   }
 
-  function stop(status: "failed" | "killed" | "timeout"): void {
+  function stop(status: "failed" | "killed" | "timeout", reason?: string): void {
     if (settled || stopping !== undefined) return;
     stopping = status;
+    if (reason !== undefined) error ??= reason;
     clearDeadlines();
     signalGroup("SIGTERM");
     // Keep escalation alive even if the group leader exits before its descendants.
@@ -123,8 +124,8 @@ export function supervise(options: SuperviseOptions): RunHandle {
       return child?.pid;
     },
     done,
-    kill() {
-      stop("killed");
+    kill(reason: string) {
+      stop("killed", reason);
       return done;
     },
   };
