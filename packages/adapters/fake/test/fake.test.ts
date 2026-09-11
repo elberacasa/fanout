@@ -58,7 +58,7 @@ interface CliResult {
 }
 
 /** Runs the fake CLI the way the supervisor will: absolute path, stdin closed. */
-function runCli(cwd: string, args: string[], options: { killAfterMs?: number } = {}): Promise<CliResult> {
+function runCli(cwd: string, args: string[], options: { killOnOutput?: boolean } = {}): Promise<CliResult> {
   const started = performance.now();
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [FAKE_CLI_PATH, ...args], {
@@ -70,7 +70,16 @@ function runCli(cwd: string, args: string[], options: { killAfterMs?: number } =
     child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
     child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
     child.on("error", reject);
-    if (options.killAfterMs !== undefined) setTimeout(() => child.kill("SIGKILL"), options.killAfterMs);
+    // Kill once it has actually spoken, not after a fixed delay: on a busy machine the process may still be
+    // starting, and a test that depends on how fast a laptop boots Node proves nothing.
+    if (options.killOnOutput === true) {
+      let killing = false;
+      child.stdout.on("data", () => {
+        if (killing) return;
+        killing = true;
+        child.kill("SIGKILL");
+      });
+    }
     child.on("close", (code) => {
       resolve({ code, stdout, stderr, elapsedMs: performance.now() - started });
     });
@@ -197,16 +206,17 @@ describe("fake CLI", () => {
     const result = await runCli(
       dir,
       ["--scenario-json", JSON.stringify({ steps: [], report: "", hang: true }), "--report", "r", "--", "p"],
-      { killAfterMs: 600 },
+      { killOnOutput: true },
     );
     expect(result.code).toBeNull();
     expect(result.stdout).toBe('{"kind":"report","text":""}\n');
   });
 
   it("scales every delay by timeScale", async () => {
-    const slow = await play({ steps: [{ sleep: 300 }], report: "", timeScale: 1 });
-    const instant = await play({ steps: [{ sleep: 300 }], report: "", timeScale: 0 });
-    expect(slow.elapsedMs - instant.elapsedMs).toBeGreaterThan(200);
+    // The gap is far larger than Node's start-up variance, so the difference can only come from the scaled sleep.
+    const slow = await play({ steps: [{ sleep: 2000 }], report: "", timeScale: 1 });
+    const instant = await play({ steps: [{ sleep: 2000 }], report: "", timeScale: 0 });
+    expect(slow.elapsedMs - instant.elapsedMs).toBeGreaterThan(1200);
   });
 });
 

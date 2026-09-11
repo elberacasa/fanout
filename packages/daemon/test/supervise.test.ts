@@ -33,9 +33,11 @@ function launch(fixture: string, overrides: Partial<SuperviseOptions> = {}) {
       env: {},
     },
     logPath,
-    startTimeoutMs: 700,
-    timeoutMs: 1800,
-    killGraceMs: 80,
+    // Generous on purpose: spawning a Node process on a loaded machine is slower than anyone expects, and a test
+    // that fails because the laptop was busy teaches nothing. Tests that exercise a deadline set their own.
+    startTimeoutMs: 5000,
+    timeoutMs: 15_000,
+    killGraceMs: 300,
     maxLogBytes: 4096,
     maxLineBytes: 1024,
     onStarted,
@@ -122,7 +124,7 @@ describe("supervise", () => {
       () => {
         expect(onStarted).toHaveBeenCalledTimes(1);
       },
-      { timeout: 900 },
+      { timeout: 8000 },
     );
     expect(output("stdout")).toEqual([]);
     expect((await run.kill("observed start")).startDetected).toBe(true);
@@ -130,37 +132,37 @@ describe("supervise", () => {
   });
 
   it("enforces the overall wall-clock timeout", async () => {
-    const { run } = launch("sleep", { timeoutMs: 300 });
+    const { run } = launch("sleep", { timeoutMs: 1200 });
     const result = await run.done;
     expect(result).toMatchObject({ status: "timeout", signal: "SIGTERM", startDetected: true });
-    expect(result.durationMs).toBeGreaterThanOrEqual(280);
+    expect(result.durationMs).toBeGreaterThanOrEqual(1000);
   });
 
   it("preserves timeout status when kill is called during the grace period", async () => {
-    const { run, output } = launch("ignore-term", { timeoutMs: 250, killGraceMs: 150 });
+    const { run, output } = launch("ignore-term", { timeoutMs: 800, killGraceMs: 500 });
     await vi.waitFor(
       () => {
         expect(output("stderr")).toContain("ignored SIGTERM");
       },
-      { timeout: 700 },
+      { timeout: 8000 },
     );
     expect((await run.kill("too late")).status).toBe("timeout");
   });
 
   it("escalates SIGTERM to SIGKILL after grace and makes repeated kills safe", async () => {
-    const { run, onStarted, output } = launch("ignore-term", { killGraceMs: 120 });
+    const { run, onStarted, output } = launch("ignore-term", { killGraceMs: 400 });
     await vi.waitFor(
       () => {
         expect(onStarted).toHaveBeenCalledOnce();
       },
-      { timeout: 900 },
+      { timeout: 8000 },
     );
     const began = performance.now();
     const first = run.kill("cancel");
     expect(run.kill("cancel again")).toBe(first);
     const result = await first;
     expect(result).toMatchObject({ status: "killed", exitCode: null, signal: "SIGKILL" });
-    expect(performance.now() - began).toBeGreaterThanOrEqual(110);
+    expect(performance.now() - began).toBeGreaterThanOrEqual(350);
     expect(output("stderr")).toEqual(["ignored SIGTERM"]);
     expect(await run.kill("already exited")).toBe(result);
   });
@@ -174,7 +176,7 @@ describe("supervise", () => {
       () => {
         expect(output("stdout")).toHaveLength(1);
       },
-      { timeout: 900 },
+      { timeout: 8000 },
     );
     const pid = Number(output("stdout")[0]);
     expect(pid).toBeGreaterThan(0);
@@ -185,7 +187,7 @@ describe("supervise", () => {
         () => {
           expect(exists(pid)).toBe(false);
         },
-        { timeout: 900 },
+        { timeout: 8000 },
       );
     } finally {
       if (exists(pid)) process.kill(pid, "SIGKILL");

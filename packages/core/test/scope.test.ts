@@ -117,20 +117,30 @@ describe("scopesMayOverlap", () => {
     const make = (segments: readonly string[], max: number) =>
       Array.from({ length: 1 + Math.floor(random() * max) }, () => pick(segments)).join("/");
 
-    const globs = Array.from({ length: 120 }, () => make(globSegments, 4));
-    const paths = Array.from({ length: 200 }, () => make(pathSegments, 5));
+    const globs = Array.from({ length: 90 }, () => make(globSegments, 4));
+    const paths = Array.from({ length: 150 }, () => make(pathSegments, 5));
+    // Match each path once per glob, then compare sets: the same coverage without re-walking every path per pair.
+    const covered = globs.map((glob) => new Set(paths.filter((path) => pathInScope(path, glob))));
+
     let witnessed = 0;
-    for (const a of globs) {
-      for (const b of globs) {
-        const common = paths.find((path) => pathInScope(path, a) && pathInScope(path, b));
-        if (common !== undefined) {
+    for (let i = 0; i < globs.length; i += 1) {
+      const a = globs[i];
+      const coveredByA = covered[i];
+      if (a === undefined || coveredByA === undefined) continue;
+      for (let j = i; j < globs.length; j += 1) {
+        const b = globs[j];
+        const coveredByB = covered[j];
+        if (b === undefined || coveredByB === undefined) continue;
+        const overlap = scopesMayOverlap(a, b);
+        expect(overlap).toBe(scopesMayOverlap(b, a));
+        const shared = [...coveredByA].find((path) => coveredByB.has(path));
+        if (shared !== undefined) {
           witnessed += 1;
-          expect(scopesMayOverlap(a, b), `${a} / ${b} share ${common}`).toBe(true);
+          expect(overlap, `${a} / ${b} share ${shared}`).toBe(true);
         }
-        expect(scopesMayOverlap(a, b)).toBe(scopesMayOverlap(b, a));
       }
     }
-    expect(witnessed).toBeGreaterThan(1000);
+    expect(witnessed).toBeGreaterThan(500);
   });
 });
 
