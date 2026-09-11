@@ -66,7 +66,14 @@ Nothing is published yet, so this is the contributor path:
 git clone https://github.com/elberacasa/fanout.git && cd fanout
 corepack enable && pnpm install
 git config core.hooksPath .githooks
-npm run check      # typecheck + lint + 311 tests
+npm run check      # typecheck + lint + 354 tests
+```
+
+Two things already work from source:
+
+```sh
+node packages/cli/src/cli.ts status   # your crew: each CLI, its version, whether it is signed in
+node packages/cli/src/cli.ts daemon   # the daemon the lead and the mission view talk to
 ```
 
 Requires **Node 22.18+** (the ledger uses Node's built-in SQLite; TypeScript runs without a build step).
@@ -90,7 +97,7 @@ fanout demo        # P0 · 10
 
 ## Status
 
-P0 · **Claude leads, the crew builds** — 311 tests, green on macOS and Linux, Node 22 and 24.
+P0 · **Claude leads, the crew builds** — 354 tests, green on macOS and Linux, Node 22 and 24.
 
 | Milestone | State |
 |---|---|
@@ -98,8 +105,8 @@ P0 · **Claude leads, the crew builds** — 311 tests, green on macOS and Linux,
 | 2 · Fake seat + supervisor | ✅ done |
 | 3 · Workspace + safety report | ✅ done |
 | 4 · Real seats — Codex, Grok, Claude (opt-in) built from recorded runs; Kimi waiting on its own quota | ✅ done |
-| 5 · Daemon API + CLI | 🔨 next |
-| 6 · The Claude Code plugin | ⬜ |
+| 5 · Daemon API + CLI | ✅ done |
+| 6 · The Claude Code plugin | 🔨 next |
 | 7 · Merge gate | ⬜ |
 | 8 · Mission view | ⬜ |
 | 9 · Routing when a seat hits its limit | ⬜ |

@@ -17,6 +17,30 @@ Next: <the next step>
 
 ---
 
+### 2026-09-11 · P0 milestone 5, Daemon API + CLI · session 1 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: none (the API's security model and the CLI's voice stay with the lead)
+
+Built:
+- **The daemon's door**: HTTP for the present, a WebSocket for what happens next, on `127.0.0.1` only, with a token
+  file only the owner can read, constant-time comparison, and a refusal for anything arriving with a browser's
+  Origin. The subscription can be narrowed to one mission or to the events a lead acts on, and replays before it
+  goes live. New dependency: `ws` (Node ships a WebSocket client, not a server).
+- **The `fanout` CLI**: `status`, `daemon`, `clean`, `version`, `help`.
+- **Kimi and Cursor opened as contributions** ([#4](https://github.com/elberacasa/fanout/issues/4),
+  [#5](https://github.com/elberacasa/fanout/issues/5)) with everything already verified about each CLI, plus a
+  seven-step walkthrough and the bar a seat must meet to merge.
+
+Found by running it for real, not by tests: `fanout status` on the owner's machine reported Grok at **1.0.25**, an
+auto-update since its fixture was recorded at 1.0.13 — which the manifest's version range covers, and which is why
+manifests declare ranges. `fanout clean` failed at first because git reports resolved paths (`/private/var/…`) while
+`FANOUT_HOME` was the symlinked form (`/var/…`), so it removed nothing and then could not delete the branch.
+
+Verified by the lead: typecheck ok · lint ok · **354 tests pass** (22 files) · `fanout status` and `fanout help` run
+against the real machine · CI green on macOS and Linux, Node 22 and 24.
+Could not verify: the daemon under a second concurrent client; `fanout clean` on Windows.
+Next: milestone 6, the Claude Code plugin — the MCP tools, the skill, the commands, the hooks and the status line.
+
 ### 2026-09-11 · P0 milestone 4, Real seats · session 1 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: none (each adapter needed a recording only the owner's machine could make)

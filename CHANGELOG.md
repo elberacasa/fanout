@@ -8,6 +8,26 @@ between minor versions.
 
 Nothing yet.
 
+## [0.5.0] — 2026-09-11
+
+The daemon and the command line: the first parts you can actually run.
+
+### Added
+
+- **Daemon API** (`@fanout/daemon`): HTTP for what is there now and a WebSocket for what happens next, bound to
+  `127.0.0.1` only. Every request carries a token from a file only you can read, compared in constant time; a
+  request arriving with a browser's `Origin` is refused before a handler sees it. Health is the one open endpoint,
+  because it says nothing about you. A subscription can be narrowed to one mission or to the events a lead acts on,
+  and a subscriber that joins mid-mission gets the replay first.
+- **`fanout` CLI** (`@fanout/cli`): `status` asks every installed CLI who it is and whether it is signed in and says
+  "unknown" when a CLI offers no way to ask; `daemon` runs the daemon and prints where it listens, where its token
+  lives and the URL to subscribe to; `clean` removes the worktrees and throwaway branches a mission left behind and
+  never touches your own. Everything lives in `~/.fanout`, and `FANOUT_HOME` moves it.
+
+### Dependencies
+
+- `ws`, because Node ships a WebSocket client but no server.
+
 ## [0.4.0] — 2026-09-11
 
 Real seats: three agent CLIs driven for real, each parsed from a stream we actually recorded.
