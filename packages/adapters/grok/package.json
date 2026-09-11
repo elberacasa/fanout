@@ -1,0 +1,16 @@
+{
+  "name": "@fanout/adapter-grok",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fanout/core": "workspace:*",
+    "zod": "4.6.2"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "grok",
+  "displayName": "Grok Build",
+  "binary": "grok",
+  "supportedVersions": ">=1.0 <2",
+  "headless": {
+    "args": [
+      "-p",
+      "{prompt}",
+      "--output-format",
+      "streaming-json",
+      "--permission-mode",
+      "{sandbox}",
+      "--cwd",
+      "{workdir}"
+    ],
+    "stdin": "closed"
+  },
+  "stream": { "flag": "--output-format streaming-json", "format": "jsonl" },
+  "models": [],
+  "efforts": ["low", "medium", "high"],
+  "permissionModes": { "readOnly": "plan", "edit": "acceptEdits" },
+  "network": { "canDisable": false, "flag": null },
+  "signIn": { "probe": null, "okPattern": null },
+  "usage": { "probe": null, "window": "unknown" },
+  "billing": "subscription",
+  "terms": {
+    "reviewedAt": "2026-09-11",
+    "notes": "Driven only through the documented single-turn mode (-p) with structured output. No credential handling: sign-in belongs to `grok login`, and the CLI offers no status command, so the crew reports sign-in as unknown rather than guessing. It writes no report file of its own, so the run's report is the text it streamed."
+  },
+  "status": "alpha"
+}
