@@ -1,6 +1,6 @@
 # Fanout
 
-> **Your AI subscriptions, one crew.** *(working name, final name chosen in session 1; see [docs/DECISIONS.md](docs/DECISIONS.md))*
+> **Claude Code leads. Your other agents build.** *(working name; see [docs/DECISIONS.md](docs/DECISIONS.md) 0007)*
 
 **Status: pre-alpha.** This repository holds the foundation (vision, product, architecture, roadmap and the way we
 build). The first code is P0 milestone 1 in [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -9,46 +9,41 @@ build). The first code is P0 milestone 1 in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## What it is
 
-A local app that turns the AI coding agents you **already pay for** into one team: Claude Code, OpenAI Codex, Gemini,
-Kimi, Grok, Qwen, and more. It uses **your subscriptions, through each CLI's official headless mode. No API keys.**
+A Claude Code plugin and a local daemon that turn the agent CLIs you **already pay for** into one crew, with Claude
+Code as the lead: Codex, Kimi, Grok, Cursor, and Claude itself when you opt in. It uses **your subscriptions, through
+each CLI's official non-interactive mode. No API keys.**
 
-1. **It finds your crew.** It scans your machine for installed, signed-in agent CLIs. Each one becomes a *seat*:
-   Claude Max, ChatGPT Pro, Gemini, each with a live quota meter.
-2. **A brain plans first.** A brain of your choice (Claude Code by default) reads the repo and proposes a mission: a
-   graph of tasks, their file scopes, dependencies, and which seat, model and effort suits each.
-3. **You shape the fan-out on a canvas.** Add a line, pick the seat, model and effort, drop a prompt card on it,
-   connect dependencies. A safety report must turn green before **Launch**.
-4. **You watch the crew work.** Every agent runs in its own git worktree. You see its tool calls, files, tests, quota
-   and a live diff.
-5. **Nothing merges unreviewed.** Diffs arrive in a merge queue: the brain reviews, your checks run, you approve.
-   Rework or drop anything, and replay every mission afterwards.
+1. **Ask in Claude Code.** `/fanout add CSV export and fix the flaky date test`.
+2. **Claude plans.** It reads the repo and proposes lines: who builds what, in which files, with which agent and
+   effort. A safety report must turn green before launch.
+3. **Your crew builds in parallel.** Every agent runs in its own git worktree. A local mission view shows each one
+   live: phase, tool calls, files, tests, a growing diff.
+4. **Nothing merges unreviewed.** Claude reviews every diff, your real checks run, bug fixes are proven to fail on the
+   old code, and you approve the merge.
 
-When one subscription runs low, work moves to another: *"Claude is resting until 4:10, sending the tests to Codex."*
+When one subscription runs low, work moves to another, with the reason shown.
 
 ## Why it's different
 
-- **Subscriptions, not keys.** The CLIs you use stay the only thing that holds your credentials. We never read,
-  store or proxy them.
-- **The control layer.** Per-agent limits (time, steps, quota, files, commands, network), quota-aware routing across
-  your subscriptions, approval gates, kill, pause and steer.
-- **Verification is built in.** Worktree isolation, agents never commit, a brain review, proof that bug fixes fail on
-  the old code, and your real checks run before any merge.
-- **One event ledger.** The canvas, the terminal UI, the brain and replays all read the same append-only stream.
-- **Local-first.** Your code and your prompts stay on your machine. No telemetry by default.
+- **It lives where you already work.** Plan, review and approve in your Claude Code session. No new app to learn.
+- **Cross-vendor review.** Claude reviews Codex's work; different models catch different mistakes.
+- **A merge gate with proof.** Worktree isolation, agents never commit, your checks, proof of fixes, your approval.
+- **Subscriptions, not keys.** The CLIs stay the only thing that holds your credentials. We never read, store or proxy
+  them.
+- **Local-first.** Your code, prompts and the event ledger stay on your machine. The mission view is served on
+  localhost only. No telemetry by default.
 
 ## How it works
 
 ```mermaid
 flowchart TB
-    subgraph You
-      P[Prompt] --> C[Canvas: shape lines · limits · Launch]
-    end
-    B[Brain seat<br/>Claude Code by default] -- plan via MCP --> C
-    C --> D{{Daemon<br/>ledger · policy · router · supervisor · worktrees}}
-    D --> S1[Seat: claude -p] & S2[Seat: codex exec] & S3[Seat: gemini …] & S4[Seat: kimi / grok / qwen …]
-    S1 & S2 & S3 & S4 -- structured streams --> D
-    D --> Q[Merge queue: brain review → checks → your approval]
-    Q --> R[(Your repo)]
+    U[You] <--> L[Claude Code + Fanout plugin<br/>the lead: plans · reviews · asks you]
+    L -- MCP tools --> D{{fanoutd<br/>worktrees · supervisor · safety · merge gate · ledger}}
+    D -- events --> L
+    D --> S1[codex exec] & S2[kimi -p] & S3[grok -p] & S4[cursor-agent -p] & S5[claude -p · opt-in]
+    S1 & S2 & S3 & S4 & S5 -- structured streams --> D
+    D --> V[Mission view · localhost]
+    D --> R[(Your repo, after review + checks + proof + your approval)]
 ```
 
 ## Built by a crew
@@ -65,15 +60,14 @@ with which prompt, and what review changed.
 |---|---|
 | [AGENTS.md](AGENTS.md) | The rules for every agent working here (Claude reads it through CLAUDE.md) |
 | [docs/STATUS.md](docs/STATUS.md) | **Resume here:** where we are and the next task |
-| [docs/VISION.md](docs/VISION.md) | Why this exists, who it is for, how it wins |
-| [docs/PRODUCT.md](docs/PRODUCT.md) | Concepts, the flow, the canvas, seats, safety, the merge queue |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Daemon, event schema, adapters, MCP tools, UI, stack |
-| [docs/ADAPTERS.md](docs/ADAPTERS.md) | The seat adapter contract and the CLI integration tracker |
+| [docs/VISION.md](docs/VISION.md) | Why this exists, who it is for, the field, how it wins |
+| [docs/PRODUCT.md](docs/PRODUCT.md) | Concepts, the flow inside Claude Code, the mission view, the 30-second video |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Plugin, daemon, event schema, adapters, MCP tools, safety, stack |
+| [docs/ADAPTERS.md](docs/ADAPTERS.md) | The seat adapter contract and the verified CLI tracker |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases with a definition of done |
 | [docs/PLAYBOOK.md](docs/PLAYBOOK.md) | How Claude and Codex build this together |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Architecture decision records |
 | [docs/BUILD_LOG.md](docs/BUILD_LOG.md) | The public record of the crew at work |
-| [KICKOFF.md](KICKOFF.md) | The first prompt for session 1 |
 
 ## License
 

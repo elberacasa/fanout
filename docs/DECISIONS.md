@@ -58,3 +58,54 @@ parsing terminal output.
 "Fanout" is a working name, matching the owner's public `codex-fanout` skill. Before the first public release, check
 availability (npm, GitHub, domain) and avoid vendor trademarks as the product name ("Claude", "Codex", "Gemini") and
 names that collide with existing agent projects (e.g. CrewAI).
+
+## 0008 · Claude Code is the lead; the product is a plugin plus a vendor-neutral daemon (2026-09-11)
+
+**Choice:** the brain is the user's interactive Claude Code session. Fanout ships as a Claude Code plugin (skill,
+commands, hooks, status line, MCP server config) on top of a local daemon that does all the mechanics. Amends 0002
+(the editable canvas moves to P1; P0 has a read-only mission view) and narrows 0005 (MCP stays the interface, but P0
+supports only Claude Code as the brain).
+
+**Why:** the parallel-runner category is crowded (Conductor, Emdash, Parallel Code, …); the open space is the lead's
+job, done where developers already work. Claude Code already has the lead's primitives (plan mode, background events
+through Monitor, hooks, notifications). The interactive brain also stays outside headless billing. The owner chose
+this on 2026-09-11.
+
+**Consequences:** the daemon must not depend on Claude Code, so other brains can come later (P3). The plugin must stay
+thin: correctness lives in tested daemon code. We depend on Claude Code's plugin, MCP and hook interfaces; pin and
+test them like adapters.
+
+## 0009 · Claude as a worker is opt-in (2026-09-11)
+
+**Choice:** the default workers are other vendors' CLIs. Claude runs as a worker only when the user opts in, per
+mission or per line.
+
+**Why:** the lead already spends Claude quota on planning and review; the point is to put the other subscriptions to
+work. It matches the owner's `codex-fanout` rule.
+
+## 0010 · Any agent CLI through adapters; P0 covers what is verified on the owner's machine (2026-09-11)
+
+**Choice:** any agent CLI with an official non-interactive mode can become a seat through one adapter folder. P0
+ships Codex, Claude (opt-in), Kimi, Grok and Cursor (verified on the owner's machine on 2026-09-11); Gemini, Qwen and
+OpenCode follow when installed and verified.
+
+**Why:** the owner wants every CLI on their Mac to be usable, and "four vendors in one mission" is the product's
+proof.
+
+**Consequences:** the adapter kit must make a new CLI a small, well-tested change; each adapter still needs fixtures,
+contract tests and a terms review before it ships.
+
+## 0011 · The mission view is local only (2026-09-11)
+
+**Choice:** the view is served by the daemon on `127.0.0.1` with a per-daemon token and an Origin check. It is never
+published as a hosted page or a Claude artifact.
+
+**Why:** the view shows code, diffs and prompts; non-negotiable 5 keeps them on the machine.
+
+## 0012 · Track each seat's billing pool (2026-09-11)
+
+**Choice:** every adapter manifest records which pool a seat bills against (subscription limits, separate credit,
+API) and the date of its terms review; the UI shows it.
+
+**Why:** vendors change how headless use is billed (Anthropic announced, then paused, a separate credit for
+`claude -p` in June 2026). A policy change should be a manifest update, not a redesign.

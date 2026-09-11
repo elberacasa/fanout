@@ -7,10 +7,11 @@ fact is not in this repo, it is not known.
 
 ## What we are building (one paragraph)
 
-A local-first app that orchestrates the coding-agent CLIs a developer already has installed and signed in (Claude
-Code, Codex, Gemini, Kimi, Grok, Qwen, …) using their subscriptions through each CLI's official non-interactive
-mode. A brain seat plans a mission; the developer shapes the fan-out on a canvas; agents work in parallel in
-isolated git worktrees; every diff is reviewed and verified before it merges. Details: `docs/PRODUCT.md`.
+A Claude Code plugin plus a local daemon that let Claude Code lead a crew of the other coding-agent CLIs a developer
+already has installed and signed in (Codex, Kimi, Grok, Cursor, and Claude itself when opted in), using their
+subscriptions through each CLI's official non-interactive mode. Claude plans the mission; agents work in parallel in
+isolated git worktrees; a local mission view shows them live; every diff is reviewed, checked and proven before the
+developer approves the merge. Details: `docs/PRODUCT.md`.
 
 ## Product non-negotiables (never trade these for speed)
 

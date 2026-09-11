@@ -54,18 +54,28 @@ means a new fixture recorded, not a guess.
 ## Integration tracker
 
 Everything below must be verified against the installed CLI's `--help` and its documentation before it's built.
-Nothing here is assumed.
+Nothing here is assumed. "Verified" means read from `--help` on the owner's machine on the date shown; stream shapes
+still need recorded fixtures.
 
-| Seat | CLI | Headless mode (to verify) | Structured stream (to verify) | Status |
-|---|---|---|---|---|
-| **Fake** | built in | deterministic simulator | our events | P0 |
-| **Claude Code** | `claude` | `claude -p "<prompt>"` | `--output-format stream-json` | P0 |
-| **OpenAI Codex** | `codex` | `codex exec …` | `--json` | P0 |
-| **Gemini** | `gemini` | `gemini -p "<prompt>"` | to verify | P1 |
-| **Kimi** | vendor CLI, to identify | to verify | to verify | research |
-| **Grok** | vendor CLI, to identify (official only) | to verify | to verify | research |
-| **Qwen Code** | `qwen` | to verify | to verify | research |
-| **OpenCode** | `opencode` | to verify | to verify | research (check whether it needs API keys: if so, it's an opt-in key seat, not default) |
+| Seat | CLI (verified 2026-09-11) | Headless mode | Structured stream | Permissions / sandbox | Sign-in probe | Role · Status |
+|---|---|---|---|---|---|---|
+| **Fake** | built in | deterministic simulator | our events | n/a | n/a | demo + tests · P0 |
+| **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · P0 |
+| **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` (`--verbose` to verify) | `--permission-mode` (acceptEdits, auto, dontAsk, plan, …), `--permission-prompts none`, `--restricted`, `--allowedTools` | `claude auth status` ✓ signed in (Max) | opt-in worker · P0 |
+| **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` | `--output-format stream-json` | `--plan` (read-only), `-y`/`--auto` (auto-approve); sandbox: to verify | no status command; harmless dry call to verify | worker · P0 |
+| **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt>` / `--prompt-file`; `grok agent` | `--output-format streaming-json` (ACP updates) or `streaming-messages-json` | `--permission-mode`, `--sandbox <profile>`, `--cwd`, `--max-turns`, `--disable-web-search` | no status command; harmless dry call to verify | worker · P0 |
+| **Cursor Agent** | `cursor-agent` 2026.01.23 | `cursor-agent -p` | `--output-format stream-json` | `--mode plan\|ask`, `--sandbox enabled`, `--workspace <dir>` | `cursor-agent status` ✗ not signed in | worker · P0 when signed in |
+| **Gemini** | not installed | `gemini -p` (to verify) | to verify | to verify | to verify | P1 |
+| **Qwen Code** | not installed | to verify | to verify | to verify | to verify | P1 |
+| **OpenCode** | not installed | to verify | to verify | to verify | to verify | P1 (if it needs API keys, it's an opt-in key seat) |
+
+Notes from the check:
+- Never pass a flag that skips the vendor's sandbox or approvals (`--dangerously-*`, `bypassPermissions`,
+  `--always-approve` outside a worktree). The safest workable mode per seat is decided in the adapter and shown in the
+  safety report.
+- Every manifest records its **billing pool** (subscription limits, a separate credit, or API) and the terms review.
+  Anthropic announced moving `claude -p` to a separate credit on 2026-06-15, then paused it; its help page says
+  headless use still draws from subscription limits and that notice will come before any change.
 
 Adding a seat means one folder, one manifest, fixtures and contract tests, the terms review, and a row updated here.
 No change anywhere else in the daemon.
