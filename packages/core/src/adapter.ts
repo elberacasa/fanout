@@ -30,6 +30,11 @@ export interface AdapterContext {
 export type AdapterSignal =
   | { kind: "session"; id: string }
   | { kind: "limit"; message: string; resetsAt?: string }
+  /**
+   * How full a seat's quota window is, when the CLI says so itself: 0.28 means 28% of that window is used.
+   * Real, not estimated. Claude Code reports one per turn; most CLIs report nothing and the crew estimates instead.
+   */
+  | { kind: "quota"; window: string; utilization: number; resetsAt?: string }
   | { kind: "report"; text: string }
   /** The CLI reported a problem of its own. Kept whole: a swallowed error is how a run fails silently. */
   | { kind: "error"; message: string }
