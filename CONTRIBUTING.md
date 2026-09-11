@@ -39,7 +39,9 @@ Node 22.18 or newer (the ledger uses the built-in SQLite, and we run TypeScript 
 ## Changes we accept gladly
 
 - **A new adapter** for an agent CLI with an official non-interactive mode: one folder, a manifest, recorded
-  fixtures, contract tests, and the provider's terms reviewed and noted. See `docs/ADAPTERS.md`.
+  fixtures, contract tests, and the provider's terms reviewed and noted. The walkthrough is
+  [Add a seat in an afternoon](docs/ADAPTERS.md), and issues labelled `adapter` + `help wanted` are ready to pick
+  up — each lists what has already been verified about that CLI, so you start from facts rather than from `--help`.
 - **Bug fixes with a test that fails on the old code.**
 - **Tests, fixtures and docs** for behaviour that already exists.
 

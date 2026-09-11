@@ -151,9 +151,19 @@ run escape its declared scope. Each was fixed with a test that failed on the old
 
 ## Contributing
 
-Adapters for new agent CLIs, bug fixes with failing-first tests, and docs are all welcome. Start with
-[CONTRIBUTING.md](CONTRIBUTING.md) and [docs/COMMITS.md](docs/COMMITS.md). Be decent:
-[code of conduct](CODE_OF_CONDUCT.md).
+**Add a seat.** A seat is one folder and nothing else in the daemon changes, so the crew grows by addition. Two are
+open right now, each with the CLI's flags already verified so you start from facts:
+
+- [#4 Kimi Code](https://github.com/elberacasa/fanout/issues/4) — its usage limit arrives on stderr, which is why
+  adapters can read stderr
+- [#5 Cursor Agent](https://github.com/elberacasa/fanout/issues/5) — needs a signed-in account to record a run
+
+The walkthrough is [Add a seat in an afternoon](docs/ADAPTERS.md), and `packages/adapters/fake` is the reference
+implementation. Using a CLI we haven't listed? Open an adapter issue; the only hard requirement is that the vendor
+documents a non-interactive mode.
+
+Bug fixes with failing-first tests and docs are just as welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and
+[docs/COMMITS.md](docs/COMMITS.md). Be decent: [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

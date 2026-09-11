@@ -62,9 +62,9 @@ still need recorded fixtures.
 | **Fake** | built in (`packages/adapters/fake`) | `node src/cli.ts --scenario-json '<json>' --report <path> -- <prompt>` | JSONL, one object per line (`protocol.ts`) | writes confined to its working directory | n/a | demo + tests · **built** |
 | **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · **built** (alpha) |
 | **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` **with `--verbose`** (verified) | `--permission-mode plan \| acceptEdits` with `--permission-prompts none` (deny, never bypass) | `claude auth status` ✓ signed in (Max) | opt-in worker · **built** (alpha) |
-| **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` — **`--prompt` cannot be combined with `--auto`** (verified) | `--output-format stream-json`; first line is `{"role":"meta","type":"system.version"}` | `--plan` (read-only), `-y` (auto-approve); sandbox: to verify | no status command → reported unknown | worker · **research**: recording blocked, see below |
+| **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` — **`--prompt` cannot be combined with `--auto`** (verified) | `--output-format stream-json`; first line is `{"role":"meta","type":"system.version"}` | `--plan` (read-only), `-y` (auto-approve); sandbox: to verify | no status command → reported unknown | **help wanted** ([#4](https://github.com/elberacasa/fanout/issues/4)) |
 | **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt> --cwd <dir>` | `--output-format streaming-json` (session updates) | `--permission-mode plan \| acceptEdits`; `--cwd`; `--max-turns` | no status command → reported unknown | worker · **built** (alpha) |
-| **Cursor Agent** | `cursor-agent` 2026.01.23 | `cursor-agent -p` | `--output-format stream-json` | `--mode plan\|ask`, `--sandbox enabled`, `--workspace <dir>` | `cursor-agent status` ✗ not signed in | worker · P0 when signed in |
+| **Cursor Agent** | `cursor-agent` 2026.01.23 | `cursor-agent -p` | `--output-format stream-json` | `--mode plan\|ask`, `--sandbox enabled`, `--workspace <dir>` | `cursor-agent status` ✗ not signed in | **help wanted** ([#5](https://github.com/elberacasa/fanout/issues/5)) |
 | **Gemini** | not installed | `gemini -p` (to verify) | to verify | to verify | to verify | P1 |
 | **Qwen Code** | not installed | to verify | to verify | to verify | to verify | P1 |
 | **OpenCode** | not installed | to verify | to verify | to verify | to verify | P1 (if it needs API keys, it's an opt-in key seat) |
@@ -73,6 +73,34 @@ Notes from the check:
 - Never pass a flag that skips the vendor's sandbox or approvals (`--dangerously-*`, `bypassPermissions`,
   `--always-approve` outside a worktree). The safest workable mode per seat is decided in the adapter and shown in the
   safety report.
+## Add a seat in an afternoon
+
+A seat is one folder. Nothing else in the daemon changes, which is the point: the crew grows by addition. Take an
+open adapter issue (they are labelled `adapter` + `help wanted`) or open one, then:
+
+1. **Verify the CLI, don't assume it.** `which <cli>`, `<cli> --version`, and read `<cli> --help` for four things:
+   its non-interactive mode, its structured-output flag, its permission and sandbox flags, and how to ask it whether
+   it is signed in. Use the CLI's own status command; never read a credential file.
+2. **Record a real run** on a throwaway repository (see below) and scrub it.
+3. **Write the manifest** (`manifest.json`): supported versions, the exact argument template, the safest modes, the
+   sign-in probe, which pool headless use bills against, and the date you reviewed the vendor's terms. Copy
+   `packages/adapters/codex/manifest.json` and change what differs.
+4. **Describe the stream** (`src/protocol.ts`) as a zod schema of only the fields you use, with unknown extras
+   allowed so a vendor adding a field never breaks a run.
+5. **Write `command()` and `parse()`** (`src/index.ts`). `command()` builds the argv from the manifest; `parse()`
+   maps one line to events plus signals and **never throws** — an unknown line is an `unparsed` signal, not a guess.
+   Make absolute paths repo-relative. If the CLI says anything important on stderr, add `parseStderr`.
+6. **Write the contract test** (`test/<cli>.test.ts`): replay the recording and assert the exact events and signals,
+   then the awkward cases — garbage input, an unknown line type, a usage limit, a path outside the workspace.
+7. **Run `npm run check`** and open a pull request. The checklist in the PR template is the review.
+
+**The bar for merging a seat:** it drives the vendor's own CLI through its documented non-interactive mode; it
+touches no credentials; an auditor runs read-only; no flag hands over the machine; a limit is reported as a limit;
+what it cannot verify it says it cannot verify; and its parser matches a recording anyone can replay.
+
+`packages/adapters/fake` is the reference implementation, and `codex`, `grok` and `claude` are three real ones that
+differ enough to show the range.
+
 ### Recording a fixture
 
 A contract test replays a stream we actually saw, never one we imagined. To record one:
