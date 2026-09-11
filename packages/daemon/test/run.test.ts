@@ -45,10 +45,11 @@ if (line === undefined) throw new Error("fixture plan has no line");
  */
 function scripted(
   output: string[],
-  options: { exitCode?: number; writeReport?: boolean; sleepMs?: number } = {},
+  options: { exitCode?: number; writeReport?: boolean; sleepMs?: number; stderr?: string[] } = {},
 ) {
   const program = [
     `const fs = require("node:fs");`,
+    `for (const line of ${JSON.stringify(options.stderr ?? [])}) process.stderr.write(line + "\\n");`,
     `for (const line of ${JSON.stringify(output)}) console.log(line);`,
     options.writeReport === true ? `fs.writeFileSync(process.argv[1], "done");` : "",
     options.sleepMs === undefined ? "" : `setTimeout(() => {}, ${options.sleepMs});`,
@@ -68,6 +69,10 @@ function scripted(
         return { events: [], signals: [{ kind: "report", text: text.slice(8) }] };
       return { events: [], signals: [{ kind: "unparsed", line: text }] };
     },
+    parseStderr: (text): ParseResult =>
+      text.includes("usage limit")
+        ? { events: [], signals: [{ kind: "limit", message: text }] }
+        : { events: [], signals: [] },
   };
   return adapter;
 }
@@ -192,6 +197,29 @@ describe("startRun", () => {
       "run.started",
       "run.progress",
       "run.finished",
+    ]);
+  });
+
+  it("hears a limit reported on stderr, where at least one real CLI puts it", async () => {
+    const signals: AdapterSignal[] = [];
+    const run = startRun({
+      ledger,
+      adapter: scripted([event({ type: "run.progress", phase: "coding" })], {
+        exitCode: 1,
+        stderr: ["warming up", "error: 403 You've reached your monthly usage limit for this billing cycle."],
+      }),
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+      onSignal: (signal) => signals.push(signal),
+    });
+
+    expect((await run.finished).status).toBe("failed");
+    expect(signals).toEqual([
+      {
+        kind: "limit",
+        message: "error: 403 You've reached your monthly usage limit for this billing cycle.",
+      },
     ]);
   });
 

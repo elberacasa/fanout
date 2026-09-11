@@ -86,8 +86,9 @@ export function startRun(options: StartRunOptions): ActiveRun {
       record({ type: "run.started", ...ids, workdir: spec.cwd, argv: spec.argv });
     },
     onLine: (line, stream) => {
-      if (stream !== "stdout") return;
-      const result = adapter.parse(line, context);
+      const result =
+        stream === "stdout" ? adapter.parse(line, context) : adapter.parseStderr?.(line, context);
+      if (result === undefined) return;
       for (const event of result.events) {
         if (!belongsToRun(event) || !record(event)) {
           if (ledgerFailure === undefined) signal({ kind: "unparsed", line });

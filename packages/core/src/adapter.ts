@@ -45,4 +45,10 @@ export interface SeatAdapter {
   command(context: AdapterContext): LaunchSpec;
   /** Maps one line of the CLI's stdout. Never throws: unknown lines become an `unparsed` signal. */
   parse(line: string, context: AdapterContext): ParseResult;
+  /**
+   * Maps one line of the CLI's stderr, when that is where it says something we must not miss. Kimi reports a
+   * monthly usage limit there and exits non-zero, with nothing in its stream; a daemon reading only stdout would
+   * call that a plain failure. Adapters whose stderr carries only noise leave this out.
+   */
+  parseStderr?(line: string, context: AdapterContext): ParseResult;
 }
