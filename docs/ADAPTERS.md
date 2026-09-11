@@ -60,7 +60,7 @@ still need recorded fixtures.
 | Seat | CLI (verified 2026-09-11) | Headless mode | Structured stream | Permissions / sandbox | Sign-in probe | Role · Status |
 |---|---|---|---|---|---|---|
 | **Fake** | built in (`packages/adapters/fake`) | `node src/cli.ts --scenario-json '<json>' --report <path> -- <prompt>` | JSONL, one object per line (`protocol.ts`) | writes confined to its working directory | n/a | demo + tests · **built** |
-| **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · P0 |
+| **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · **built** (alpha) |
 | **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` (`--verbose` to verify) | `--permission-mode` (acceptEdits, auto, dontAsk, plan, …), `--permission-prompts none`, `--restricted`, `--allowedTools` | `claude auth status` ✓ signed in (Max) | opt-in worker · P0 |
 | **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` | `--output-format stream-json` | `--plan` (read-only), `-y`/`--auto` (auto-approve); sandbox: to verify | no status command; harmless dry call to verify | worker · P0 |
 | **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt>` / `--prompt-file`; `grok agent` | `--output-format streaming-json` (ACP updates) or `streaming-messages-json` | `--permission-mode`, `--sandbox <profile>`, `--cwd`, `--max-turns`, `--disable-web-search` | no status command; harmless dry call to verify | worker · P0 |
@@ -73,6 +73,22 @@ Notes from the check:
 - Never pass a flag that skips the vendor's sandbox or approvals (`--dangerously-*`, `bypassPermissions`,
   `--always-approve` outside a worktree). The safest workable mode per seat is decided in the adapter and shown in the
   safety report.
+### Recording a fixture
+
+A contract test replays a stream we actually saw, never one we imagined. To record one:
+
+1. Make a throwaway repository outside this one, with two or three ordinary files and one commit.
+2. Run the CLI's non-interactive mode on it with a trivial task ("add a file called hello.txt containing hello,
+   then stop"), stdin closed, structured output on, writing the stream to a file. Use the cheapest model and effort:
+   a fixture proves the shape of the stream, not the intelligence of the agent.
+3. **Scrub it**: replace absolute paths with `/work/sample`, and check every line for anything private. Never record
+   against a real project.
+4. Commit it as `fixtures/<name>.jsonl` and assert the exact events and signals it produces.
+
+What recording the Codex stream taught us, and a hand-written fixture would have missed: file changes arrive as
+**absolute paths** (adapters make them repo-relative), and the CLI emits non-fatal `error` items mid-run that must
+reach the lead rather than being swallowed. A new CLI version means a new recording, not an edited one.
+
 ### The fake seat
 
 The built-in simulator is a seat like any other, so it exercises the same contract as a real CLI. A scenario lists

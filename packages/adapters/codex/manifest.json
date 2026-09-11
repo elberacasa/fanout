@@ -1,0 +1,23 @@
+{
+  "id": "codex",
+  "displayName": "OpenAI Codex",
+  "binary": "codex",
+  "supportedVersions": ">=0.150.0 <1.0.0",
+  "headless": {
+    "args": ["exec", "--json", "-C", "{workdir}", "-s", "{sandbox}", "-o", "{report}", "{prompt}"],
+    "stdin": "closed"
+  },
+  "stream": { "flag": "--json", "format": "jsonl" },
+  "models": ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.3-codex-spark"],
+  "efforts": ["low", "medium", "high", "xhigh", "max"],
+  "permissionModes": { "readOnly": "read-only", "edit": "workspace-write" },
+  "network": { "canDisable": false, "flag": null },
+  "signIn": { "probe": ["login", "status"], "okPattern": "Logged in" },
+  "usage": { "probe": null, "window": "unknown" },
+  "billing": "subscription",
+  "terms": {
+    "reviewedAt": "2026-09-11",
+    "notes": "Driven only through `codex exec`, the documented non-interactive mode. No credential handling: sign-in state is read with `codex login status`. Network behaviour inside the sandbox is the CLI's own and we do not claim to control it, so the safety report warns rather than promising isolation."
+  },
+  "status": "alpha"
+}
