@@ -31,6 +31,8 @@ export type AdapterSignal =
   | { kind: "session"; id: string }
   | { kind: "limit"; message: string; resetsAt?: string }
   | { kind: "report"; text: string }
+  /** The CLI reported a problem of its own. Kept whole: a swallowed error is how a run fails silently. */
+  | { kind: "error"; message: string }
   | { kind: "unparsed"; line: string };
 
 export interface ParseResult {
