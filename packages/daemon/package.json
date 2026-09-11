@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "@fanout/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@fanout/adapter-fake": "workspace:*"
   }
 }

@@ -50,6 +50,10 @@ importers:
       '@fanout/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@fanout/adapter-fake':
+        specifier: workspace:*
+        version: link:../adapters/fake
 
 packages:
 
