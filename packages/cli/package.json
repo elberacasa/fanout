@@ -1,0 +1,22 @@
+{
+  "name": "@fanout/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "fanout": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fanout/adapter-claude": "workspace:*",
+    "@fanout/adapter-codex": "workspace:*",
+    "@fanout/adapter-grok": "workspace:*",
+    "@fanout/core": "workspace:*",
+    "@fanout/daemon": "workspace:*"
+  }
+}
