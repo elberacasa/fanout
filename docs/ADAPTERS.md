@@ -62,8 +62,8 @@ still need recorded fixtures.
 | **Fake** | built in (`packages/adapters/fake`) | `node src/cli.ts --scenario-json '<json>' --report <path> -- <prompt>` | JSONL, one object per line (`protocol.ts`) | writes confined to its working directory | n/a | demo + tests · **built** |
 | **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · **built** (alpha) |
 | **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` (`--verbose` to verify) | `--permission-mode` (acceptEdits, auto, dontAsk, plan, …), `--permission-prompts none`, `--restricted`, `--allowedTools` | `claude auth status` ✓ signed in (Max) | opt-in worker · P0 |
-| **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` | `--output-format stream-json` | `--plan` (read-only), `-y`/`--auto` (auto-approve); sandbox: to verify | no status command; harmless dry call to verify | worker · P0 |
-| **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt>` / `--prompt-file`; `grok agent` | `--output-format streaming-json` (ACP updates) or `streaming-messages-json` | `--permission-mode`, `--sandbox <profile>`, `--cwd`, `--max-turns`, `--disable-web-search` | no status command; harmless dry call to verify | worker · P0 |
+| **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` — **`--prompt` cannot be combined with `--auto`** (verified) | `--output-format stream-json`; first line is `{"role":"meta","type":"system.version"}` | `--plan` (read-only), `-y` (auto-approve); sandbox: to verify | no status command → reported unknown | worker · **research**: recording blocked, see below |
+| **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt> --cwd <dir>` | `--output-format streaming-json` (session updates) | `--permission-mode plan \| acceptEdits`; `--cwd`; `--max-turns` | no status command → reported unknown | worker · **built** (alpha) |
 | **Cursor Agent** | `cursor-agent` 2026.01.23 | `cursor-agent -p` | `--output-format stream-json` | `--mode plan\|ask`, `--sandbox enabled`, `--workspace <dir>` | `cursor-agent status` ✗ not signed in | worker · P0 when signed in |
 | **Gemini** | not installed | `gemini -p` (to verify) | to verify | to verify | to verify | P1 |
 | **Qwen Code** | not installed | to verify | to verify | to verify | to verify | P1 |
@@ -85,9 +85,22 @@ A contract test replays a stream we actually saw, never one we imagined. To reco
    against a real project.
 4. Commit it as `fixtures/<name>.jsonl` and assert the exact events and signals it produces.
 
-What recording the Codex stream taught us, and a hand-written fixture would have missed: file changes arrive as
-**absolute paths** (adapters make them repo-relative), and the CLI emits non-fatal `error` items mid-run that must
-reach the lead rather than being swallowed. A new CLI version means a new recording, not an edited one.
+What recording real streams has taught us, and hand-written fixtures would have missed:
+
+- **Codex**: file changes arrive as **absolute paths** (adapters make them repo-relative), and the CLI emits
+  non-fatal `error` items mid-run that must reach the lead rather than being swallowed. A usage limit arrives as one
+  of those error items, so the adapter tells a limit apart from an ordinary error.
+- **Grok**: prose arrives as a stream of one-word deltas and the CLI writes no report file, so the adapter assembles
+  the run's report itself; the session id arrives only in the final line.
+- **Kimi**: a monthly usage limit arrives on **stderr with a non-zero exit** and nothing in the stream at all. A
+  daemon reading only stdout would call that a plain failure, so `SeatAdapter` gained an optional `parseStderr`.
+
+A new CLI version means a new recording, not an edited one.
+
+**Kimi is waiting on quota, not on us.** On 2026-09-11 the owner's account answered
+`403 You've reached your monthly usage limit for this billing cycle`, so no successful run exists to record. We do
+not guess a parser from `--help`: the adapter stays unbuilt until a run can be recorded, which is also the rule that
+keeps us from shipping a stream we have never seen.
 
 ### The fake seat
 
