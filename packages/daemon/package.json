@@ -10,9 +10,11 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@fanout/core": "workspace:*"
+    "@fanout/core": "workspace:*",
+    "ws": "8.19.0"
   },
   "devDependencies": {
-    "@fanout/adapter-fake": "workspace:*"
+    "@fanout/adapter-fake": "workspace:*",
+    "@types/ws": "^8.18.1"
   }
 }

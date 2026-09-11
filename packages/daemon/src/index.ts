@@ -11,3 +11,9 @@ export { git, GitError, type GitOptions } from "./workspace/git.ts";
 export type * from "./safety/types.ts";
 export { safetyReport, type RepositoryState, type SafetyDependencies } from "./safety/report.ts";
 export { createSafetyDependencies, type SafetyDependencyOptions } from "./safety/dependencies.ts";
+
+export { detectSeats, type CommandResult, type DetectOptions } from "./detector/detect.ts";
+export { compareVersions, parseVersion, satisfies, type Version } from "./detector/version.ts";
+
+export { startApi, LEAD_EVENTS, type ApiOptions, type ApiServer } from "./api/server.ts";
+export { originAllowed, readOrCreateToken, tokenMatches } from "./api/token.ts";
