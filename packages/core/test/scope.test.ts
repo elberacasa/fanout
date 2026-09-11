@@ -15,23 +15,33 @@ describe("scope globs", () => {
     expect(ScopeGlob.safeParse(glob).success).toBe(true);
   });
 
+  it.each(["", "/etc/passwd", "src/", "../outside", "src/../outside", "./src", "src//x", "src/**.ts", "ab"])(
+    "rejects %j",
+    (glob) => {
+      expect(isValidScopeGlob(glob)).toBe(false);
+      expect(ScopeGlob.safeParse(glob).success).toBe(false);
+    },
+  );
+
   it.each([
-    "",
-    "/etc/passwd",
-    "src/",
-    "../outside",
-    "src/../outside",
-    "./src",
-    "src//x",
-    "src/**.ts",
-    "src/{a,b}",
-    "src/[ab].ts",
-    "src\\x",
-    "!src",
-    "src/ x",
-  ])("rejects %j", (glob) => {
-    expect(isValidScopeGlob(glob)).toBe(false);
-    expect(ScopeGlob.safeParse(glob).success).toBe(false);
+    ["a file with spaces", "src/my file.ts"],
+    ["parentheses", "docs/notes (draft).md"],
+    ["a dynamic route", "app/[id]/page.tsx"],
+    ["braces, which are literal here", "src/{a,b}.ts"],
+    ["an exclamation mark", "!important.md"],
+    ["accents and other scripts", "src/café/日本語.ts"],
+    ["a backslash, literal on POSIX", "src/weird\\name.ts"],
+  ])("accepts %s: %j", (_, glob) => {
+    expect(isValidScopeGlob(glob)).toBe(true);
+    expect(pathInScope(glob, glob)).toBe(true);
+  });
+
+  it("still matches wildcards around real-world names", () => {
+    expect(pathInScope("app/[id]/page.tsx", "app/**/page.tsx")).toBe(true);
+    expect(pathInScope("src/my file.ts", "src/*.ts")).toBe(true);
+    expect(pathInScope("docs/notes (draft).md", "docs/*.md")).toBe(true);
+    expect(scopesMayOverlap("src/my file.ts", "src/**")).toBe(true);
+    expect(scopesMayOverlap("app/[id]/page.tsx", "app/[slug]/page.tsx")).toBe(false);
   });
 });
 

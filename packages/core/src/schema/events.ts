@@ -62,6 +62,8 @@ export const SafetyReported = z
   .strictObject({
     type: z.literal("safety.report"),
     ...mission,
+    /** Which plan revision this report describes. A newer plan makes it stale, never current. */
+    planRevision: z.int().positive(),
     ok: z.boolean(),
     checks: z.array(SafetyCheck).max(200),
   })

@@ -215,6 +215,40 @@ describe("project", () => {
     expect(mission?.safety).toBeNull();
   });
 
+  it("refuses a safety report that belongs to an older plan", () => {
+    const state = project(
+      record([
+        samples["mission.created"],
+        samples["plan.proposed"],
+        samples["plan.revised"],
+        samples["safety.report"],
+      ]),
+    );
+    const mission = state.missions[M];
+    expect(mission?.planRevision).toBe(2);
+    expect(mission?.safety).toBeNull();
+    expect(state.anomalies).toEqual([
+      {
+        seq: 4,
+        type: "safety.report",
+        message: "safety report is for plan revision 1, but the mission is at revision 2",
+      },
+    ]);
+  });
+
+  it("keeps a safety report that matches the current plan", () => {
+    const state = project(
+      record([
+        samples["mission.created"],
+        samples["plan.proposed"],
+        samples["plan.revised"],
+        { ...samples["safety.report"], planRevision: 2 },
+      ]),
+    );
+    expect(state.anomalies).toEqual([]);
+    expect(state.missions[M]?.safety).toMatchObject({ ok: true, planRevision: 2 });
+  });
+
   it("records events that don't fit as anomalies instead of crashing", () => {
     const odd = record([
       samples["run.progress"],

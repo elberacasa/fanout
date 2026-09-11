@@ -72,10 +72,10 @@ Each is settled by the milestone that needs it, not before:
 |---|---|
 | No event records **who approved a merge** (or that a policy pre-approved it), so a replay can't show the authority for a change | Merge gate (P0 · 7) |
 | `checks.done`, `proof.done` and `merge.applied` don't name **which revision was checked** or the resulting commit, so a dependent line can't prove where it started | Merge gate (P0 · 7) |
-| `safety.report` isn't tied to a **plan revision**, so a late report can attach itself to a newer plan; `ok: true` with no checks is accepted | Workspace + safety report (P0 · 3) |
+| ~~`safety.report` isn't tied to a **plan revision**~~ — settled (DECISIONS 0016): a report carries its revision and a stale one is refused. Still open: `ok: true` with no checks is accepted, so the gate must require the checks it expects | Workspace + safety report (P0 · 3) |
 | `run.finished` can't distinguish **why** a run failed (spawn error, signal, no output) beyond a free-text `error` | Daemon API (P0 · 5) |
 | `run.usage.amount` is a **delta** (projections add it) and nothing records a quota window, reset time or headroom, so a limit survives only as an adapter signal | Routing v1 (P0 · 9) |
-| Scope globs can't express spaces, parentheses or non-ASCII names literally, so some ordinary filenames have no scope | Workspace + safety report (P0 · 3) |
+| ~~Scope globs can't express spaces, parentheses or non-ASCII names~~ — settled (DECISIONS 0016): every character except `/` and control characters is literal, so `src/my file.ts` and `app/[id]/page.tsx` are scopes. `*` and `?` stay wildcards with no escape | done |
 
 Two limits we state rather than fix: the ledger's append-only guards stop ordinary SQL, not someone with raw file
 access; and the schema cannot stop a secret being passed inside `argv`, a prompt or review notes, so redaction before

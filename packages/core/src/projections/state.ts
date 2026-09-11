@@ -63,8 +63,8 @@ export interface MissionView {
   plan: PlanGraph | null;
   /** 0 before any plan, then 1, 2, … for each proposal or revision. */
   planRevision: number;
-  /** The safety report for the current plan; a new plan clears it. */
-  safety: { ok: boolean; checks: SafetyCheck[] } | null;
+  /** The safety report for the current plan revision; a new plan clears it, a stale one is refused. */
+  safety: { ok: boolean; checks: SafetyCheck[]; planRevision: number } | null;
   runs: Record<string, RunView>;
   runOrder: string[];
   routes: RouteChange[];
@@ -146,10 +146,12 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
       }));
 
     case "safety.report":
-      return updateMission(state, event, (mission) => ({
-        ...mission,
-        safety: { ok: event.ok, checks: event.checks },
-      }));
+      return updateMission(state, event, (mission) =>
+        event.planRevision === mission.planRevision
+          ? { ...mission, safety: { ok: event.ok, checks: event.checks, planRevision: event.planRevision } }
+          : `safety report is for plan revision ${event.planRevision}, ` +
+            `but the mission is at revision ${mission.planRevision}`,
+      );
 
     case "route.changed":
       return updateMission(state, event, (mission) => ({

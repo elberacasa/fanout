@@ -141,3 +141,18 @@ contract every CLI implements: `command()` returns the exact `LaunchSpec` (argv,
 and `parse()` maps one stdout line to events plus signals (`session`, `limit`, `report`, `unparsed`) and never throws.
 
 **Why:** fewer moving parts for dev tools; a stable contract before the first adapters are built in parallel.
+
+## 0016 · A safety report belongs to a plan revision (2026-09-11; amends event schema v1)
+
+**Choice:** `safety.report` carries the `planRevision` it describes. A projection keeps the report only when it
+matches the mission's current plan; a report for an older revision is recorded as an anomaly and the mission stays
+without a safety report. Scope patterns also gain the rest of the alphabet: every character except `/` and control
+characters is literal, so `src/my file.ts`, `docs/notes (draft).md` and `app/[id]/page.tsx` can be written as scopes.
+
+**Why:** the milestone 1 audit found that a report computed for an old plan could attach itself to a newer one, which
+is the worst kind of failure for a gate: it looks green. The scope alphabet was the other half of the same problem —
+a safety report cannot protect files it cannot name.
+
+**Consequences:** the event schema version stays 1 because no ledger exists outside development; after the first
+public release, a change of this shape needs a new version and an upgrade path. `*` and `?` are always wildcards,
+with no escape: a file whose name truly contains one is covered by a scope ending in `**`.

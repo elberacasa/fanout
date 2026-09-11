@@ -63,6 +63,7 @@ export const samples: Samples = {
   "safety.report": {
     type: "safety.report",
     missionId: "csv-export",
+    planRevision: 1,
     ok: true,
     checks: [{ id: "scopes-disjoint", ok: true, severity: "block", message: "Write scopes don't overlap." }],
   },
