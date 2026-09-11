@@ -31,7 +31,7 @@ developer approves the merge. Details: `docs/PRODUCT.md`.
 
 ## Engineering rules
 
-- **TypeScript, strict**, Node 20+ for the daemon; React for the UI (see `docs/ARCHITECTURE.md`). No new dependency
+- **TypeScript, strict**, Node 22.13+ for the daemon; React for the UI (see `docs/ARCHITECTURE.md`). No new dependency
   without a one-line reason in the commit message.
 - **The ledger is append-only and event-sourced.** State is derived from events; never mutate or delete history.
 - **Every adapter** has a version-pinned manifest and contract tests against recorded streams

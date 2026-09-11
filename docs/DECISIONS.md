@@ -109,3 +109,26 @@ API) and the date of its terms review; the UI shows it.
 
 **Why:** vendors change how headless use is billed (Anthropic announced, then paused, a separate credit for
 `claude -p` in June 2026). A policy change should be a manifest update, not a redesign.
+
+## 0013 · The stack, confirmed (2026-09-11; confirms 0006)
+
+**Choice:** pnpm workspaces, TypeScript 6.0 strict (plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
+`erasableSyntaxOnly`), zod 4, vitest 5, ESLint 10 with typescript-eslint `strictTypeChecked`, Prettier. Node 22.13+
+with the built-in `node:sqlite` for the ledger, wrapped behind our own `Ledger` class.
+
+**Why:** Node 20 reached end of life in April 2026. `node:sqlite` needs no native build, so `npx` installs can't fail
+compiling a driver. TypeScript 7 (the native port) is out, but typescript-eslint supports TypeScript below 6.1 only,
+so we stay on 6.0 until it catches up.
+
+**Consequences:** Node prints an ExperimentalWarning for `node:sqlite`; tests silence it and the CLI will filter only
+that warning. Swapping to better-sqlite3 later touches one file.
+
+## 0014 · The name: Fanout (2026-09-11; closes 0007)
+
+**Choice:** the product is **Fanout**. The Claude Code command is `/fanout`, the CLI binary is `fanout`, the npm
+package will be `fanout-cli` (the bare `fanout` name belongs to an unrelated 2022 package).
+
+**Why:** the command is the product's front door and the first frame of the video: `/fanout add dark mode, CSV export
+and fix the flaky test` says what happens. The owner delegated the choice.
+
+**Consequences:** nothing is reserved until the owner approves publishing.
