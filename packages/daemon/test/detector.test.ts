@@ -1,0 +1,167 @@
+import { AdapterManifest, type SeatInfo } from "@fanout/core";
+import { describe, expect, it, vi } from "vitest";
+import { detectSeats, type CommandResult } from "../src/detector/detect.ts";
+import { compareVersions, parseVersion, satisfies } from "../src/detector/version.ts";
+
+/*
+ * Detection answers three questions per seat — are you here, which version, are you signed in — and is allowed to
+ * answer "I don't know". These tests make sure it never answers "yes" when it doesn't know.
+ */
+
+const manifest = AdapterManifest.parse({
+  id: "codex",
+  displayName: "OpenAI Codex",
+  binary: "codex",
+  supportedVersions: ">=0.150.0 <1.0.0",
+  headless: { args: ["exec", "{prompt}"], stdin: "closed" },
+  stream: { flag: "--json", format: "jsonl" },
+  models: ["gpt-5.6-luna"],
+  efforts: ["low"],
+  permissionModes: { readOnly: "read-only", edit: "workspace-write" },
+  network: { canDisable: false, flag: null },
+  signIn: { probe: ["login", "status"], okPattern: "Logged in" },
+  usage: { probe: null, window: "unknown" },
+  billing: "subscription",
+  terms: { reviewedAt: "2026-09-11", notes: "" },
+  status: "alpha",
+});
+
+const ok = (stdout: string): CommandResult => ({ stdout, stderr: "", exitCode: 0 });
+
+function detect(
+  execute: (binary: string, args: readonly string[]) => Promise<CommandResult>,
+): Promise<SeatInfo[]> {
+  return detectSeats({ manifests: [manifest], execute });
+}
+
+describe("reading a version out of whatever a CLI prints", () => {
+  it.each([
+    ["codex-cli 0.154.0", { major: 0, minor: 154, patch: 0 }],
+    ["0.36.1", { major: 0, minor: 36, patch: 1 }],
+    ["grok 1.0.13 (5e9a58528b76) [stable]", { major: 1, minor: 0, patch: 13 }],
+    ["2.1.269 (Claude Code)", { major: 2, minor: 1, patch: 269 }],
+    ["v3.4", { major: 3, minor: 4, patch: 0 }],
+  ])("reads %j", (text, expected) => {
+    expect(parseVersion(text)).toEqual(expected);
+  });
+
+  it.each(["", "no numbers here", "version unknown"])("cannot read %j", (text) => {
+    expect(parseVersion(text)).toBeNull();
+  });
+
+  it("orders versions the way a person would", () => {
+    const older = parseVersion("0.9.9");
+    const newer = parseVersion("0.10.0");
+    if (older === null || newer === null) throw new Error("fixture versions must parse");
+    expect(compareVersions(older, newer)).toBeLessThan(0);
+  });
+});
+
+describe("version ranges", () => {
+  const version = (text: string) => {
+    const parsed = parseVersion(text);
+    if (parsed === null) throw new Error(`fixture version ${text} must parse`);
+    return parsed;
+  };
+
+  it.each([
+    ["0.154.0", ">=0.150.0 <1.0.0", true],
+    ["0.149.9", ">=0.150.0 <1.0.0", false],
+    ["1.0.0", ">=0.150.0 <1.0.0", false],
+    ["1.0.13", ">=1.0 <2", true],
+    ["2.1.269", "=2.1.269", true],
+    ["2.1.270", "=2.1.269", false],
+  ])("%s against %j is %s", (text, range, expected) => {
+    expect(satisfies(version(text), range)).toBe(expected);
+  });
+
+  it.each(["", "   ", "^1.0.0", "~0.154", "latest"])(
+    "treats the unreadable range %j as no match",
+    (range) => {
+      expect(satisfies(version("0.154.0"), range)).toBe(false);
+    },
+  );
+});
+
+describe("detecting a seat", () => {
+  it("reports a signed-in, supported CLI", async () => {
+    const [seat] = await detect((_binary, args) =>
+      Promise.resolve(args[0] === "--version" ? ok("codex-cli 0.154.0") : ok("Logged in using ChatGPT")),
+    );
+    expect(seat).toMatchObject({
+      id: "codex",
+      version: "0.154.0",
+      supported: true,
+      signedIn: "yes",
+      billing: "subscription",
+    });
+  });
+
+  it("reports a CLI that is not installed without inventing a version", async () => {
+    const [seat] = await detect(() => Promise.reject(new Error("spawn codex ENOENT")));
+    expect(seat).toMatchObject({ version: null, supported: false, signedIn: "unknown" });
+  });
+
+  it.each([
+    ["a version it cannot read", "codex-cli (dev build)"],
+    ["nothing at all", ""],
+  ])("reports %s as unsupported", async (_, output) => {
+    const [seat] = await detect(() => Promise.resolve(ok(output)));
+    expect(seat).toMatchObject({ version: null, supported: false, signedIn: "unknown" });
+  });
+
+  it("stops at the version when the CLI is outside the range the adapter was verified against", async () => {
+    const execute = vi.fn((_binary: string, args: readonly string[]) =>
+      Promise.resolve(args[0] === "--version" ? ok("codex-cli 2.0.0") : ok("Logged in")),
+    );
+    const [seat] = await detectSeats({ manifests: [manifest], execute });
+
+    expect(seat).toMatchObject({ version: "2.0.0", supported: false, signedIn: "unknown" });
+    expect(execute).toHaveBeenCalledTimes(1); // never asks about sign-in for a version it cannot parse honestly
+  });
+
+  it.each([
+    ["the probe exits non-zero", { stdout: "", stderr: "Not logged in", exitCode: 1 }, "no"],
+    ["the probe says something else", { stdout: "Logged out", stderr: "", exitCode: 0 }, "no"],
+  ])("reports %s as signed out", async (_, probeResult, expected) => {
+    const [seat] = await detect((_binary, args) =>
+      Promise.resolve(args[0] === "--version" ? ok("codex-cli 0.154.0") : probeResult),
+    );
+    expect(seat?.signedIn).toBe(expected);
+  });
+
+  it("says it does not know when a CLI has no way to tell us", async () => {
+    const [seat] = await detectSeats({
+      manifests: [AdapterManifest.parse({ ...manifest, signIn: { probe: null, okPattern: null } })],
+      execute: () => Promise.resolve(ok("codex-cli 0.154.0")),
+    });
+    expect(seat?.signedIn).toBe("unknown");
+  });
+
+  it("says it does not know when the probe itself fails", async () => {
+    const [seat] = await detect((_binary, args) =>
+      args[0] === "--version"
+        ? Promise.resolve(ok("codex-cli 0.154.0"))
+        : Promise.reject(new Error("timed out")),
+    );
+    expect(seat?.signedIn).toBe("unknown");
+  });
+
+  it("detects every seat it is given, in order", async () => {
+    const second = AdapterManifest.parse({
+      ...manifest,
+      id: "kimi",
+      binary: "kimi",
+      displayName: "Kimi Code",
+    });
+    const seats = await detectSeats({
+      manifests: [manifest, second],
+      execute: (binary, args) =>
+        Promise.resolve(
+          args[0] === "--version" ? ok(binary === "codex" ? "0.154.0" : "0.36.1") : ok("Logged in"),
+        ),
+    });
+    expect(seats.map((seat) => seat.id)).toEqual(["codex", "kimi"]);
+    expect(seats.map((seat) => seat.version)).toEqual(["0.154.0", "0.36.1"]);
+  });
+});
