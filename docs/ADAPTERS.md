@@ -61,7 +61,7 @@ still need recorded fixtures.
 |---|---|---|---|---|---|---|
 | **Fake** | built in (`packages/adapters/fake`) | `node src/cli.ts --scenario-json '<json>' --report <path> -- <prompt>` | JSONL, one object per line (`protocol.ts`) | writes confined to its working directory | n/a | demo + tests · **built** |
 | **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · **built** (alpha) |
-| **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` (`--verbose` to verify) | `--permission-mode` (acceptEdits, auto, dontAsk, plan, …), `--permission-prompts none`, `--restricted`, `--allowedTools` | `claude auth status` ✓ signed in (Max) | opt-in worker · P0 |
+| **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` **with `--verbose`** (verified) | `--permission-mode plan \| acceptEdits` with `--permission-prompts none` (deny, never bypass) | `claude auth status` ✓ signed in (Max) | opt-in worker · **built** (alpha) |
 | **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` — **`--prompt` cannot be combined with `--auto`** (verified) | `--output-format stream-json`; first line is `{"role":"meta","type":"system.version"}` | `--plan` (read-only), `-y` (auto-approve); sandbox: to verify | no status command → reported unknown | worker · **research**: recording blocked, see below |
 | **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt> --cwd <dir>` | `--output-format streaming-json` (session updates) | `--permission-mode plan \| acceptEdits`; `--cwd`; `--max-turns` | no status command → reported unknown | worker · **built** (alpha) |
 | **Cursor Agent** | `cursor-agent` 2026.01.23 | `cursor-agent -p` | `--output-format stream-json` | `--mode plan\|ask`, `--sandbox enabled`, `--workspace <dir>` | `cursor-agent status` ✗ not signed in | worker · P0 when signed in |
@@ -94,6 +94,10 @@ What recording real streams has taught us, and hand-written fixtures would have 
   the run's report itself; the session id arrives only in the final line.
 - **Kimi**: a monthly usage limit arrives on **stderr with a non-zero exit** and nothing in the stream at all. A
   daemon reading only stdout would call that a plain failure, so `SeatAdapter` gained an optional `parseStderr`.
+- **Claude Code**: it reports **real quota windows** mid-run (how full the five-hour and seven-day windows are, and
+  when each resets), which no other seat does. That is the difference between routing on facts and routing on our
+  own estimates, so `AdapterSignal` gained a `quota` kind rather than squeezing a percentage into a token count.
+  Its init line also carries the user's own setup (memory paths, skills, slash commands), which the scrub removes.
 
 A new CLI version means a new recording, not an edited one.
 
