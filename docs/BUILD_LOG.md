@@ -17,6 +17,35 @@ Next: <the next step>
 
 ---
 
+### 2026-09-11 · P0 milestone 4, Real seats · session 1 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: none (each adapter needed a recording only the owner's machine could make)
+
+Built:
+- **Adapter manifest** and the **detector**: what a CLI declares about itself, and how the crew finds it, reads its
+  version and asks it — through its own status command — whether it is signed in. It answers "unknown" rather than
+  guessing, and never reads a credential file.
+- **Three seats, each parsed from a real recorded run** on a throwaway repository, scrubbed: Codex 0.154.0,
+  Grok Build 1.0.13, Claude Code 2.1.269 (opt-in). 47 contract tests replay those recordings.
+
+What recording taught us that `--help` could not, and each of which changed the code:
+- Codex reports **absolute paths** and hides a usage limit inside an ordinary `error` item.
+- Grok streams prose in **one-word pieces**, writes no report file, and names its session only in its last line.
+- Kimi puts a usage limit on **stderr with a non-zero exit** and nothing in its stream, so `SeatAdapter` gained an
+  optional `parseStderr`; a daemon reading only stdout would have called that a plain failure.
+- Claude reports **real quota windows** (how full, when they reset), so `AdapterSignal` gained a `quota` kind. Its
+  init line also carries the owner's memory paths, skills and slash commands, which the scrub removes.
+
+**Kimi has no adapter.** Its account answered `403 … monthly usage limit for this billing cycle`, so there is no
+successful run to record. We did not retry (working around a limit is a non-negotiable) and did not guess a parser
+from `--help`.
+
+Verified by the lead: typecheck ok · lint ok · **311 tests pass** (19 files) · CI green on macOS and Linux,
+Node 22 and 24 · the privacy scrub checked by grepping each fixture for the owner's home path, account name and
+project paths.
+Could not verify: Kimi's stream; Cursor (not signed in).
+Next: milestone 5, the daemon API and the `fanout` CLI.
+
 ### 2026-09-11 · P0 milestone 3, Workspace + safety report · session 1 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: none (isolation and the launch gate stay with the lead)

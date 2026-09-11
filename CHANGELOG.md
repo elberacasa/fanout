@@ -8,6 +8,33 @@ between minor versions.
 
 Nothing yet.
 
+## [0.4.0] — 2026-09-11
+
+Real seats: three agent CLIs driven for real, each parsed from a stream we actually recorded.
+
+### Added
+
+- **Adapter manifest** (`@fanout/core`): what an adapter declares about its CLI as data — supported versions, the
+  exact non-interactive invocation, the safest modes, how to ask about sign-in, which pool it bills against, and
+  when its vendor's terms were reviewed. A CLI outside its range is unsupported, never guessed at.
+- **Codex seat** (`@fanout/adapter-codex`): `codex exec` with structured output, an auditor kept read-only and
+  outside a git repository. 16 contract tests replay a recording of codex 0.154.0.
+- **Grok seat** (`@fanout/adapter-grok`): the documented single-turn mode, an auditor held in plan mode. Its prose
+  arrives in one-word pieces and it writes no report file, so the adapter assembles the report itself. 16 tests
+  against a recording of grok 1.0.13.
+- **Claude seat** (`@fanout/adapter-claude`), opt-in: `claude -p` with permission prompts denied rather than
+  bypassed. It is the only seat that reports real quota windows. 15 tests against a recording of claude 2.1.269.
+- **Detector** (`@fanout/daemon`): finds each CLI, reads its version, and asks it whether it is signed in through
+  its own status command. It answers "unknown" rather than guessing, and stops at the version for a CLI outside the
+  range its adapter was verified against.
+- **Adapters can read stderr** and **report a quota window** (`@fanout/core`): Kimi puts a usage limit on stderr
+  with nothing in its stream, and Claude reports how full each window is and when it resets.
+
+### Notes
+
+- **Kimi has no adapter yet.** The owner's account reached its monthly limit, so no successful run could be
+  recorded, and we do not write a parser for a stream we have not seen.
+
 ## [0.3.0] — 2026-09-11
 
 Isolation and the gate that decides whether anything runs.
