@@ -59,7 +59,7 @@ still need recorded fixtures.
 
 | Seat | CLI (verified 2026-09-11) | Headless mode | Structured stream | Permissions / sandbox | Sign-in probe | Role · Status |
 |---|---|---|---|---|---|---|
-| **Fake** | built in | deterministic simulator | our events | n/a | n/a | demo + tests · P0 |
+| **Fake** | built in (`packages/adapters/fake`) | `node src/cli.ts --scenario-json '<json>' --report <path> -- <prompt>` | JSONL, one object per line (`protocol.ts`) | writes confined to its working directory | n/a | demo + tests · **built** |
 | **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · P0 |
 | **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` (`--verbose` to verify) | `--permission-mode` (acceptEdits, auto, dontAsk, plan, …), `--permission-prompts none`, `--restricted`, `--allowedTools` | `claude auth status` ✓ signed in (Max) | opt-in worker · P0 |
 | **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` | `--output-format stream-json` | `--plan` (read-only), `-y`/`--auto` (auto-approve); sandbox: to verify | no status command; harmless dry call to verify | worker · P0 |
@@ -73,6 +73,16 @@ Notes from the check:
 - Never pass a flag that skips the vendor's sandbox or approvals (`--dangerously-*`, `bypassPermissions`,
   `--always-approve` outside a worktree). The safest workable mode per seat is decided in the adapter and shown in the
   safety report.
+### The fake seat
+
+The built-in simulator is a seat like any other, so it exercises the same contract as a real CLI. A scenario lists
+steps (`phase`, `tool` with real file writes, `usage`, `limit`, `sleep`), a report, an exit code, `hang` (keep running
+until killed, to test timeouts) and `timeScale` (multiplies every delay: `0.2` for the demo, `0` in tests). Its stdout
+is one JSON object per line, defined once in `protocol.ts` and parsed by the adapter. Exit codes: the scenario's own,
+`2` after a limit step, `64` for bad arguments or an invalid scenario, `65` for a write outside the working directory,
+`70` for anything unexpected. The same scenario always prints the same bytes, and `fixtures/basic.jsonl` is recorded
+from the CLI itself, with a test that proves it.
+
 - Every manifest records its **billing pool** (subscription limits, a separate credit, or API) and the terms review.
   Anthropic announced moving `claude -p` to a separate credit on 2026-06-15, then paused it; its help page says
   headless use still draws from subscription limits and that notice will come before any change.

@@ -17,6 +17,42 @@ Next: <the next step>
 
 ---
 
+### 2026-09-11 · P0 milestone 2, Fake seat + supervisor · session 1 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: 3 Codex agents via codex-fanout
+
+Built:
+- **Supervisor** (`packages/daemon/src/supervisor/supervise.ts`, 21 tests, 13 `.mjs` fixtures): by
+  codex (gpt-6-astra, effort high) · prompt: `.fanout/prompts/m2-supervisor.md` · review changed: `kill(reason)`
+  discarded the reason; it is now reported in `RunExit.error`. Everything else merged as written: no inherited
+  environment, stdin closed, detached process group, SIGTERM then SIGKILL, log mode 600 with a byte cap,
+  multibyte-safe line truncation.
+- **Fake seat** (`packages/adapters/fake`): by codex (gpt-5.6-luna, effort medium) · prompt:
+  `.fanout/prompts/m2-fake-seat.md` · review changed: **substantially rewritten**. Its own tests failed 3 of 5 when
+  the lead ran them (its sandbox could not run vitest); report paths outside the worktree were rejected (every daemon
+  run would have exited 65); `hang` exited instead of hanging; `parse()` trusted unvalidated JSON. The lead moved the
+  stream format into one zod schema shared by CLI and adapter, switched to `parseArgs` with the prompt after `--`,
+  renamed `speed` to `timeScale`, and recorded the fixture from the real CLI with a test that proves it.
+- **Adversarial audit of the core** (read-only archive): by codex (gpt-6-astra, effort high) · prompt:
+  `.fanout/prompts/m1-core-audit.md` · found 6 real bugs, all fixed by the lead with a failing test first:
+  `pathInScope` accepted `src/../private/key`; two valid patterns froze the matcher (a backtracking regex and
+  un-memoized recursion — the hang blocked the event loop so hard that vitest could not even time out); the valid id
+  `constructor` broke projection lookups; events after a merge or drop resurrected a run; usage could be charged to
+  another seat; a row whose routing columns disagreed with its body was returned silently. Its contract gaps are now
+  in `docs/ARCHITECTURE.md`.
+- **Environment allowlist and run glue** (`packages/daemon/src/env.ts`, `run.ts`): by the lead. Agents get only
+  PATH, HOME, locale, TMPDIR and XDG paths. Adapters may only report progress, tools and usage for their own run;
+  anything else is refused and surfaced. If the ledger cannot record an event, the run is stopped.
+
+Process note: the supervisor and audit first ran on cheaper models (gpt-5.6-terra / luna). The owner asked for the
+strongest model on foundation code; that work was discarded and both were relaunched on gpt-6-astra.
+
+Verified by the lead: typecheck ok · lint ok · **178 tests pass** (11 files) · each commit checked on its own with
+`git rebase -x`. The end-to-end test drives the real fake-seat CLI through the real supervisor into a real ledger:
+full run, usage limit, hang stopped by the timeout, manual kill.
+Could not verify: CI on GitHub (not pushed); Node 22 locally (this machine runs Node 25; CI covers 22 and 24).
+Next: milestone 3, workspace + safety report.
+
 ### 2026-09-11 · P0 milestone 1, Foundations · session 1
 
 Lead: Claude Code (Opus 5) · Teammates: none yet (milestone 1 is the contract; the lead builds it)
