@@ -1,73 +1,159 @@
+<div align="center">
+
 # Fanout
 
-> **Claude Code leads. Your other agents build.** *(working name; see [docs/DECISIONS.md](docs/DECISIONS.md) 0007)*
+**Claude Code leads. Your other agents build.**
 
-**Status: pre-alpha.** This repository holds the foundation (vision, product, architecture, roadmap and the way we
-build). The first code is P0 milestone 1 in [docs/ROADMAP.md](docs/ROADMAP.md).
+Turn the AI coding subscriptions you already pay for into one crew: a lead that plans and reviews,
+teammates that work in parallel, and nothing merged until it is proven.
+
+[![check](https://github.com/elberacasa/fanout/actions/workflows/ci.yml/badge.svg)](https://github.com/elberacasa/fanout/actions/workflows/ci.yml)
+[![status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)](docs/STATUS.md)
+[![node](https://img.shields.io/badge/node-%E2%89%A522.18-5FA04E?logo=node.js&logoColor=white)](package.json)
+[![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.base.json)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
+
+[What it is](#what-it-is) · [How it works](#how-it-works) · [Quickstart](#quickstart) ·
+[Status](#status) · [Safety](#the-promises) · [Docs](#docs) · [Contributing](CONTRIBUTING.md)
+
+</div>
 
 ---
 
 ## What it is
 
-A Claude Code plugin and a local daemon that turn the agent CLIs you **already pay for** into one crew, with Claude
-Code as the lead: Codex, Kimi, Grok, Cursor, and Claude itself when you opt in. It uses **your subscriptions, through
-each CLI's official non-interactive mode. No API keys.**
+You already pay for several coding agents: Claude Code, Codex, Kimi, Grok, Cursor. They sit in separate terminals,
+run one at a time, and their quotas expire unused. Running them in parallel by hand means juggling branches,
+copy-pasted prompts and diffs you never really reviewed.
 
-1. **Ask in Claude Code.** `/fanout add CSV export and fix the flaky date test`.
-2. **Claude plans.** It reads the repo and proposes lines: who builds what, in which files, with which agent and
-   effort. A safety report must turn green before launch.
-3. **Your crew builds in parallel.** Every agent runs in its own git worktree. A local mission view shows each one
-   live: phase, tool calls, files, tests, a growing diff.
-4. **Nothing merges unreviewed.** Claude reviews every diff, your real checks run, bug fixes are proven to fail on the
-   old code, and you approve the merge.
+Fanout is a **Claude Code plugin plus a local daemon**. You stay in the session you already use. Claude plans the
+mission, fans the work out to the other CLIs on your machine — each in its own git worktree — watches them live,
+reviews every diff, runs your real checks, proves the fixes, and asks you before anything merges.
 
-When one subscription runs low, work moves to another, with the reason shown.
-
-## Why it's different
-
-- **It lives where you already work.** Plan, review and approve in your Claude Code session. No new app to learn.
-- **Cross-vendor review.** Claude reviews Codex's work; different models catch different mistakes.
-- **A merge gate with proof.** Worktree isolation, agents never commit, your checks, proof of fixes, your approval.
-- **Subscriptions, not keys.** The CLIs stay the only thing that holds your credentials. We never read, store or proxy
-  them.
-- **Local-first.** Your code, prompts and the event ledger stay on your machine. The mission view is served on
-  localhost only. No telemetry by default.
+> [!NOTE]
+> **Pre-alpha.** The engine is real and tested: isolated runs, an append-only ledger, the review contract. The
+> plugin, the mission view and the demo are being built in the open — see [Status](#status) and
+> [docs/STATUS.md](docs/STATUS.md). Nothing is published to npm yet.
 
 ## How it works
 
 ```mermaid
 flowchart TB
-    U[You] <--> L[Claude Code + Fanout plugin<br/>the lead: plans · reviews · asks you]
-    L -- MCP tools --> D{{fanoutd<br/>worktrees · supervisor · safety · merge gate · ledger}}
-    D -- events --> L
-    D --> S1[codex exec] & S2[kimi -p] & S3[grok -p] & S4[cursor-agent -p] & S5[claude -p · opt-in]
-    S1 & S2 & S3 & S4 & S5 -- structured streams --> D
-    D --> V[Mission view · localhost]
-    D --> R[(Your repo, after review + checks + proof + your approval)]
+    U([You]) <--> L["Claude Code + Fanout plugin<br/>plans · reviews · asks you"]
+    L -- "MCP tools" --> D{{"fanoutd<br/>worktrees · supervisor · safety · merge gate · ledger"}}
+    D -- "events" --> L
+    D --> S1["codex exec"] & S2["kimi -p"] & S3["grok -p"] & S4["claude -p<br/>(opt-in)"]
+    S1 & S2 & S3 & S4 -- "structured streams" --> D
+    D --> V["Mission view<br/>localhost"]
+    D --> R[("Your repo<br/>after review + checks + proof + your approval")]
 ```
 
-## Built by a crew
+1. **Ask.** `/fanout add CSV export and fix the flaky date test`
+2. **Plan.** Claude reads the repo and proposes lines: who builds what, in which files, with which agent.
+3. **Safety report.** Overlapping write scopes, secrets, sandbox and network flags, and the exact commands that
+   will run — green before anything launches.
+4. **Watch.** Every agent runs in its own worktree. Phases, tool calls, files, tests and a growing diff, live.
+5. **Merge gate.** Review, your project's checks, a bug fix proven to fail on the old code, then your approval.
 
-This project is built the way it wants others to build: **Claude Code leads** (plans, reviews, merges) and **Codex
-agents are teammates** (parallel builders and auditors, each in its own worktree) through the
-[`codex-fanout`](https://github.com/elberacasa/codex-fanout) skill, which is in `.claude/skills/`. Every
-contribution is credited in the commit trailers and in the public [build log](docs/BUILD_LOG.md): who built what,
-with which prompt, and what review changed.
+<!-- The 30-second demo lands with the mission view (P0 · 10). See docs/media/README.md. -->
 
-## Repository map
+## Quickstart
 
-| File | What it holds |
+Nothing is published yet, so this is the contributor path:
+
+```sh
+git clone https://github.com/elberacasa/fanout.git && cd fanout
+corepack enable && pnpm install
+git config core.hooksPath .githooks
+npm run check      # typecheck + lint + 178 tests
+```
+
+Requires **Node 22.18+** (the ledger uses Node's built-in SQLite; TypeScript runs without a build step).
+
+When the CLI lands you will be able to try the whole flow offline, with no accounts, using the simulated agent:
+
+```sh
+fanout demo        # P0 · 10
+```
+
+## Why it is different
+
+| | |
 |---|---|
-| [AGENTS.md](AGENTS.md) | The rules for every agent working here (Claude reads it through CLAUDE.md) |
-| [docs/STATUS.md](docs/STATUS.md) | **Resume here:** where we are and the next task |
-| [docs/VISION.md](docs/VISION.md) | Why this exists, who it is for, the field, how it wins |
-| [docs/PRODUCT.md](docs/PRODUCT.md) | Concepts, the flow inside Claude Code, the mission view, the 30-second video |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Plugin, daemon, event schema, adapters, MCP tools, safety, stack |
-| [docs/ADAPTERS.md](docs/ADAPTERS.md) | The seat adapter contract and the verified CLI tracker |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Phases with a definition of done |
-| [docs/PLAYBOOK.md](docs/PLAYBOOK.md) | How Claude and Codex build this together |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Architecture decision records |
-| [docs/BUILD_LOG.md](docs/BUILD_LOG.md) | The public record of the crew at work |
+| **Your subscriptions, not API keys** | Each vendor's own CLI in its official non-interactive mode. We never read, store or proxy a credential |
+| **It lives where you work** | Plan, review and approve inside Claude Code. No second app to learn |
+| **Agents review each other** | Claude reviews Codex's diff; different models catch different mistakes |
+| **A merge gate with proof** | Worktree isolation, your checks, a failing-first test for every bug fix, your approval |
+| **One append-only ledger** | Every run is explainable and replayable; the database itself refuses to rewrite history |
+| **Local-first** | Code, prompts and the ledger stay on your machine. The mission view is served on localhost only |
+
+## Status
+
+P0 · **Claude leads, the crew builds** — 178 tests, green on macOS and Linux, Node 22 and 24.
+
+| Milestone | State |
+|---|---|
+| 1 · Foundations — schemas, ledger, projections | ✅ done |
+| 2 · Fake seat + supervisor | ✅ done |
+| 3 · Workspace + safety report | 🔨 building |
+| 4 · Real seats (Codex, Claude opt-in, Kimi, Grok, Cursor) | ⬜ next |
+| 5 · Daemon API + CLI | ⬜ |
+| 6 · The Claude Code plugin | ⬜ |
+| 7 · Merge gate | ⬜ |
+| 8 · Mission view | ⬜ |
+| 9 · Routing when a seat hits its limit | ⬜ |
+| 10 · Offline demo, video, README refresh | ⬜ |
+
+Full plan in [docs/ROADMAP.md](docs/ROADMAP.md); what changed and who built it in
+[docs/BUILD_LOG.md](docs/BUILD_LOG.md).
+
+## The promises
+
+These are not traded for speed, ever:
+
+- **Subscriptions through official headless modes only.** No credential reuse, no private endpoints, no working
+  around limits.
+- **Isolation.** Each editing run gets its own worktree; auditors get a read-only copy. Agents never commit, never
+  touch your branch, and never receive secrets or ignored files.
+- **Nothing merges unreviewed.** Review, checks, proof, your approval.
+- **Local-first and private.** No telemetry unless you turn it on.
+- **Honest interfaces.** Estimated numbers say "estimated"; unknown states say so; a failed load never looks like
+  "nothing to do".
+
+Security policy and known limits: [SECURITY.md](SECURITY.md).
+
+## Built by a crew, in public
+
+Fanout is built the way it wants you to build. **Claude Code leads** (plans, writes the prompts, reviews every diff,
+runs the checks, merges) and **Codex agents are teammates** (parallel builders and auditors, each in its own
+worktree) through the [`codex-fanout`](https://github.com/elberacasa/codex-fanout) skill in `.claude/skills/`.
+
+Every contribution is credited in its commit trailer and in the [build log](docs/BUILD_LOG.md): who built it, with
+which model and prompt, what review changed, and what could not be verified. One example from milestone 2: an
+adversarial audit by an agent found six real bugs in the lead's own code, including a path-matching flaw that let a
+run escape its declared scope. Each was fixed with a test that failed on the old code first.
+
+## Docs
+
+| Document | What it holds |
+|---|---|
+| [STATUS](docs/STATUS.md) | **Resume here:** where the project is and what is next |
+| [VISION](docs/VISION.md) | Why this exists, who it is for, the field, how it wins |
+| [PRODUCT](docs/PRODUCT.md) | Concepts, the flow, the mission view, quota-aware routing |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | Plugin, daemon, event schema, MCP tools, safety, known contract gaps |
+| [ADAPTERS](docs/ADAPTERS.md) | The seat adapter contract and the verified CLI tracker |
+| [ROADMAP](docs/ROADMAP.md) | Phases with a definition of done |
+| [PLAYBOOK](docs/PLAYBOOK.md) | How the lead and the agent teammates build together |
+| [DECISIONS](docs/DECISIONS.md) | Architecture decision records |
+| [COMMITS](docs/COMMITS.md) | The commit standard, enforced by a hook and by CI |
+| [BUILD LOG](docs/BUILD_LOG.md) | The public record of the crew at work |
+
+## Contributing
+
+Adapters for new agent CLIs, bug fixes with failing-first tests, and docs are all welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md) and [docs/COMMITS.md](docs/COMMITS.md). Be decent:
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
