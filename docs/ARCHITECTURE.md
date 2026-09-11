@@ -46,27 +46,23 @@
 | **Status line** | `fanout ▸ 3 running · 1 to review · codex ~40% (estimated)` |
 | **Native subagents** | Claude as a worker is opt-in; the default workers are other vendors' CLIs |
 
-## Event schema (first cut; finalized in milestone 1; versioned from day one)
+## Event schema (version 1)
 
-```ts
-type EventBase = { id: string; seq: number; ts: string; missionId: string; runId?: string; v: 1 };
-type FanoutEvent =
-  | EventBase & { type: "seat.detected"; seat: SeatInfo }                      // cli, version, signedIn, models, efforts, modes
-  | EventBase & { type: "mission.created"; goal: string; limits: MissionLimits }
-  | EventBase & { type: "plan.proposed" | "plan.revised"; plan: PlanGraph; by: "lead" | "user" }
-  | EventBase & { type: "safety.report"; checks: SafetyCheck[]; ok: boolean }
-  | EventBase & { type: "run.queued" | "run.started" | "run.paused" | "run.resumed"; line: LineRef; seat: SeatRef }
-  | EventBase & { type: "run.progress"; phase: "reading" | "coding" | "testing" | "reporting"; detail?: string }
-  | EventBase & { type: "run.tool"; tool: string; args?: unknown; files?: string[] }   // normalized from the CLI stream
-  | EventBase & { type: "run.usage"; seat: SeatRef; amount: number; unit: "messages" | "tokens" | "minutes"; estimated: boolean }
-  | EventBase & { type: "run.finished"; status: "done" | "failed" | "killed" | "timeout"; reportPath?: string; diffStat?: DiffStat }
-  | EventBase & { type: "review.done"; verdict: "accept" | "rework" | "reject"; notes: string; by: SeatRef }
-  | EventBase & { type: "checks.done"; ok: boolean; summary: string }
-  | EventBase & { type: "proof.done"; ok: boolean; failedOnOld: string[] }
-  | EventBase & { type: "merge.applied" | "merge.conflict" | "run.dropped"; detail?: string }
-  | EventBase & { type: "route.changed"; line: LineRef; from: SeatRef; to: SeatRef; reason: string }
-  | EventBase & { type: "policy.breach"; limit: string; action: "killed" | "paused" | "asked" };
-```
+The source of truth is `packages/core/src/schema/events.ts` (zod). Every event is validated when it is written and
+again when it is read. The ledger stamps each one with `{ v, id, seq, ts }`; `seq` is the order.
+
+| Group | Types | Key fields |
+|---|---|---|
+| Crew | `seat.detected` | the seat: version, supported, signed in (yes · no · unknown), models, efforts, billing pool |
+| Mission | `mission.created`, `plan.proposed`, `plan.revised`, `safety.report`, `route.changed`, `mission.finished` | goal, repo root and base commit, limits, the plan graph, checks (a report can't be `ok` with a failed blocking check) |
+| Run | `run.queued`, `run.started`, `run.progress`, `run.tool`, `run.usage`, `run.finished`, `policy.breach` | line, seat, attempt (max 3), argv, phase, tool and files, usage with `estimated`, exit status and diff stat |
+| Merge gate | `review.done`, `checks.done`, `proof.done`, `merge.applied`, `merge.conflict`, `run.dropped` | verdict and notes, check summary, tests that failed on the old code (required for a passing proof), files |
+
+Rules: adding an event type is additive; changing an existing type's shape needs a new version and an upgrade path.
+Events hold no secrets and no raw logs. Pause and resume events arrive with steering in P1.
+
+**Projections** (`packages/core/src/projections/`) fold events into the crew, usage per seat and per run, and each
+mission's plan, safety report, runs and routes. They are pure; events that don't fit are kept as anomalies.
 
 ## Seat adapters
 

@@ -1,0 +1,311 @@
+import type { DiffStat, MissionLimits, SafetyCheck, SeatInfo, SeatRef } from "../schema/common.ts";
+import type { EventOf, StoredEvent } from "../schema/events.ts";
+import type { PlanGraph } from "../schema/plan.ts";
+
+/*
+ * Projections are pure folds over the ledger: state(n + 1) = applyEvent(state(n), event n + 1).
+ * They never mutate their input, so any intermediate state can be kept, compared or sent to a client.
+ * An event that doesn't fit (an unknown mission or run, a duplicate, a sequence out of order) is recorded as an
+ * anomaly instead of being silently dropped or crashing the view.
+ */
+
+export type RunPhase = EventOf<"run.progress">["phase"];
+export type UsageUnit = EventOf<"run.usage">["unit"];
+export type RunStatus =
+  "queued" | "running" | "done" | "failed" | "killed" | "timeout" | "merged" | "conflict" | "dropped";
+
+export interface UsageMeter {
+  amount: number;
+  /** True when any part of the amount is an estimate. */
+  estimated: boolean;
+}
+export type UsageMeters = Partial<Record<UsageUnit, UsageMeter>>;
+
+export interface RunView {
+  runId: string;
+  lineId: string;
+  seat: SeatRef;
+  attempt: number;
+  status: RunStatus;
+  phase: RunPhase | null;
+  lastTool: { tool: string; summary: string | null } | null;
+  /** Files the run touched, sorted, without duplicates. */
+  files: string[];
+  diffStat: DiffStat | null;
+  exitCode: number | null;
+  usage: UsageMeters;
+  review: { verdict: EventOf<"review.done">["verdict"]; notes: string; by: SeatRef } | null;
+  checks: { ok: boolean; summary: string } | null;
+  proof: { ok: boolean; failedOnOld: string[] } | null;
+  mergedFiles: string[];
+  conflictFiles: string[];
+  dropReason: string | null;
+  breaches: { limit: string; action: EventOf<"policy.breach">["action"] }[];
+  queuedSeq: number;
+  startedSeq: number | null;
+  updatedSeq: number;
+}
+
+export interface RouteChange {
+  lineId: string;
+  from: SeatRef;
+  to: SeatRef;
+  reason: string;
+  seq: number;
+}
+
+export interface MissionView {
+  missionId: string;
+  goal: string;
+  repo: { root: string; baseCommit: string };
+  limits: MissionLimits;
+  status: "planning" | "running" | "finished" | "aborted";
+  plan: PlanGraph | null;
+  /** 0 before any plan, then 1, 2, … for each proposal or revision. */
+  planRevision: number;
+  /** The safety report for the current plan; a new plan clears it. */
+  safety: { ok: boolean; checks: SafetyCheck[] } | null;
+  runs: Record<string, RunView>;
+  runOrder: string[];
+  routes: RouteChange[];
+  summary: string | null;
+  createdSeq: number;
+  updatedSeq: number;
+}
+
+export interface Anomaly {
+  seq: number;
+  type: string;
+  message: string;
+}
+
+export interface ProjectionState {
+  lastSeq: number;
+  crew: Record<string, SeatInfo>;
+  usage: Record<string, UsageMeters>;
+  missions: Record<string, MissionView>;
+  anomalies: Anomaly[];
+}
+
+export function initialState(): ProjectionState {
+  return { lastSeq: 0, crew: {}, usage: {}, missions: {}, anomalies: [] };
+}
+
+/** Folds events into a state, starting from an empty one or from a state already projected. */
+export function project(
+  events: Iterable<StoredEvent>,
+  from: ProjectionState = initialState(),
+): ProjectionState {
+  let state = from;
+  for (const event of events) state = applyEvent(state, event);
+  return state;
+}
+
+export function applyEvent(state: ProjectionState, event: StoredEvent): ProjectionState {
+  if (event.seq <= state.lastSeq) {
+    return withAnomaly(state, event, `sequence ${event.seq} arrived after ${state.lastSeq}; ignored`);
+  }
+  return { ...reduce(state, event), lastSeq: event.seq };
+}
+
+function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
+  switch (event.type) {
+    case "seat.detected":
+      return { ...state, crew: { ...state.crew, [event.seat.id]: event.seat } };
+
+    case "mission.created": {
+      if (event.missionId in state.missions) {
+        return withAnomaly(state, event, `mission "${event.missionId}" already exists`);
+      }
+      const mission: MissionView = {
+        missionId: event.missionId,
+        goal: event.goal,
+        repo: event.repo,
+        limits: event.limits,
+        status: "planning",
+        plan: null,
+        planRevision: 0,
+        safety: null,
+        runs: {},
+        runOrder: [],
+        routes: [],
+        summary: null,
+        createdSeq: event.seq,
+        updatedSeq: event.seq,
+      };
+      return { ...state, missions: { ...state.missions, [event.missionId]: mission } };
+    }
+
+    case "plan.proposed":
+    case "plan.revised":
+      return updateMission(state, event, (mission) => ({
+        ...mission,
+        plan: event.plan,
+        planRevision: mission.planRevision + 1,
+        safety: null,
+      }));
+
+    case "safety.report":
+      return updateMission(state, event, (mission) => ({
+        ...mission,
+        safety: { ok: event.ok, checks: event.checks },
+      }));
+
+    case "route.changed":
+      return updateMission(state, event, (mission) => ({
+        ...mission,
+        routes: [
+          ...mission.routes,
+          { lineId: event.lineId, from: event.from, to: event.to, reason: event.reason, seq: event.seq },
+        ],
+      }));
+
+    case "mission.finished":
+      return updateMission(state, event, (mission) => ({
+        ...mission,
+        status: event.outcome === "completed" ? "finished" : "aborted",
+        summary: event.summary,
+      }));
+
+    case "run.queued":
+      return updateMission(state, event, (mission) => {
+        if (event.runId in mission.runs) return `run "${event.runId}" already exists`;
+        const run: RunView = {
+          runId: event.runId,
+          lineId: event.lineId,
+          seat: event.seat,
+          attempt: event.attempt,
+          status: "queued",
+          phase: null,
+          lastTool: null,
+          files: [],
+          diffStat: null,
+          exitCode: null,
+          usage: {},
+          review: null,
+          checks: null,
+          proof: null,
+          mergedFiles: [],
+          conflictFiles: [],
+          dropReason: null,
+          breaches: [],
+          queuedSeq: event.seq,
+          startedSeq: null,
+          updatedSeq: event.seq,
+        };
+        return {
+          ...mission,
+          status: mission.status === "planning" ? "running" : mission.status,
+          runs: { ...mission.runs, [event.runId]: run },
+          runOrder: [...mission.runOrder, event.runId],
+        };
+      });
+
+    case "run.started":
+      return updateRun(state, event, (run) => ({ ...run, status: "running", startedSeq: event.seq }));
+
+    case "run.progress":
+      return updateRun(state, event, (run) => ({ ...run, phase: event.phase }));
+
+    case "run.tool":
+      return updateRun(state, event, (run) => ({
+        ...run,
+        lastTool: { tool: event.tool, summary: event.summary ?? null },
+        files: sortedUnion(run.files, event.files),
+      }));
+
+    case "run.usage": {
+      const next = updateRun(state, event, (run) => ({ ...run, usage: addUsage(run.usage, event) }));
+      if (next.anomalies.length > state.anomalies.length) return next;
+      return {
+        ...next,
+        usage: { ...next.usage, [event.seat]: addUsage(next.usage[event.seat] ?? {}, event) },
+      };
+    }
+
+    case "run.finished":
+      return updateRun(state, event, (run) => ({
+        ...run,
+        status: event.status,
+        exitCode: event.exitCode,
+        diffStat: event.diffStat ?? run.diffStat,
+      }));
+
+    case "review.done":
+      return updateRun(state, event, (run) => ({
+        ...run,
+        review: { verdict: event.verdict, notes: event.notes, by: event.by },
+      }));
+
+    case "checks.done":
+      return updateRun(state, event, (run) => ({ ...run, checks: { ok: event.ok, summary: event.summary } }));
+
+    case "proof.done":
+      return updateRun(state, event, (run) => ({
+        ...run,
+        proof: { ok: event.ok, failedOnOld: event.failedOnOld },
+      }));
+
+    case "merge.applied":
+      return updateRun(state, event, (run) => ({ ...run, status: "merged", mergedFiles: event.files }));
+
+    case "merge.conflict":
+      return updateRun(state, event, (run) => ({ ...run, status: "conflict", conflictFiles: event.files }));
+
+    case "run.dropped":
+      return updateRun(state, event, (run) => ({ ...run, status: "dropped", dropReason: event.reason }));
+
+    case "policy.breach":
+      return updateRun(state, event, (run) => ({
+        ...run,
+        breaches: [...run.breaches, { limit: event.limit, action: event.action }],
+      }));
+  }
+}
+
+/** Applies `change` to the event's mission; a returned string is recorded as an anomaly instead. */
+function updateMission(
+  state: ProjectionState,
+  event: StoredEvent & { missionId: string },
+  change: (mission: MissionView) => MissionView | string,
+): ProjectionState {
+  const mission = state.missions[event.missionId];
+  if (mission === undefined) return withAnomaly(state, event, `unknown mission "${event.missionId}"`);
+  const next = change(mission);
+  if (typeof next === "string") return withAnomaly(state, event, next);
+  return { ...state, missions: { ...state.missions, [event.missionId]: { ...next, updatedSeq: event.seq } } };
+}
+
+function updateRun(
+  state: ProjectionState,
+  event: StoredEvent & { missionId: string; runId: string },
+  change: (run: RunView) => RunView,
+): ProjectionState {
+  return updateMission(state, event, (mission) => {
+    const run = mission.runs[event.runId];
+    if (run === undefined) return `unknown run "${event.runId}" in mission "${event.missionId}"`;
+    return {
+      ...mission,
+      runs: { ...mission.runs, [event.runId]: { ...change(run), updatedSeq: event.seq } },
+    };
+  });
+}
+
+function withAnomaly(state: ProjectionState, event: StoredEvent, message: string): ProjectionState {
+  return { ...state, anomalies: [...state.anomalies, { seq: event.seq, type: event.type, message }] };
+}
+
+function addUsage(meters: UsageMeters, event: EventOf<"run.usage">): UsageMeters {
+  const previous = meters[event.unit];
+  return {
+    ...meters,
+    [event.unit]: {
+      amount: (previous?.amount ?? 0) + event.amount,
+      estimated: (previous?.estimated ?? false) || event.estimated,
+    },
+  };
+}
+
+function sortedUnion(left: string[], right: string[]): string[] {
+  return [...new Set([...left, ...right])].sort();
+}
