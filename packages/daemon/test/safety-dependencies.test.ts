@@ -11,8 +11,18 @@ let dir: string;
 let repo: string;
 let baseCommit: string;
 
+/** Closed environment: a GIT_DIR inherited from a git hook would point every call at the wrong repository. */
 function run(args: string[]): string {
-  return execFileSync("git", args, { cwd: repo, encoding: "utf8" });
+  return execFileSync("git", args, {
+    cwd: repo,
+    encoding: "utf8",
+    env: {
+      PATH: process.env["PATH"] ?? "",
+      HOME: process.env["HOME"] ?? "",
+      GIT_CONFIG_NOSYSTEM: "1",
+      LC_ALL: "C",
+    },
+  });
 }
 
 function write(path: string, content: string): void {

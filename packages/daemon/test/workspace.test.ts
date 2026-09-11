@@ -28,11 +28,21 @@ let workspaceRoot: string;
 let baseCommit: string;
 let workspaces: WorkspaceManager;
 
+/*
+ * A closed environment on purpose. Inheriting process.env would carry GIT_DIR and GIT_INDEX_FILE whenever the
+ * suite runs from a git hook (our pre-push check does), and every git call here would then act on the repository
+ * we are pushing instead of the temp one. The daemon's own git runner closes the environment for the same reason.
+ */
 function run(args: string[], cwd = repo): string {
   return execFileSync("git", args, {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1" },
+    env: {
+      PATH: process.env["PATH"] ?? "",
+      HOME: process.env["HOME"] ?? "",
+      GIT_CONFIG_NOSYSTEM: "1",
+      LC_ALL: "C",
+    },
   });
 }
 
