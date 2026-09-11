@@ -1,0 +1,46 @@
+name: Adapter request
+description: Support another agent CLI as a seat.
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We drive a vendor's **own CLI** through its **official non-interactive mode**. We never reuse credentials or
+        call private endpoints, and a provider's terms are reviewed before its adapter ships. See `docs/ADAPTERS.md`.
+  - type: input
+    id: cli
+    attributes:
+      label: The CLI
+      placeholder: "gemini (Google Gemini CLI), version 0.x"
+    validations:
+      required: true
+  - type: input
+    id: headless
+    attributes:
+      label: Its documented non-interactive mode
+      description: The exact command and flag, and a link to the vendor's documentation for it.
+      placeholder: 'gemini -p "<prompt>" — https://…'
+    validations:
+      required: true
+  - type: input
+    id: stream
+    attributes:
+      label: Structured output
+      description: The flag that produces machine-readable output, or "none".
+      placeholder: "--output-format stream-json"
+  - type: textarea
+    id: safety
+    attributes:
+      label: Permission, sandbox and network flags
+      description: The safest workable mode it offers, and how sign-in state can be checked with its own command.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before you send
+      options:
+        - label: This CLI has an official non-interactive mode documented by its vendor.
+          required: true
+        - label: Using it this way does not require reusing credentials or working around limits.
+          required: true

@@ -1,0 +1,40 @@
+#!/bin/sh
+# Fanout commit standard (docs/COMMITS.md). Install once: git config core.hooksPath .githooks
+# Checks one message file; also used by CI to check every commit in a pull request.
+set -eu
+
+message_file=${1:?usage: commit-msg <file>}
+subject=$(sed -e '/^#/d' -e '/./,$!d' "$message_file" | sed -n '1p')
+second=$(sed -e '/^#/d' -e '/./,$!d' "$message_file" | sed -n '2p')
+
+types='feat|fix|perf|refactor|test|docs|build|ci|chore|revert'
+scopes='core|daemon|fake|plugin|ui|cli|docs|repo|adapters/[a-z0-9-]+'
+
+fail() {
+  printf '\nCommit rejected: %s\n\n' "$1" >&2
+  printf 'Format:  <type>(<scope>): <subject>\n' >&2
+  printf 'Types:   %s\n' "$(printf '%s' "$types" | tr '|' ' ')" >&2
+  printf 'Scopes:  %s\n' "$(printf '%s' "$scopes" | tr '|' ' ')" >&2
+  printf 'Example: fix(core): refuse unresolved paths in write scopes\n' >&2
+  printf '\nThe standard is docs/COMMITS.md.\n\n' >&2
+  exit 1
+}
+
+# Merges, reverts and fixups are git's own; leave them alone.
+case $subject in
+  "Merge "*|"Revert "*|"fixup!"*|"squash!"*) exit 0 ;;
+esac
+
+printf '%s' "$subject" | grep -Eq "^($types)(\(($scopes)\))?!?: [a-z0-9]" ||
+  fail "the subject must start with a type and scope, then a lower-case summary"
+
+printf '%s' "$subject" | grep -Eq '\.$' && fail "the subject must not end with a full stop"
+
+[ "${#subject}" -le 72 ] || fail "the subject is ${#subject} characters; keep it to 72"
+
+[ -z "$second" ] || fail "leave a blank line between the subject and the body"
+
+long=$(sed -e '/^#/d' "$message_file" | grep -vE '^[A-Za-z-]+: ' | grep -nE '.{101,}' | head -1 || true)
+[ -z "$long" ] || fail "wrap the body at 100 columns (line ${long%%:*} is longer)"
+
+exit 0

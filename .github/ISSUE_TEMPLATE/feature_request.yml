@@ -1,0 +1,28 @@
+name: Feature request
+description: Something Fanout should do that it doesn't.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check `docs/ROADMAP.md` first: we build the current phase only, and ideas for later phases are recorded
+        there rather than built early. A request that fits a later phase is still welcome; say so.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and where does Fanout get in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: The behaviour you want. If it touches safety, review or merging, say how it keeps those promises.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: Workarounds, other tools, or why the current flow doesn't fit.

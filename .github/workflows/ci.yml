@@ -8,8 +8,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
+    name: check (${{ matrix.os }}, node ${{ matrix.node }})
     strategy:
       fail-fast: false
       matrix:
@@ -25,3 +30,27 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+
+  commits:
+    name: commit standard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check every commit message in this change
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          range="${BASE:+$BASE..}$HEAD"
+          [ -n "$BASE" ] || range="$HEAD~1..$HEAD"
+          failed=0
+          for commit in $(git rev-list --no-merges "$range"); do
+            git log -1 --format=%B "$commit" > "$RUNNER_TEMP/message"
+            if ! .githooks/commit-msg "$RUNNER_TEMP/message"; then
+              echo "::error::$(git log -1 --format='%h %s' "$commit")"
+              failed=1
+            fi
+          done
+          exit $failed

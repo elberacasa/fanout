@@ -1,0 +1,9 @@
+# Consistent line endings everywhere; the fixtures are byte-exact on purpose.
+* text=auto eol=lf
+
+*.jsonl text eol=lf
+*.mjs   text eol=lf
+
+# Generated or vendored files: keep them out of diffs and language statistics.
+pnpm-lock.yaml -diff linguist-generated=true
+docs/**        linguist-documentation=true

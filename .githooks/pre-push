@@ -1,0 +1,11 @@
+#!/bin/sh
+# Nothing leaves this machine red. Install once: git config core.hooksPath .githooks
+# Skip deliberately with: git push --no-verify
+set -eu
+
+printf 'Running npm run check before push…\n'
+if ! npm run check >/dev/null 2>&1; then
+  printf '\nPush stopped: `npm run check` fails. Run it to see what broke.\n\n' >&2
+  exit 1
+fi
+printf 'Checks pass.\n'

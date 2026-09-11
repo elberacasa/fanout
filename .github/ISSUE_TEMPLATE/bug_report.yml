@@ -1,0 +1,50 @@
+name: Bug report
+description: Something behaved differently from what it promised.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. **Never paste credentials, tokens, private source or customer data.**
+        Logs and prompts often contain them: read what you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+      placeholder: A run finished as "failed" although the agent wrote its diff and exited 0.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The smallest steps that show it. A scenario for the fake seat is ideal, since it needs no account.
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "Output of: `node --version`, `pnpm --version`, your OS, and the agent CLIs involved with their versions."
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Relevant lines from the run log or the ledger, scrubbed. Say what you could not check.
+      render: text
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before you send
+      options:
+        - label: This contains no credentials, private code or customer data.
+          required: true
+        - label: I checked `docs/STATUS.md` and this is not a phase we haven't built yet.
+          required: true
