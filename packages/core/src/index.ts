@@ -4,3 +4,4 @@ export * from "./schema/plan.ts";
 export * from "./schema/events.ts";
 export * from "./ledger/ledger.ts";
 export * from "./projections/state.ts";
+export type * from "./adapter.ts";

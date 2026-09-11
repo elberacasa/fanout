@@ -12,7 +12,7 @@ packages/core/test/ledger.test.ts (copy its test style: vitest, temp dirs, expli
 TASK
 1. In `packages/daemon/src/supervisor/supervise.ts`, implement `supervise(options: SuperviseOptions): RunHandle`
    exactly as declared in `packages/daemon/src/supervisor/types.ts` (already written by the lead; do not change it).
-   - Spawn `argv[0]` with `argv.slice(1)`, `cwd`, and **only** the environment in `spec.env`: never inherit
+   - Spawn `spec.argv[0]` with `spec.argv.slice(1)`, `spec.cwd`, and **only** the environment in `spec.env`: never inherit
      `process.env`. Example: with `FANOUT_TEST_SECRET=x` set in the parent and `env: { PATH }`, the child must not see
      `FANOUT_TEST_SECRET`.
    - **stdin is closed** (`stdio: ["ignore", "pipe", "pipe"]`). A child that reads stdin gets EOF at once and must not

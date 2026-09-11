@@ -132,3 +132,12 @@ package will be `fanout-cli` (the bare `fanout` name belongs to an unrelated 202
 and fix the flaky test` says what happens. The owner delegated the choice.
 
 **Consequences:** nothing is reserved until the owner approves publishing.
+
+## 0015 · Minimum Node 22.18, and the adapter contract (2026-09-11; amends 0013)
+
+**Choice:** the minimum Node is 22.18, where TypeScript type stripping is on by default, so `node src/cli.ts` runs
+without a build step (the fake seat's CLI, dev scripts). `SeatAdapter` (`packages/core/src/adapter.ts`) is the
+contract every CLI implements: `command()` returns the exact `LaunchSpec` (argv, cwd, the child's whole environment),
+and `parse()` maps one stdout line to events plus signals (`session`, `limit`, `report`, `unparsed`) and never throws.
+
+**Why:** fewer moving parts for dev tools; a stable contract before the first adapters are built in parallel.
