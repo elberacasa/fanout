@@ -1,0 +1,33 @@
+{
+  "id": "claude",
+  "displayName": "Claude Code",
+  "binary": "claude",
+  "supportedVersions": ">=2.0 <3",
+  "headless": {
+    "args": [
+      "-p",
+      "{prompt}",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--permission-mode",
+      "{sandbox}",
+      "--permission-prompts",
+      "none"
+    ],
+    "stdin": "closed"
+  },
+  "stream": { "flag": "--output-format stream-json", "format": "jsonl" },
+  "models": ["fable", "opus", "sonnet", "haiku"],
+  "efforts": ["low", "medium", "high", "xhigh", "max"],
+  "permissionModes": { "readOnly": "plan", "edit": "acceptEdits" },
+  "network": { "canDisable": false, "flag": null },
+  "signIn": { "probe": ["auth", "status"], "okPattern": "\"loggedIn\"\\s*:\\s*true" },
+  "usage": { "probe": null, "window": "5h" },
+  "billing": "subscription",
+  "terms": {
+    "reviewedAt": "2026-09-11",
+    "notes": "Driven only through `claude -p`, the documented non-interactive mode, with permission prompts denied rather than bypassed. No credential handling: sign-in state comes from `claude auth status`. Claude is an opt-in worker (DECISIONS 0009) because the lead already spends this subscription on planning and review. Billing to watch: Anthropic announced moving headless use to a separate Agent SDK credit on 2026-06-15 and then paused it, so today it draws from subscription limits; if that changes, this field becomes \"credit\"."
+  },
+  "status": "alpha"
+}
