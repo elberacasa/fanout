@@ -114,7 +114,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
       return { ...state, crew: { ...state.crew, [event.seat.id]: event.seat } };
 
     case "mission.created": {
-      if (event.missionId in state.missions) {
+      if (Object.hasOwn(state.missions, event.missionId)) {
         return withAnomaly(state, event, `mission "${event.missionId}" already exists`);
       }
       const mission: MissionView = {
@@ -169,7 +169,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
 
     case "run.queued":
       return updateMission(state, event, (mission) => {
-        if (event.runId in mission.runs) return `run "${event.runId}" already exists`;
+        if (Object.hasOwn(mission.runs, event.runId)) return `run "${event.runId}" already exists`;
         const run: RunView = {
           runId: event.runId,
           lineId: event.lineId,
@@ -215,7 +215,11 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
       }));
 
     case "run.usage": {
-      const next = updateRun(state, event, (run) => ({ ...run, usage: addUsage(run.usage, event) }));
+      const next = updateRun(state, event, (run) =>
+        run.seat.id === event.seat
+          ? { ...run, usage: addUsage(run.usage, event) }
+          : `usage is charged to seat "${event.seat}" but run "${event.runId}" is on "${run.seat.id}"`,
+      );
       if (next.anomalies.length > state.anomalies.length) return next;
       return {
         ...next,
@@ -269,24 +273,34 @@ function updateMission(
   event: StoredEvent & { missionId: string },
   change: (mission: MissionView) => MissionView | string,
 ): ProjectionState {
-  const mission = state.missions[event.missionId];
+  const mission = Object.hasOwn(state.missions, event.missionId)
+    ? state.missions[event.missionId]
+    : undefined;
   if (mission === undefined) return withAnomaly(state, event, `unknown mission "${event.missionId}"`);
   const next = change(mission);
   if (typeof next === "string") return withAnomaly(state, event, next);
   return { ...state, missions: { ...state.missions, [event.missionId]: { ...next, updatedSeq: event.seq } } };
 }
 
+/** A run that merged or was dropped is finished for good; later run events are anomalies, not a second life. */
+const TERMINAL: ReadonlySet<RunStatus> = new Set<RunStatus>(["merged", "dropped"]);
+
 function updateRun(
   state: ProjectionState,
   event: StoredEvent & { missionId: string; runId: string },
-  change: (run: RunView) => RunView,
+  change: (run: RunView) => RunView | string,
 ): ProjectionState {
   return updateMission(state, event, (mission) => {
-    const run = mission.runs[event.runId];
+    const run = Object.hasOwn(mission.runs, event.runId) ? mission.runs[event.runId] : undefined;
     if (run === undefined) return `unknown run "${event.runId}" in mission "${event.missionId}"`;
+    if (TERMINAL.has(run.status)) {
+      return `run "${event.runId}" is already ${run.status}; "${event.type}" cannot change it`;
+    }
+    const next = change(run);
+    if (typeof next === "string") return next;
     return {
       ...mission,
-      runs: { ...mission.runs, [event.runId]: { ...change(run), updatedSeq: event.seq } },
+      runs: { ...mission.runs, [event.runId]: { ...next, updatedSeq: event.seq } },
     };
   });
 }

@@ -235,6 +235,56 @@ describe("project", () => {
     expect(state.lastSeq).toBe(odd.length);
   });
 
+  it("treats ids that collide with object properties as ordinary ids", () => {
+    const state = project(
+      record([
+        { ...samples["mission.created"], missionId: "constructor" },
+        { ...samples["run.queued"], missionId: "constructor", runId: "constructor" },
+      ]),
+    );
+    const tricky = "constructor";
+    expect(state.anomalies).toEqual([]);
+    expect(state.missions[tricky]?.runs[tricky]).toMatchObject({ runId: tricky, status: "queued" });
+  });
+
+  it("records an event for an unknown mission named like an object property", () => {
+    const state = project(record([{ ...samples["run.progress"], missionId: "constructor" }]));
+    expect(state.anomalies).toEqual([
+      { seq: 1, type: "run.progress", message: 'unknown mission "constructor"' },
+    ]);
+  });
+
+  it.each(["merge.applied", "run.dropped"] as const)("does not bring a run back after %s", (terminal) => {
+    const state = project(
+      record([
+        samples["mission.created"],
+        samples["run.queued"],
+        samples["run.started"],
+        samples["run.finished"],
+        samples[terminal],
+        samples["run.started"],
+        samples["run.finished"],
+      ]),
+    );
+    const run = state.missions[M]?.runs["api-export-1"];
+    expect(run?.status).toBe(terminal === "merge.applied" ? "merged" : "dropped");
+    expect(state.anomalies).toHaveLength(2);
+  });
+
+  it("refuses usage charged to a seat other than the run's", () => {
+    const state = project(
+      record([
+        samples["mission.created"],
+        samples["run.queued"],
+        samples["run.started"],
+        { ...samples["run.usage"], seat: "kimi" },
+      ]),
+    );
+    expect(state.anomalies).toHaveLength(1);
+    expect(state.usage).toEqual({});
+    expect(state.missions[M]?.runs["api-export-1"]?.usage).toEqual({});
+  });
+
   it("ignores an event whose sequence number goes backwards", () => {
     const state = project(events.slice(0, 5));
     const replayed = events[2];
