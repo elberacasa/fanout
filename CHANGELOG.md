@@ -8,6 +8,30 @@ between minor versions.
 
 Nothing yet.
 
+## [0.3.0] — 2026-09-11
+
+Isolation and the gate that decides whether anything runs.
+
+### Added
+
+- **Workspaces** (`@fanout/daemon`): a git worktree on a throwaway branch for every editing run, and an export with
+  no `.git` for auditors, so an auditor cannot commit, switch branch or read history. Neither contains ignored
+  files. A deny-list is checked against the base commit first, and a workspace is refused rather than handing an
+  agent a tracked `.env` or private key. The diff is read from the workspace against the base commit — accurate even
+  if an agent stages or commits — and every path written outside the line's declared scope is listed for review.
+- **Safety gate** (`@fanout/daemon`): eight checks computed from the plan, the repository and the seats as detected,
+  each naming the lines it concerns, plus the exact commands that would run. A command carrying a flag that hands
+  over the machine never launches. A check that cannot be evaluated warns instead of passing quietly.
+- **Git runner** (`@fanout/daemon`): every git call without a shell, with a closed environment and a timeout, so a
+  path can never become an argument and a hung git cannot hang a mission.
+
+### Changed
+
+- **Safety reports carry their plan revision** (`@fanout/core`), and a projection refuses one that belongs to an
+  older plan instead of showing it as current.
+- **Scopes accept ordinary filenames** (`@fanout/core`): every character except `/` and control characters is
+  literal, so `src/my file.ts`, `docs/notes (draft).md` and `app/[id]/page.tsx` can be written as scopes.
+
 ## [0.2.0] — 2026-09-11
 
 The crew can run an agent safely and record everything it does.

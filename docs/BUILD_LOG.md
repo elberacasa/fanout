@@ -17,6 +17,34 @@ Next: <the next step>
 
 ---
 
+### 2026-09-11 · P0 milestone 3, Workspace + safety report · session 1 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: none (isolation and the launch gate stay with the lead)
+
+Built:
+- **The repository went public-ready and private on GitHub** (`elberacasa/fanout`): Conventional Commits enforced by
+  a dependency-free hook and by CI, a pre-push hook that refuses to push a red tree, README with badges and an
+  honest status table, contributing guide, security policy with our real limits, code of conduct, changelog, issue
+  forms, PR checklist, Dependabot. The 21 existing commits were rewritten into the standard before the first push,
+  and tagged `v0.1.0` and `v0.2.0`.
+- **Workspaces**: a worktree per editing run, an export with no `.git` for auditors, a deny-list checked against the
+  base commit, the diff read from the workspace, and cleanup that survives a crash. 12 tests drive real git.
+- **The safety gate**: eight checks, each naming the lines it concerns, plus the exact commands that would run.
+  20 tests, including one that tries to slip a bad plan past every check at once.
+- **Two contract gaps settled** from the milestone 1 audit: a safety report now carries its plan revision (a stale
+  one is refused), and scopes accept ordinary filenames (spaces, parentheses, non-ASCII, `app/[id]/page.tsx`).
+
+Reviewed by the lead, in the lead's own work: `collect` diffed against the index, so an agent that staged or
+committed would have been under-reported; it now diffs against the base commit, with a test that fails on the old
+behaviour. CI caught what local runs could not: the commit-standard job rejected Dependabot's own capitalised
+subjects, so bots are exempt and the rule stays strict for people and agents.
+
+Verified by the lead: typecheck ok · lint ok · **221 tests pass** (14 files) · every commit checked on its own ·
+CI green on macOS and Linux, Node 22 and 24.
+Could not verify: branch protection (GitHub Free does not allow rulesets on private repositories; to be added when
+the repository goes public).
+Next: milestone 4, real seats — the Codex adapter first, with recorded fixtures and contract tests.
+
 ### 2026-09-11 · P0 milestone 2, Fake seat + supervisor · session 1 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: 3 Codex agents via codex-fanout
