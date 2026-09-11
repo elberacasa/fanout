@@ -13,7 +13,9 @@ import {
 
 /*
  * The ledger is the single source of truth: an append-only SQLite table of validated events.
- * Append-only is enforced by the database (triggers abort any UPDATE or DELETE), not just by this API.
+ * Append-only is enforced by the database, not just by this API: triggers abort any UPDATE, any DELETE, and any
+ * INSERT that would replace an existing row (INSERT OR REPLACE deletes the old row without firing DELETE triggers).
+ * This guards against rewriting history through SQL; it is not a defense against someone who edits the file itself.
  * Every row is validated on the way in and again on the way out, so a damaged ledger fails loudly.
  */
 
@@ -35,9 +37,12 @@ CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events
   BEGIN SELECT RAISE(ABORT, 'ledger is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS events_no_delete BEFORE DELETE ON events
   BEGIN SELECT RAISE(ABORT, 'ledger is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS events_no_replace BEFORE INSERT ON events
+  WHEN EXISTS (SELECT 1 FROM events WHERE seq = NEW.seq OR id = NEW.id)
+  BEGIN SELECT RAISE(ABORT, 'ledger is append-only'); END;
 `;
 
-const GUARD_TRIGGERS = ["events_no_update", "events_no_delete"] as const;
+const GUARD_TRIGGERS = ["events_no_update", "events_no_delete", "events_no_replace"] as const;
 
 export class LedgerError extends Error {
   override name = "LedgerError";

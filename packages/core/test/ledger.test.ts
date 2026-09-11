@@ -117,6 +117,22 @@ describe("Ledger", () => {
     ledger.close();
   });
 
+  it("refuses to overwrite a recorded event through INSERT OR REPLACE", () => {
+    const ledger = Ledger.open(path);
+    const first = ledger.append(samples["mission.created"]);
+    const raw = new DatabaseSync(path);
+    const replace = raw.prepare(
+      "INSERT OR REPLACE INTO events (seq, id, ts, v, type, body) VALUES (?, ?, ?, 1, 'run.progress', '{}')",
+    );
+    expect(() => replace.run(first.seq, "2f6c7b1e-4a52-4c3e-9a0f-4f1d7c9e8b21", first.ts)).toThrow(
+      /append-only/,
+    );
+    expect(() => replace.run(99, first.id, first.ts)).toThrow(/append-only/);
+    raw.close();
+    expect(ledger.read()).toEqual([first]);
+    ledger.close();
+  });
+
   it("refuses a ledger whose append-only guard was removed", () => {
     Ledger.open(path).close();
     const raw = new DatabaseSync(path);
