@@ -21,7 +21,7 @@ const manifest = AdapterManifest.parse({
   efforts: ["low"],
   permissionModes: { readOnly: "read-only", edit: "workspace-write" },
   network: { canDisable: false, flag: null },
-  signIn: { probe: ["login", "status"], okPattern: "Logged in" },
+  signIn: { probe: ["login", "status"], okPattern: "^\\s*Logged in\\b", noPattern: "^\\s*Not logged in\\b" },
   usage: { probe: null, window: "unknown" },
   billing: "subscription",
   terms: { reviewedAt: "2026-09-11", notes: "" },
@@ -123,9 +123,11 @@ describe("detecting a seat", () => {
   });
 
   it.each([
-    ["the probe exits non-zero", { stdout: "", stderr: "Not logged in", exitCode: 1 }, "no"],
-    ["the probe says something else", { stdout: "Logged out", stderr: "", exitCode: 0 }, "no"],
-  ])("reports %s as signed out", async (_, probeResult, expected) => {
+    ["the probe exits non-zero saying so", { stdout: "", stderr: "Not logged in", exitCode: 1 }, "no"],
+    // "Logged out" is neither of the two answers this CLI is documented to give. It used to be read as a
+    // confident "no"; an answer we cannot classify is now "unknown", which is what it always was.
+    ["the probe says something else", { stdout: "Logged out", stderr: "", exitCode: 0 }, "unknown"],
+  ])("reports %s", async (_, probeResult, expected) => {
     const [seat] = await detect((_binary, args) =>
       Promise.resolve(args[0] === "--version" ? ok("codex-cli 0.154.0") : probeResult),
     );
@@ -134,7 +136,9 @@ describe("detecting a seat", () => {
 
   it("says it does not know when a CLI has no way to tell us", async () => {
     const [seat] = await detectSeats({
-      manifests: [AdapterManifest.parse({ ...manifest, signIn: { probe: null, okPattern: null } })],
+      manifests: [
+        AdapterManifest.parse({ ...manifest, signIn: { probe: null, okPattern: null, noPattern: null } }),
+      ],
       execute: () => Promise.resolve(ok("codex-cli 0.154.0")),
     });
     expect(seat?.signedIn).toBe("unknown");
@@ -198,7 +202,11 @@ describe("reading which plan a seat is on", () => {
     binary: "claude",
     displayName: "Claude Code",
     supportedVersions: ">=2.0 <3",
-    signIn: { probe: ["auth", "status"], okPattern: "loggedIn" },
+    signIn: {
+      probe: ["auth", "status"],
+      okPattern: String.raw`"loggedIn"\s*:\s*true`,
+      noPattern: String.raw`"loggedIn"\s*:\s*false`,
+    },
     capabilities: {
       resume: null,
       fork: null,
@@ -291,5 +299,51 @@ describe("reading which plan a seat is on", () => {
     expect(seat?.plan).toBeNull();
     // An unverified version means an unverified output shape: we never send it the probe.
     expect(probed).toEqual([["--version"]]);
+  });
+});
+
+/*
+ * Found by an adversarial audit of this file (2026-09-12). Sign-in was decided by searching the probe's whole
+ * output for a positive pattern, which is wrong in three separate ways, and the first of them shipped.
+ */
+describe("classifying sign-in without fooling itself", () => {
+  const signedOutCodex = (text: string) => (_binary: string, args: readonly string[]) =>
+    Promise.resolve(args[0] === "--version" ? ok("codex-cli 0.154.0") : ok(text));
+
+  it("does not read 'Not logged in' as 'Logged in'", async () => {
+    const [seat] = await detect(signedOutCodex("Not logged in"));
+    expect(seat?.signedIn).toBe("no");
+  });
+
+  it("still reads a real sign-in as yes", async () => {
+    const [seat] = await detect(signedOutCodex("Logged in using ChatGPT"));
+    expect(seat?.signedIn).toBe("yes");
+  });
+
+  it("says unknown, not no, when the answer fits neither shape", async () => {
+    // A service blip is not an answer about this account, and reporting "no" would send work elsewhere for a
+    // reason that is not true.
+    const [seat] = await detect(signedOutCodex("temporary service failure"));
+    expect(seat?.signedIn).toBe("unknown");
+  });
+
+  it("says unknown when the probe exits non-zero without a recognisable answer", async () => {
+    const [seat] = await detect((_binary, args) =>
+      Promise.resolve(
+        args[0] === "--version" ? ok("codex-cli 0.154.0") : { stdout: "", stderr: "boom", exitCode: 70 },
+      ),
+    );
+    expect(seat?.signedIn).toBe("unknown");
+  });
+
+  it("reads a non-zero exit that names the answer as that answer", async () => {
+    const [seat] = await detect((_binary, args) =>
+      Promise.resolve(
+        args[0] === "--version"
+          ? ok("codex-cli 0.154.0")
+          : { stdout: "", stderr: "Not logged in", exitCode: 1 },
+      ),
+    );
+    expect(seat?.signedIn).toBe("no");
   });
 });

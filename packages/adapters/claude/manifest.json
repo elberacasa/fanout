@@ -58,13 +58,29 @@
     ],
     "stdin": "closed"
   },
-  "stream": { "flag": "--output-format stream-json", "format": "jsonl" },
+  "stream": {
+    "flag": "--output-format stream-json",
+    "format": "jsonl"
+  },
   "models": ["fable", "opus", "sonnet", "haiku"],
   "efforts": ["low", "medium", "high", "xhigh", "max"],
-  "permissionModes": { "readOnly": "plan", "edit": "acceptEdits" },
-  "network": { "canDisable": false, "flag": null },
-  "signIn": { "probe": ["auth", "status"], "okPattern": "\"loggedIn\"\\s*:\\s*true" },
-  "usage": { "probe": null, "window": "5h" },
+  "permissionModes": {
+    "readOnly": "plan",
+    "edit": "acceptEdits"
+  },
+  "network": {
+    "canDisable": false,
+    "flag": null
+  },
+  "signIn": {
+    "probe": ["auth", "status"],
+    "okPattern": "\"loggedIn\"\\s*:\\s*true",
+    "noPattern": "\"loggedIn\"\\s*:\\s*false"
+  },
+  "usage": {
+    "probe": null,
+    "window": "5h"
+  },
   "billing": "subscription",
   "terms": {
     "reviewedAt": "2026-09-11",

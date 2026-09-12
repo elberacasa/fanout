@@ -18,7 +18,7 @@ const codex = {
   efforts: ["low", "medium", "high"],
   permissionModes: { readOnly: "read-only", edit: "workspace-write" },
   network: { canDisable: false, flag: null },
-  signIn: { probe: ["login", "status"], okPattern: "Logged in" },
+  signIn: { probe: ["login", "status"], okPattern: "^\\s*Logged in\\b", noPattern: "^\\s*Not logged in\\b" },
   usage: { probe: null, window: "5h" },
   billing: "subscription",
   terms: { reviewedAt: "2026-09-11", notes: "Documented non-interactive mode; no credential handling." },
@@ -45,7 +45,7 @@ describe("AdapterManifest", () => {
         ...codex,
         usage: { probe: null, window: "unknown" },
         network: { canDisable: false, flag: null },
-        signIn: { probe: null, okPattern: null },
+        signIn: { probe: null, okPattern: null, noPattern: null },
         status: "research",
       }).success,
     ).toBe(true);

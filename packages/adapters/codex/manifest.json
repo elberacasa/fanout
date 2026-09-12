@@ -55,13 +55,29 @@
     "args": ["exec", "--json", "-C", "{workdir}", "-s", "{sandbox}", "-o", "{report}", "{prompt}"],
     "stdin": "closed"
   },
-  "stream": { "flag": "--json", "format": "jsonl" },
+  "stream": {
+    "flag": "--json",
+    "format": "jsonl"
+  },
   "models": ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.3-codex-spark"],
   "efforts": ["low", "medium", "high", "xhigh", "max"],
-  "permissionModes": { "readOnly": "read-only", "edit": "workspace-write" },
-  "network": { "canDisable": false, "flag": null },
-  "signIn": { "probe": ["login", "status"], "okPattern": "Logged in" },
-  "usage": { "probe": null, "window": "unknown" },
+  "permissionModes": {
+    "readOnly": "read-only",
+    "edit": "workspace-write"
+  },
+  "network": {
+    "canDisable": false,
+    "flag": null
+  },
+  "signIn": {
+    "probe": ["login", "status"],
+    "okPattern": "^\\s*Logged in\\b",
+    "noPattern": "^\\s*Not logged in\\b"
+  },
+  "usage": {
+    "probe": null,
+    "window": "unknown"
+  },
   "billing": "subscription",
   "terms": {
     "reviewedAt": "2026-09-11",

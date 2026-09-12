@@ -4,7 +4,12 @@
   "binary": "grok",
   "supportedVersions": ">=1.0 <2",
   "tier": "community",
-  "capabilities": { "resume": null, "fork": null, "review": null, "plan": null },
+  "capabilities": {
+    "resume": null,
+    "fork": null,
+    "review": null,
+    "plan": null
+  },
   "headless": {
     "args": [
       "-p",
@@ -18,13 +23,29 @@
     ],
     "stdin": "closed"
   },
-  "stream": { "flag": "--output-format streaming-json", "format": "jsonl" },
+  "stream": {
+    "flag": "--output-format streaming-json",
+    "format": "jsonl"
+  },
   "models": [],
   "efforts": ["low", "medium", "high"],
-  "permissionModes": { "readOnly": "plan", "edit": "acceptEdits" },
-  "network": { "canDisable": false, "flag": null },
-  "signIn": { "probe": null, "okPattern": null },
-  "usage": { "probe": null, "window": "unknown" },
+  "permissionModes": {
+    "readOnly": "plan",
+    "edit": "acceptEdits"
+  },
+  "network": {
+    "canDisable": false,
+    "flag": null
+  },
+  "signIn": {
+    "probe": null,
+    "okPattern": null,
+    "noPattern": null
+  },
+  "usage": {
+    "probe": null,
+    "window": "unknown"
+  },
   "billing": "subscription",
   "terms": {
     "reviewedAt": "2026-09-11",

@@ -119,14 +119,33 @@ async function signInState(
   manifest: AdapterManifest,
   execute: (binary: string, args: readonly string[]) => Promise<CommandResult>,
 ): Promise<SeatInfo["signedIn"]> {
-  const { probe, okPattern } = manifest.signIn;
-  if (probe === null || okPattern === null) return "unknown";
+  const { probe, okPattern, noPattern } = manifest.signIn;
+  if (probe === null) return "unknown";
 
   const result = await attempt(() => execute(manifest.binary, probe));
   if (result === null) return "unknown";
-  if (result.exitCode !== 0) return "no";
 
-  return new RegExp(okPattern, "i").test(`${result.stdout}\n${result.stderr}`) ? "yes" : "no";
+  const answer = `${result.stdout}\n${result.stderr}`;
+  // Signed out is checked first and on its own terms. "Not logged in" contains "Logged in", so a positive
+  // pattern asked first will happily read a refusal as an approval — which is exactly what this code used to do.
+  if (noPattern !== null && matches(noPattern, answer)) return "no";
+  if (okPattern !== null && matches(okPattern, answer)) return "yes";
+
+  // Neither shape. A non-zero exit with nothing we recognise is a failure to answer, not an answer of "no":
+  // reporting "no" would route someone's work away from a seat that may be perfectly fine.
+  return "unknown";
+}
+
+/**
+ * Runs a manifest's pattern against a bounded prefix of the CLI's output.
+ *
+ * The bound is the point. A pattern is compiled when the manifest is parsed, so it is valid, but validity says
+ * nothing about cost: `^(a+)+$` against a long line backtracks for effectively ever, and a regular expression is
+ * synchronous, so no timeout anywhere else in this file can interrupt it. Sign-in answers are short; anything
+ * past a couple of kilobytes is not the answer we are looking for.
+ */
+function matches(pattern: string, text: string): boolean {
+  return new RegExp(pattern, "i").test(text.slice(0, 2_000));
 }
 
 /** A probe that throws, hangs or cannot start tells us nothing; it must never take the daemon down with it. */

@@ -13,6 +13,24 @@ import { SeatId } from "./common.ts";
 /** A placeholder the supervisor fills in: {workdir}, {prompt}, {report}, {sandbox}, {model}, {effort}, {session}. */
 const ArgTemplate = z.string().min(1).max(500);
 
+/**
+ * A regular expression a manifest asks us to run, checked at parse time rather than at the moment we need it.
+ *
+ * A pattern that does not compile throws from `new RegExp`, and that throw would happen deep inside detection,
+ * where it takes down the whole crew's result and not just the seat that declared it. Refusing the manifest is
+ * both earlier and louder. (This does not make a pattern *fast*: see `matches` in the detector for that half.)
+ */
+const SafePattern = z.string().max(200).refine(compiles, { message: "must be a valid regular expression" });
+
+function compiles(pattern: string): boolean {
+  try {
+    new RegExp(pattern, "i");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const AdapterManifest = z.strictObject({
   id: SeatId,
   displayName: z.string().min(1).max(80),
@@ -71,11 +89,19 @@ export const AdapterManifest = z.strictObject({
     flag: z.string().max(100).nullable(),
   }),
 
-  /** How to ask the CLI itself whether it is signed in. We never read credential files. */
+  /**
+   * How to ask the CLI itself whether it is signed in. We never read credential files.
+   *
+   * Both answers are named, because only one of them can be inferred from the other's absence and neither
+   * actually is: a probe that fails, times out or answers something unforeseen has told us nothing, and
+   * "nothing" must stay "unknown" rather than becoming a "no" that quietly reroutes someone's work.
+   */
   signIn: z.strictObject({
     probe: z.array(z.string().min(1).max(100)).max(10).nullable(),
     /** A pattern the probe's output must match to count as signed in. */
-    okPattern: z.string().max(200).nullable(),
+    okPattern: SafePattern.nullable(),
+    /** A pattern that positively means signed out. Checked first, so "Not logged in" cannot match "Logged in". */
+    noPattern: SafePattern.nullable(),
   }),
 
   /** Real usage when the CLI reports it; otherwise we estimate and say so. */

@@ -23,7 +23,11 @@ const execute = (binary: string, args: readonly string[]): Promise<CommandResult
   if (args[0] === "--version")
     return Promise.resolve(ok(binary === "codex" ? "codex-cli 0.154.0" : "2.1.269"));
   return Promise.resolve(
-    binary === "codex" ? ok("Logged in using ChatGPT") : { stdout: "", stderr: "", exitCode: 1 },
+    binary === "codex"
+      ? ok("Logged in using ChatGPT")
+      : // What a signed-out Claude actually prints. An empty answer would be "unknown", not "no", and saying
+        // "not signed in" on the strength of silence is the failure this fixture used to hide.
+        { stdout: JSON.stringify({ loggedIn: false }), stderr: "", exitCode: 1 },
   );
 };
 

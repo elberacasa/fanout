@@ -27,7 +27,7 @@ const FAKE = AdapterManifest.parse({
   efforts: [],
   permissionModes: { readOnly: "read-only", edit: "workspace-write" },
   network: { canDisable: true, flag: null },
-  signIn: { probe: null, okPattern: null },
+  signIn: { probe: null, okPattern: null, noPattern: null },
   usage: { probe: null, window: "unknown" },
   billing: "subscription",
   terms: { reviewedAt: "2026-09-11", notes: "A simulated seat: no vendor, no terms." },
