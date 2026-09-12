@@ -17,6 +17,7 @@ import {
   filesInPatch,
   mergeRun,
   proveFix,
+  reworkRun,
   runChecks,
   workSnapshot,
   createMissionRunner,
@@ -515,6 +516,46 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
         revision,
         tests: result.tests,
       });
+    },
+  );
+
+  server.registerTool(
+    "rework_run",
+    {
+      title: "Send a diff back to the agent that wrote it",
+      description:
+        "Continues the conversation that produced this diff, with your review notes as the instruction, in the " +
+        "same worktree. Use it after `review_run` with a `rework` verdict. This is worth far more than running " +
+        "the line again: the agent still holds its own reasoning about the code, so a note about the header row " +
+        "lands on someone who knows which header row. Two rounds, then decide instead of asking a third time.",
+      inputSchema: RUN,
+    },
+    ({ missionId, runId }) => {
+      const found = locate(missionId, runId);
+      if (found?.exists !== true) return text(`No workspace for ${runId} to rework.`, { runId });
+
+      const adapter = options.adapters.get(found.run.seat.id);
+      if (adapter === undefined) {
+        return text(`No adapter for ${found.run.seat.id} on this machine.`, { runId });
+      }
+
+      const outcome = reworkRun({
+        ledger: options.ledger,
+        adapter,
+        missionId,
+        line: found.line,
+        run: found.run,
+        workspacePath: found.workspace.path,
+        runsRoot: options.paths.runs,
+        limits: options.limits,
+      });
+      if (outcome.kind === "refused") return text(`Not reworked: ${outcome.why}`, { started: false });
+
+      // Returns as soon as it is under way, like `launch`: watch it with mission_status.
+      return text(
+        `${outcome.runId} is picking the work back up where it left off. Watch it with mission_status.`,
+        { started: true, runId: outcome.runId },
+      );
     },
   );
 

@@ -11,3 +11,6 @@ coverage/
 
 # Screenshots the owner drops in while we work
 Screenshot*.png
+
+# Throwaway scripts for driving a real mission by hand. Never committed.
+*.dev.mjs

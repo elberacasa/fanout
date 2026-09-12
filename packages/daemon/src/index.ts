@@ -36,3 +36,4 @@ export { missionViewHtml } from "./api/view.ts";
 export * from "./gate/checks.ts";
 export * from "./gate/proof.ts";
 export * from "./gate/merge.ts";
+export * from "./gate/rework.ts";

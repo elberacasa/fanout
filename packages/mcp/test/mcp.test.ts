@@ -138,6 +138,7 @@ describe("the tools the lead gets", () => {
       "prove_fix",
       "repo_overview",
       "review_run",
+      "rework_run",
       "run_checks",
       "run_diff",
       "seats",

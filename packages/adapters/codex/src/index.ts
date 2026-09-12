@@ -31,7 +31,52 @@ const LIMIT = /usage limit|rate limit|quota|too many requests/i;
 const TEST_COMMAND = /\b(test|vitest|jest|pytest|cargo test|go test|npm run|pnpm run)\b/;
 
 export function createCodexAdapter(): SeatAdapter {
-  return { id: manifest.id, command, parse };
+  return { id: manifest.id, command, parse, resume };
+}
+
+/**
+ * Continues the thread that produced the diff, with the reviewer's notes as the next turn.
+ *
+ * Verified against codex 0.154.0 on a throwaway repository: the resumed run keeps the same thread id and answered
+ * a follow-up that said "the file you just created" correctly, which is the whole reason to resume rather than
+ * re-explain. The argv is the manifest's, so a change to what was verified is a change to data.
+ */
+function resume(context: AdapterContext & { sessionId: string }): LaunchSpec {
+  const template = manifest.capabilities.resume;
+  if (template === null) throw new Error("this codex manifest declares no resume command");
+
+  const args = fill(template.args, {
+    "{workdir}": context.workdir,
+    "{sandbox}": manifest.permissionModes.edit,
+    "{session}": context.sessionId,
+    "{prompt}": context.line.prompt,
+    ...(context.line.seat.model === undefined ? {} : { "{model}": context.line.seat.model }),
+  });
+  return {
+    argv: [manifest.binary, ...args] as [string, ...string[]],
+    cwd: context.workdir,
+    env: context.baseEnv,
+  };
+}
+
+/**
+ * Fills the manifest's template, dropping a placeholder nobody supplied along with the flag in front of it.
+ *
+ * Without this, no model chosen means `-m ""`, and Codex answers `The '' model is not supported`. Found by running
+ * it rather than by reading it.
+ */
+function fill(template: readonly string[], values: Readonly<Record<string, string>>): string[] {
+  const filled: string[] = [];
+  for (const argument of template) {
+    if (/^\{[a-z]+\}$/.test(argument) && !Object.hasOwn(values, argument)) {
+      if (filled[filled.length - 1]?.startsWith("-") === true) filled.pop();
+      continue;
+    }
+    filled.push(
+      Object.entries(values).reduce((text, [name, value]) => text.split(name).join(value), argument),
+    );
+  }
+  return filled;
 }
 
 function command(context: AdapterContext): LaunchSpec {

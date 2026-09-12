@@ -18,6 +18,13 @@ export interface AdapterContext {
   missionId: string;
   runId: string;
   line: PlanLine;
+  /**
+   * The conversation to continue, when this run is a rework of an earlier one.
+   *
+   * Present only for a resumed run, and only for a seat whose CLI can resume at all. `command` ignores it; it is
+   * `resume`'s whole input.
+   */
+  sessionId?: string;
   /** The run's worktree, or a read-only archive for auditors. */
   workdir: string;
   /** Where the agent's final report goes, when the CLI can write one. */
@@ -48,6 +55,18 @@ export interface ParseResult {
 export interface SeatAdapter {
   readonly id: string;
   command(context: AdapterContext): LaunchSpec;
+  /**
+   * Continues the conversation that produced an earlier diff, with the reviewer's notes as the new instruction.
+   *
+   * This is why rework is worth more than a second attempt: the agent still holds its own reasoning about the
+   * code, so "escape the quotes in the header row too" lands on someone who knows which header row. A fresh run
+   * given a summary of that reasoning is a stranger reading a description of a conversation it was not in.
+   *
+   * Left out by adapters whose CLI cannot resume. The gate asks before it offers rework, and offers a fresh
+   * attempt instead rather than pretending — a resumed session that silently started over would be the worst of
+   * both, spending a subscription to lose the context it was spent on.
+   */
+  resume?(context: AdapterContext & { sessionId: string }): LaunchSpec;
   /** Maps one line of the CLI's stdout. Never throws: unknown lines become an `unparsed` signal. */
   parse(line: string, context: AdapterContext): ParseResult;
   /**

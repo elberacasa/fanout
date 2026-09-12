@@ -92,11 +92,14 @@ changes between any two of them, the later ones refuse — which is the point.
    did.
 2. **`review_run`** — your verdict, and *what you actually checked*. "Looks fine" is not a review. `rework` sends
    it back to the same session; `reject` ends the line.
-3. **`run_checks`** — the project's own commands, run by the gate rather than reported by the agent. A line that
+3. **`rework_run`** if you asked for changes — it continues the same conversation in the same worktree, so the
+   agent still has its own reasoning about the code. Running the line again instead throws that away and costs the
+   same. Two rounds; after that, decide rather than asking a third time.
+4. **`run_checks`** — the project's own commands, run by the gate rather than reported by the agent. A line that
    declared no checks comes back **unverified**, which is not the same as passing.
-4. **`prove_fix`** — only for a line the plan marked `fixesBug`. The test goes onto the *old* code and must fail
+5. **`prove_fix`** — only for a line the plan marked `fixesBug`. The test goes onto the *old* code and must fail
    there. If it passes, it would have passed before the fix.
-5. **Ask the user**, in the chat, in their own words. Then **`merge_run`** with what they said.
+6. **Ask the user**, in the chat, in their own words. Then **`merge_run`** with what they said.
 
 You cannot merge your own way past any of this: `merge_run` asks a pure function over recorded facts, and reports
 the refusals rather than working around them. Read them out to the user as written.
