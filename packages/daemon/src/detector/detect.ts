@@ -49,22 +49,70 @@ async function detectSeat(
 
   const versionResult = await attempt(() => execute(manifest.binary, ["--version"]));
   if (versionResult?.exitCode !== 0) {
-    return { ...base, version: null, supported: false, signedIn: "unknown" };
+    return { ...base, version: null, supported: false, signedIn: "unknown", plan: null };
   }
 
   const version = parseVersion(`${versionResult.stdout} ${versionResult.stderr}`);
   if (version === null) {
-    return { ...base, version: null, supported: false, signedIn: "unknown" };
+    return { ...base, version: null, supported: false, signedIn: "unknown", plan: null };
   }
 
   const printed = `${version.major}.${version.minor}.${version.patch}`;
   const supported = satisfies(version, manifest.supportedVersions);
   if (!supported) {
-    // A stream we have not seen is a stream we cannot parse honestly, so we stop at the version.
-    return { ...base, version: printed, supported: false, signedIn: "unknown" };
+    // A stream we have not seen is a stream we cannot parse honestly, so we stop at the version — and in
+    // particular we do not send an unverified build a probe whose answer we would not know how to read.
+    return { ...base, version: printed, supported: false, signedIn: "unknown", plan: null };
   }
 
-  return { ...base, version: printed, supported: true, signedIn: await signInState(manifest, execute) };
+  const [signedIn, plan] = await Promise.all([signInState(manifest, execute), planState(manifest, execute)]);
+  return { ...base, version: printed, supported: true, signedIn, plan };
+}
+
+/**
+ * Keep only the fields the manifest allows, and drop everything else before it can travel any further.
+ *
+ * This is the whole of the privacy control, and it is deliberately four lines in one place. The probe that reports
+ * Claude's subscription tier answers with the user's email address and organisation id in the same object; those
+ * must never reach the ledger, a log, a projection or a prompt. Filtering at the moment of reading — rather than
+ * remembering not to use the extra fields later — is what makes that a property of the code instead of a habit.
+ */
+function keepAllowed(parsed: Record<string, unknown>, keep: readonly string[]): Record<string, unknown> {
+  return Object.fromEntries(
+    keep.filter((field) => Object.hasOwn(parsed, field)).map((field) => [field, parsed[field]]),
+  );
+}
+
+async function planState(
+  manifest: AdapterManifest,
+  execute: (binary: string, args: readonly string[]) => Promise<CommandResult>,
+): Promise<SeatInfo["plan"]> {
+  const { plan } = manifest.capabilities;
+  if (plan === null) return null;
+
+  const result = await attempt(() => execute(manifest.binary, plan.probe));
+  if (result?.exitCode !== 0) return null;
+
+  const parsed = parseJsonObject(result.stdout);
+  if (parsed === null) return null;
+
+  const name = keepAllowed(parsed, plan.keep)[plan.planField];
+  // A CLI that answers in a shape we did not expect has told us nothing, and a guess here would be recorded as a
+  // fact and routed on.
+  if (typeof name !== "string" || name === "") return null;
+
+  return { name, source: "detected" };
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const value: unknown = JSON.parse(text);
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 async function signInState(

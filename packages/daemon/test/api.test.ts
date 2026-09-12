@@ -19,6 +19,7 @@ const seat: SeatInfo = {
   models: [],
   efforts: [],
   billing: "subscription",
+  plan: null,
 };
 
 let ledger: Ledger;

@@ -43,6 +43,7 @@ export const samples: Samples = {
       models: [],
       efforts: ["low", "medium", "high"],
       billing: "subscription",
+      plan: null,
     },
   },
   "mission.created": {

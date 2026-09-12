@@ -32,6 +32,18 @@ export const SeatInfo = z.strictObject({
   models: z.array(z.string().min(1).max(100)).max(100),
   efforts: z.array(z.string().min(1).max(40)).max(20),
   billing: z.enum(["subscription", "credit", "api", "unknown"]),
+  /**
+   * The subscription tier this seat is on, and where that answer came from — `null` when the CLI does not report
+   * one, which is most of them. The source travels with the value on purpose: "detected" is a fact the CLI told us
+   * this run, "declared" is something the owner typed once and may since have outgrown, and a reader deciding how
+   * much to trust a routing decision deserves to know which it is looking at.
+   */
+  plan: z
+    .strictObject({
+      name: z.string().min(1).max(100),
+      source: z.enum(["detected", "declared"]),
+    })
+    .nullable(),
 });
 export type SeatInfo = z.infer<typeof SeatInfo>;
 

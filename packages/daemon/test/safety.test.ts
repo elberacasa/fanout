@@ -20,6 +20,7 @@ function seat(overrides: Partial<SeatInfo> = {}): SeatInfo {
     models: [],
     efforts: [],
     billing: "subscription",
+    plan: null,
     ...overrides,
   };
 }

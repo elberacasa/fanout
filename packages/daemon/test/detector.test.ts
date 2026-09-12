@@ -167,3 +167,129 @@ describe("detecting a seat", () => {
     expect(seats.map((seat) => seat.version)).toEqual(["0.154.0", "0.36.1"]);
   });
 });
+
+/*
+ * Reading the plan is the one probe whose output we must handle like a hazard. `claude auth status --json` answers
+ * with the subscription tier we want and, in the same object, the user's email address and organisation id. The
+ * manifest declares an allowlist; these tests are what makes that allowlist real rather than a note in a schema.
+ */
+describe("reading which plan a seat is on", () => {
+  const EMAIL = "someone@example.test";
+  const ORG_ID = "11111111-2222-3333-4444-555555555555";
+  const ORG_NAME = "Someone's Organization";
+
+  /** The exact shape `claude auth status --json` returns, with invented identity values. */
+  const probeAnswer = JSON.stringify({
+    loggedIn: true,
+    authMethod: "claude.ai",
+    apiProvider: "firstParty",
+    analyticsDisabled: false,
+    projectsDirectory: "/home/someone/.claude/projects",
+    configDirectory: "/home/someone/.claude",
+    email: EMAIL,
+    orgId: ORG_ID,
+    orgName: ORG_NAME,
+    subscriptionType: "max",
+  });
+
+  const withPlan = AdapterManifest.parse({
+    ...manifest,
+    id: "claude",
+    binary: "claude",
+    displayName: "Claude Code",
+    supportedVersions: ">=2.0 <3",
+    signIn: { probe: ["auth", "status"], okPattern: "loggedIn" },
+    capabilities: {
+      resume: null,
+      fork: null,
+      review: null,
+      plan: {
+        probe: ["auth", "status", "--json"],
+        format: "json",
+        keep: ["loggedIn", "subscriptionType"],
+        planField: "subscriptionType",
+      },
+    },
+  });
+
+  const answer = (stdout: string) => (_binary: string, args: readonly string[]) =>
+    Promise.resolve(args[0] === "--version" ? ok("2.1.269 (Claude Code)") : ok(stdout));
+
+  const detectWithPlan = (stdout: string): Promise<SeatInfo[]> =>
+    detectSeats({ manifests: [withPlan], execute: answer(stdout) });
+
+  it("reads the plan the CLI reports", async () => {
+    const [seat] = await detectWithPlan(probeAnswer);
+    expect(seat?.plan).toEqual({ name: "max", source: "detected" });
+  });
+
+  /*
+   * The regression that matters. Not "the field is absent from a property we check" but "no part of the identity
+   * survives anywhere in what detection returns" — serialise the whole seat and search it.
+   */
+  it("keeps nothing outside the allowlist, anywhere in what it returns", async () => {
+    const [seat] = await detectWithPlan(probeAnswer);
+    const serialised = JSON.stringify(seat);
+
+    expect(serialised).not.toContain(EMAIL);
+    expect(serialised).not.toContain(ORG_ID);
+    expect(serialised).not.toContain(ORG_NAME);
+    expect(serialised).not.toContain("example.test");
+    expect(serialised).not.toContain(".claude/projects");
+    expect(serialised).not.toContain("firstParty");
+  });
+
+  it("says nothing rather than guessing when the CLI has no plan probe", async () => {
+    const [seat] = await detect((_binary, args) =>
+      Promise.resolve(args[0] === "--version" ? ok("0.154.0") : ok("Logged in")),
+    );
+    expect(seat?.plan).toBeNull();
+  });
+
+  it.each([
+    ["output that is not JSON at all", "Logged in using ChatGPT"],
+    ["JSON that is not an object", '"max"'],
+    ["an object without the plan field", JSON.stringify({ loggedIn: true, email: EMAIL })],
+    ["a plan field that is not a string", JSON.stringify({ subscriptionType: { tier: "max" } })],
+    ["an empty plan field", JSON.stringify({ subscriptionType: "" })],
+  ])("reports no plan for %s", async (_label, stdout) => {
+    const [seat] = await detectWithPlan(stdout);
+    expect(seat?.plan).toBeNull();
+    expect(JSON.stringify(seat)).not.toContain(EMAIL);
+  });
+
+  it("reports no plan when the probe fails or cannot start", async () => {
+    const [failed] = await detectSeats({
+      manifests: [withPlan],
+      execute: (_binary, args) =>
+        args[0] === "--version"
+          ? Promise.resolve(ok("2.1.269"))
+          : Promise.resolve({ stdout: probeAnswer, stderr: "", exitCode: 1 }),
+    });
+    expect(failed?.plan).toBeNull();
+
+    const [threw] = await detectSeats({
+      manifests: [withPlan],
+      execute: (_binary, args) =>
+        args[0] === "--version"
+          ? Promise.resolve(ok("2.1.269"))
+          : Promise.reject(new Error("no such command")),
+    });
+    expect(threw?.plan).toBeNull();
+  });
+
+  it("does not run the plan probe at all for an unsupported version", async () => {
+    const probed: string[][] = [];
+    const [seat] = await detectSeats({
+      manifests: [withPlan],
+      execute: (_binary, args) => {
+        probed.push([...args]);
+        return Promise.resolve(args[0] === "--version" ? ok("9.9.9") : ok(probeAnswer));
+      },
+    });
+    expect(seat?.supported).toBe(false);
+    expect(seat?.plan).toBeNull();
+    // An unverified version means an unverified output shape: we never send it the probe.
+    expect(probed).toEqual([["--version"]]);
+  });
+});
