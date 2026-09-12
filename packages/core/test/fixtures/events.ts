@@ -136,6 +136,15 @@ export const samples: Samples = {
     ok: true,
     failedOnOld: ["export > escapes quotes"],
   },
+  "buddy.reviewed": {
+    type: "buddy.reviewed",
+    repoRoot: "/work/sample",
+    revision: "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    by: { id: "codex" },
+    findings: "- [P1] Preserve the existing call signature — src/api/export/route.ts:1-1",
+    ran: true,
+    files: ["src/api/export/route.ts"],
+  },
   "merge.approved": {
     type: "merge.approved",
     missionId: "csv-export",

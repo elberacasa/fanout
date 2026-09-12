@@ -7,6 +7,7 @@ import {
   Ledger,
   project,
   SeatPosture,
+  stanceFor,
   type AdapterManifest,
   type SeatAdapter,
   type SeatInfo,
@@ -16,6 +17,7 @@ import {
   detectSeats,
   git,
   lines,
+  buddyReview,
   readOrCreateToken,
   readSeatPolicy,
   setPosture,
@@ -61,6 +63,7 @@ const HELP = `fanout — Claude Code leads, your other agents build
   fanout status     the crew on this machine, and any missions on the go
   fanout seat       how freely to spend a seat: preferred | normal | sparing | off
   fanout owed       what is waiting on you before anything can merge (the Stop hook runs this)
+  fanout review     ask a second vendor to read your own uncommitted changes
   fanout daemon     run the daemon the lead and the mission view talk to
   fanout clean      remove the worktrees and branches finished missions left behind
   fanout mcp        speak MCP on stdin/stdout, for Claude Code to drive (the plugin runs this)
@@ -93,6 +96,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       return seat(home, argv.slice(1), io);
     case "owed":
       return owed(home, io);
+    case "review":
+      return buddy(home, io);
     case "daemon":
       return daemon(home, io);
     case "clean":
@@ -137,6 +142,107 @@ async function status(home: FanoutHome, io: Io): Promise<number> {
     ledger.close();
   }
   return 0;
+}
+
+/**
+ * `fanout review` — a second vendor reads the lead's own uncommitted work.
+ *
+ * The one command that earns its keep in a session where no agent ran at all. Most of the code in a Claude Code
+ * session is written by the lead and reviewed by the lead, which is how a confident mistake ships; this is the
+ * call that breaks that loop. The findings are printed verbatim, because a second opinion summarised by the
+ * author it is about is not a second opinion.
+ */
+async function buddy(home: FanoutHome, io: Io): Promise<number> {
+  const repoRoot = io.cwd ?? process.cwd();
+  const manifest = SEATS.find((seat) => seat.id === "codex");
+  if (manifest?.capabilities.review == null) {
+    io.err("fanout: no seat on this machine has a non-interactive review command.\n");
+    return 69;
+  }
+
+  /*
+   * Everything below is about not spending someone's subscription behind their back. Found by Codex reviewing
+   * this very function: it launched Codex without once asking whether the owner had switched that seat off.
+   */
+  const { policy, problem } = readSeatPolicy(home.root);
+  if (problem !== null) {
+    io.err(`fanout: ${problem}\n  Fix or delete that file before spending a seat.\n`);
+    return 65;
+  }
+
+  const [detected] = await detectSeats({
+    manifests: [manifest],
+    ...(io.execute === undefined ? {} : { execute: io.execute }),
+  });
+  if (detected === undefined) {
+    io.err("fanout: could not detect the reviewing seat.\n");
+    return 69;
+  }
+
+  const stance = stanceFor(detected, policy);
+  if (stance.posture === "off") {
+    io.err(`fanout: ${manifest.displayName} is off (${stance.reason}). Turn it on with:\n`);
+    io.err(`  fanout seat ${manifest.id} normal\n`);
+    return 69;
+  }
+  if (!detected.supported) {
+    // An unverified build would be driven with flags we have not confirmed and read as a stream we have not seen.
+    io.err(
+      `fanout: ${manifest.displayName} ${detected.version ?? "is not installed"} is outside the versions this ` +
+        `adapter was verified against (${manifest.supportedVersions}).\n`,
+    );
+    return 69;
+  }
+  if (detected.signedIn !== "yes") {
+    io.err(
+      `fanout: ${manifest.displayName} is ${detected.signedIn === "no" ? "not signed in" : "unknown"}.\n`,
+    );
+    return 69;
+  }
+  if (stance.posture === "sparing") {
+    // Sparing means "only when nothing else fits, and say so first". This is the saying so.
+    io.out(
+      `Using ${manifest.displayName}, which you marked sparing${stance.note === undefined ? "" : ` — ${stance.note}`}.\n`,
+    );
+  }
+
+  const { snapshot, event } = await buddyReview({
+    repoRoot,
+    manifest,
+    ...(io.execute === undefined ? {} : { execute: reviewWith(io.execute) }),
+  });
+
+  const ledger = Ledger.open(home.ledger);
+  try {
+    ledger.appendAll([event]);
+  } finally {
+    ledger.close();
+  }
+
+  if (snapshot.clean) {
+    io.out("Nothing uncommitted to review.\n");
+    return 0;
+  }
+  if (!event.ran) {
+    // Never let "the reviewer broke" read as "the reviewer found nothing".
+    io.err(`fanout: ${manifest.displayName} could not review your changes.\n  ${event.findings}\n`);
+    return 69;
+  }
+
+  const files = `${String(snapshot.files.length)} file${snapshot.files.length === 1 ? "" : "s"}`;
+  io.out(
+    event.findings.trim() === ""
+      ? `${manifest.displayName} read ${files} and had nothing to say.\n`
+      : `${manifest.displayName} read ${files}:\n\n${event.findings.trim()}\n`,
+  );
+  return 0;
+}
+
+/** The CLI's injected executor takes no options; the buddy's takes cwd and a deadline. Bridge them for tests. */
+function reviewWith(
+  execute: NonNullable<Io["execute"]>,
+): (binary: string, args: readonly string[]) => Promise<CommandResult> {
+  return (binary, args) => execute(binary, args);
 }
 
 /**

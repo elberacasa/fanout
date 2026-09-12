@@ -126,16 +126,27 @@ export interface Anomaly {
   message: string;
 }
 
+export interface BuddyReview {
+  revision: string;
+  by: SeatRef;
+  findings: string;
+  ran: boolean;
+  files: string[];
+  at: string;
+}
+
 export interface ProjectionState {
   lastSeq: number;
   crew: Record<string, SeatInfo>;
+  /** The most recent second-vendor review of the lead's own work, per repository root. */
+  buddy: Record<string, BuddyReview>;
   usage: Record<string, UsageMeters>;
   missions: Record<string, MissionView>;
   anomalies: Anomaly[];
 }
 
 export function initialState(): ProjectionState {
-  return { lastSeq: 0, crew: {}, usage: {}, missions: {}, anomalies: [] };
+  return { lastSeq: 0, crew: {}, buddy: {}, usage: {}, missions: {}, anomalies: [] };
 }
 
 /** Folds events into a state, starting from an empty one or from a state already projected. */
@@ -159,6 +170,27 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
   switch (event.type) {
     case "seat.detected":
       return { ...state, crew: { ...state.crew, [event.seat.id]: event.seat } };
+
+    /*
+     * Kept per repository and per revision rather than as a list. The only question anyone asks of it is "has
+     * *this* work been read by someone other than its author", and a history of reviews of older work answers a
+     * question nobody is asking while making the answer to this one harder to find.
+     */
+    case "buddy.reviewed":
+      return {
+        ...state,
+        buddy: {
+          ...state.buddy,
+          [event.repoRoot]: {
+            revision: event.revision,
+            by: event.by,
+            findings: event.findings,
+            ran: event.ran,
+            files: event.files,
+            at: event.ts,
+          },
+        },
+      };
 
     case "mission.created": {
       if (Object.hasOwn(state.missions, event.missionId)) {

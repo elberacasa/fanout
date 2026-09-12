@@ -201,6 +201,29 @@ export const RunDropped = z.strictObject({
   reason: z.string().trim().min(1).max(2000),
 });
 
+/**
+ * A second vendor read the lead's own uncommitted work.
+ *
+ * Not a mission and not a run: no agent worked in a worktree, and forcing this into the mission machinery would
+ * put a fake mission in front of the user for every review. It carries no `missionId` for the same reason
+ * `seat.detected` does not — it is a fact about this machine at a moment, not about a mission.
+ *
+ * This is the event that answers the product's only real question: was anything other than the author's own
+ * judgement applied to this code before it was called done?
+ */
+export const BuddyReviewed = z.strictObject({
+  type: z.literal("buddy.reviewed"),
+  /** Which working tree, so a review of one repository is never read as covering another. */
+  repoRoot: z.string().min(1).max(1000),
+  revision: WorkRevision,
+  by: SeatRef,
+  /** What it said, verbatim. A second opinion summarised by the author is not a second opinion. */
+  findings: z.string().max(100_000),
+  /** False when the reviewer could not be run at all, so "no findings" never stands in for "never asked". */
+  ran: z.boolean(),
+  files: RepoPaths.max(1000),
+});
+
 export const RouteChanged = z.strictObject({
   type: z.literal("route.changed"),
   ...mission,
@@ -239,6 +262,7 @@ export const FanoutEvent = z.discriminatedUnion("type", [
   ReviewDone,
   ChecksDone,
   ProofDone,
+  BuddyReviewed,
   MergeApproved,
   MergeApplied,
   MergeConflict,
