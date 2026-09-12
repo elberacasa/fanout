@@ -135,18 +135,28 @@ export interface BuddyReview {
   at: string;
 }
 
+export interface ClaimCheck {
+  revision: string;
+  by: SeatRef;
+  claims: EventOf<"claims.checked">["claims"];
+  ran: boolean;
+  at: string;
+}
+
 export interface ProjectionState {
   lastSeq: number;
   crew: Record<string, SeatInfo>;
   /** The most recent second-vendor review of the lead's own work, per repository root. */
   buddy: Record<string, BuddyReview>;
+  /** The most recent claim check of the lead's own work, per repository root. */
+  claims: Record<string, ClaimCheck>;
   usage: Record<string, UsageMeters>;
   missions: Record<string, MissionView>;
   anomalies: Anomaly[];
 }
 
 export function initialState(): ProjectionState {
-  return { lastSeq: 0, crew: {}, buddy: {}, usage: {}, missions: {}, anomalies: [] };
+  return { lastSeq: 0, crew: {}, buddy: {}, claims: {}, usage: {}, missions: {}, anomalies: [] };
 }
 
 /** Folds events into a state, starting from an empty one or from a state already projected. */
@@ -176,6 +186,25 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
      * *this* work been read by someone other than its author", and a history of reviews of older work answers a
      * question nobody is asking while making the answer to this one harder to find.
      */
+    /*
+     * Kept per repository and per revision, like the buddy review, and for the same reason: the only question
+     * anyone asks is what was checked about *this* work, and a history of verdicts on older work buries it.
+     */
+    case "claims.checked":
+      return {
+        ...state,
+        claims: {
+          ...state.claims,
+          [event.repoRoot]: {
+            revision: event.revision,
+            by: event.by,
+            claims: event.claims,
+            ran: event.ran,
+            at: event.ts,
+          },
+        },
+      };
+
     case "buddy.reviewed":
       return {
         ...state,

@@ -1,6 +1,15 @@
-import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 import { pathInScope } from "@fanout/core";
 import { DEFAULT_DENY_LIST } from "../workspace/deny.ts";
 import { git, zeroSeparated } from "../workspace/git.ts";
@@ -47,12 +56,89 @@ export interface Refused {
   reason: "deny-list" | "symlink";
 }
 
+/**
+ * Removes every symbolic link in the copy that points outside it.
+ *
+ * Found by a cold reader refuting the claim that this could not happen: the earlier guard only covered untracked
+ * files copied in, while `git worktree add` faithfully checks out symlinks that HEAD already tracks — and a
+ * tracked link may point at an ignored `.env`, at `~/.ssh/id_rsa`, or anywhere else on the machine. The copy is
+ * supposed to be the only thing a reviewer can read; a link out of it is a hole in exactly that.
+ *
+ * Links that stay inside the copy are left alone: they are part of the repository's own shape, and a reviewer
+ * following one reads only what it was already shown.
+ *
+ * Containment is decided by asking the filesystem, never by reading the path. A cold reader refuted the lexical
+ * version of this check with a two-link chain — `a -> .` beside `leak -> a/../secret` — where `path.resolve`
+ * folds `a/..` away textually and calls the target contained, while the kernel follows `a` to the root first and
+ * lands `..` in the parent. Only `realpath`, which walks every link, knows where a path actually goes.
+ */
+function cutEscapingLinks(root: string): Refused[] {
+  /*
+   * Walked from the resolved root, not the given one. On macOS a temporary directory is handed out as `/var/...`
+   * and resolves to `/private/var/...`; comparing one against the other makes every link inside the copy look
+   * like an escape, and this cut all of them until a test said so.
+   */
+  const inside = realpathSync.native(root);
+  const cut: Refused[] = [];
+
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      // `.git` in a linked worktree is a file pointing at the real repository, which is not ours to rewrite.
+      if (entry.name === ".git") continue;
+
+      if (entry.isSymbolicLink()) {
+        if (!staysInside(inside, full)) {
+          rmSync(full, { force: true });
+          cut.push({ path: relative(inside, full), reason: "symlink" });
+        }
+        continue;
+      }
+      if (entry.isDirectory()) walk(full);
+    }
+  };
+
+  walk(inside);
+  return cut;
+}
+
+/**
+ * Does following this link, all the way, land inside `root`?
+ *
+ * `realpath` resolves every link in the chain, which is the only answer that matches what a reader actually gets.
+ * A link we cannot resolve at all — dangling, or a loop — is cut: it shows a reviewer nothing, and a path the
+ * filesystem will not explain is not one we can promise anything about.
+ */
+export function staysInside(root: string, link: string): boolean {
+  let real: string;
+  let inside: string;
+  try {
+    // Both sides resolved the same way, or a macOS `/var` against a `/private/var` makes everything look outside.
+    inside = realpathSync.native(root);
+    /*
+     * `.native` is not an optimisation here, it is the correctness. Node's JavaScript `realpathSync` folds `..`
+     * segments lexically as it goes, so a chain like `a -> .` beside `leak -> a/a/../../etc/passwd` resolves to a
+     * path *inside* the copy while opening it reaches the real `/etc/passwd`. Measured on this machine: the JS
+     * version answered `<copy>/etc/passwd`, the native one `/private/etc/passwd`, and reading the link returned
+     * the system file. Only the operating system's own resolver is a security boundary.
+     */
+    real = realpathSync.native(link);
+  } catch {
+    return false;
+  }
+  // An empty result means the link resolves to the copy's own root, which is inside it. The chain that made that
+  // dangerous is dead anyway: every link is now followed to where it really goes before this is asked.
+  const stepsOut = relative(inside, real);
+  return !stepsOut.startsWith("..") && !isAbsolute(stepsOut);
+}
+
 /** Builds a throwaway worktree holding HEAD plus whatever is currently uncommitted. */
 export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork> {
   const run = (args: readonly string[], cwd: string = options.repoRoot): Promise<string> =>
     git(args, { cwd, ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }) });
 
   const root = mkdtempSync(join(tmpdir(), "fanout-review-"));
+  const patches = mkdtempSync(join(tmpdir(), "fanout-patch-"));
   const path = join(root, "work");
   let created = false;
 
@@ -64,9 +150,15 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
    * testing it, because there is now nothing left to drift.
    */
   const applyPatch = async (patch: string, name: string): Promise<void> => {
-    const file = join(root, name);
+    // Written outside the copy's own parent and removed immediately: `..` from the copy should hold nothing
+    // worth reaching, so that a link we failed to catch has less to find.
+    const file = join(patches, name);
     writeFileSync(file, patch, "utf8");
-    await run(["apply", "--whitespace=nowarn", file], path);
+    try {
+      await run(["apply", "--whitespace=nowarn", file], path);
+    } finally {
+      rmSync(file, { force: true });
+    }
   };
 
   const dispose = async (): Promise<void> => {
@@ -79,6 +171,7 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
       }
     }
     rmSync(root, { recursive: true, force: true });
+    rmSync(patches, { recursive: true, force: true });
   };
 
   try {
@@ -150,6 +243,10 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
       mkdirSync(dirname(destination), { recursive: true });
       copyFileSync(source, destination);
     }
+
+    // Last, because a link can arrive three ways — checked out from HEAD, added by a patch, or copied in — and
+    // only a sweep of what is actually on disk catches all three.
+    refused.push(...cutEscapingLinks(path));
 
     return { path, refused, dispose };
   } catch (cause) {

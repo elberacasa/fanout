@@ -9,6 +9,7 @@ import {
   SeatPosture,
   stanceFor,
   type AdapterManifest,
+  type EventOf,
   type SeatAdapter,
   type SeatInfo,
   type StoredEvent,
@@ -18,6 +19,7 @@ import {
   git,
   lines,
   buddyReview,
+  checkClaims,
   readOrCreateToken,
   readSeatPolicy,
   setPosture,
@@ -64,6 +66,7 @@ const HELP = `fanout — Claude Code leads, your other agents build
   fanout seat       how freely to spend a seat: preferred | normal | sparing | off
   fanout owed       what is waiting on you before anything can merge (the Stop hook runs this)
   fanout review     ask a second vendor to read your own uncommitted changes
+  fanout check      state what you believe; a cold reader tries to disprove each claim
   fanout daemon     run the daemon the lead and the mission view talk to
   fanout clean      remove the worktrees and branches finished missions left behind
   fanout mcp        speak MCP on stdin/stdout, for Claude Code to drive (the plugin runs this)
@@ -98,6 +101,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       return owed(home, io);
     case "review":
       return buddy(home, io);
+    case "check":
+      return check(home, argv.slice(1), io);
     case "daemon":
       return daemon(home, io);
     case "clean":
@@ -145,6 +150,73 @@ async function status(home: FanoutHome, io: Io): Promise<number> {
 }
 
 /**
+ * `fanout check` — the lead writes down what it believes; a cold reader tries to disprove each claim.
+ *
+ * Sharper and far cheaper than a broad review, because the value was never the volume of reading. The lead
+ * carries the plan and the reasoning, and that is exactly what hides its mistakes from it; a reader with only the
+ * diff is not smarter, it is differently placed. Three specific claims buy that difference for almost nothing.
+ *
+ * Exits non-zero when a claim is refuted, so this can sit in a script or a hook.
+ */
+async function check(home: FanoutHome, claims: readonly string[], io: Io): Promise<number> {
+  if (claims.length === 0) {
+    io.err(`fanout: check needs something to check.\n\n${CHECK_HELP}`);
+    return 64;
+  }
+
+  const ready = await reviewerFor(home, io);
+  if (typeof ready === "number") return ready;
+
+  const { event, refuted } = await checkClaims({
+    repoRoot: io.cwd ?? process.cwd(),
+    claims,
+    manifest: ready.manifest,
+    ...(io.execute === undefined ? {} : { execute: reviewWith(io.execute) }),
+  });
+
+  const ledger = Ledger.open(home.ledger);
+  try {
+    ledger.appendAll([event]);
+  } finally {
+    ledger.close();
+  }
+
+  if (!event.ran) {
+    // Never let "we could not ask" read as "nothing was refuted".
+    io.err(
+      `fanout: ${ready.manifest.displayName} did not check your claims.\n  ${event.claims[0]?.evidence ?? ""}\n`,
+    );
+    return 69;
+  }
+
+  const mark = { confirmed: "✓", refuted: "✗", unclear: "?" } as const;
+  io.out(`${ready.manifest.displayName} read your changes cold:\n\n`);
+  for (const claim of event.claims) {
+    io.out(`  ${mark[claim.verdict]} ${claim.claim}\n    ${claim.evidence}\n`);
+  }
+  io.out(`\n${summarise(event.claims)}\n`);
+
+  // A refuted claim is the only outcome worth interrupting someone for.
+  return refuted.length > 0 ? 1 : 0;
+}
+
+function summarise(claims: EventOf<"claims.checked">["claims"]): string {
+  const count = (verdict: string): number => claims.filter((claim) => claim.verdict === verdict).length;
+  const refuted = count("refuted");
+  const unclear = count("unclear");
+  if (refuted > 0) return `${String(refuted)} refuted. Nothing here is settled until those are.`;
+  if (unclear > 0)
+    return `Nothing refuted, but ${String(unclear)} could not be checked — that is not the same as fine.`;
+  return "All confirmed.";
+}
+
+const CHECK_HELP = `  fanout check "<claim>" ["<claim>" ...]
+
+  Write claims a reader could disprove. "It works" cannot be checked; "no caller of
+  total() passes fewer than two arguments" can.
+`;
+
+/**
  * `fanout review` — a second vendor reads the lead's own uncommitted work.
  *
  * The one command that earns its keep in a session where no agent ran at all. Most of the code in a Claude Code
@@ -153,17 +225,55 @@ async function status(home: FanoutHome, io: Io): Promise<number> {
  * author it is about is not a second opinion.
  */
 async function buddy(home: FanoutHome, io: Io): Promise<number> {
-  const repoRoot = io.cwd ?? process.cwd();
+  const ready = await reviewerFor(home, io);
+  if (typeof ready === "number") return ready;
+
+  const { snapshot, event } = await buddyReview({
+    repoRoot: io.cwd ?? process.cwd(),
+    manifest: ready.manifest,
+    ...(io.execute === undefined ? {} : { execute: reviewWith(io.execute) }),
+  });
+
+  const ledger = Ledger.open(home.ledger);
+  try {
+    ledger.appendAll([event]);
+  } finally {
+    ledger.close();
+  }
+
+  if (snapshot.clean) {
+    io.out("Nothing uncommitted to review.\n");
+    return 0;
+  }
+  if (!event.ran) {
+    // Never let "the reviewer broke" read as "the reviewer found nothing".
+    io.err(`fanout: ${ready.manifest.displayName} could not review your changes.\n  ${event.findings}\n`);
+    return 69;
+  }
+
+  const files = `${String(snapshot.files.length)} file${snapshot.files.length === 1 ? "" : "s"}`;
+  io.out(
+    event.findings.trim() === ""
+      ? `${ready.manifest.displayName} read ${files} and had nothing to say.\n`
+      : `${ready.manifest.displayName} read ${files}:\n\n${event.findings.trim()}\n`,
+  );
+  return 0;
+}
+
+/**
+ * The seat that will read your work, or the exit code explaining why nobody will.
+ *
+ * Every check here is about not spending someone's subscription behind their back — a posture they set, a version
+ * this adapter was never verified against, a policy file we could not read. Shared by both readers so that the
+ * next one cannot forget any of them, which is exactly how `fanout review` shipped ignoring the seat policy.
+ */
+async function reviewerFor(home: FanoutHome, io: Io): Promise<{ manifest: AdapterManifest } | number> {
   const manifest = SEATS.find((seat) => seat.id === "codex");
   if (manifest?.capabilities.review == null) {
     io.err("fanout: no seat on this machine has a non-interactive review command.\n");
     return 69;
   }
 
-  /*
-   * Everything below is about not spending someone's subscription behind their back. Found by Codex reviewing
-   * this very function: it launched Codex without once asking whether the owner had switched that seat off.
-   */
   const { policy, problem } = readSeatPolicy(home.root);
   if (problem !== null) {
     io.err(`fanout: ${problem}\n  Fix or delete that file before spending a seat.\n`);
@@ -205,37 +315,7 @@ async function buddy(home: FanoutHome, io: Io): Promise<number> {
       `Using ${manifest.displayName}, which you marked sparing${stance.note === undefined ? "" : ` — ${stance.note}`}.\n`,
     );
   }
-
-  const { snapshot, event } = await buddyReview({
-    repoRoot,
-    manifest,
-    ...(io.execute === undefined ? {} : { execute: reviewWith(io.execute) }),
-  });
-
-  const ledger = Ledger.open(home.ledger);
-  try {
-    ledger.appendAll([event]);
-  } finally {
-    ledger.close();
-  }
-
-  if (snapshot.clean) {
-    io.out("Nothing uncommitted to review.\n");
-    return 0;
-  }
-  if (!event.ran) {
-    // Never let "the reviewer broke" read as "the reviewer found nothing".
-    io.err(`fanout: ${manifest.displayName} could not review your changes.\n  ${event.findings}\n`);
-    return 69;
-  }
-
-  const files = `${String(snapshot.files.length)} file${snapshot.files.length === 1 ? "" : "s"}`;
-  io.out(
-    event.findings.trim() === ""
-      ? `${manifest.displayName} read ${files} and had nothing to say.\n`
-      : `${manifest.displayName} read ${files}:\n\n${event.findings.trim()}\n`,
-  );
-  return 0;
+  return { manifest };
 }
 
 /** The CLI's injected executor takes no options; the buddy's takes cwd and a deadline. Bridge them for tests. */

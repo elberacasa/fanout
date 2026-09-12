@@ -145,6 +145,25 @@ export const samples: Samples = {
     ran: true,
     files: ["src/api/export/route.ts"],
   },
+  "claims.checked": {
+    type: "claims.checked",
+    repoRoot: "/work/sample",
+    revision: "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    by: { id: "codex" },
+    claims: [
+      {
+        claim: "The reviewer cannot read ignored files",
+        verdict: "refuted",
+        evidence: "an untracked symlink dereferences to .env, isolate.ts:69",
+      },
+      {
+        claim: "No behaviour change outside gate/",
+        verdict: "confirmed",
+        evidence: "nothing else is touched",
+      },
+    ],
+    ran: true,
+  },
   "merge.approved": {
     type: "merge.approved",
     missionId: "csv-export",

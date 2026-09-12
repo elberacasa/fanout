@@ -224,6 +224,45 @@ export const BuddyReviewed = z.strictObject({
   files: RepoPaths.max(1000),
 });
 
+/**
+ * The lead wrote down what it believes, and a cold reader checked each belief against the code.
+ *
+ * This is the sharpest thing a second vendor can do, and the cheapest. The lead carries the whole session — the
+ * plan, the reasoning, the justification — and that context is precisely what makes its own mistakes invisible to
+ * it: it knows why the code is right, so the code looks right. A reader arriving with only the diff is not
+ * smarter, it is differently placed, which is why even a small model reading cold can refute a large one reading
+ * warm. Asking it to review everything spends tokens on that asymmetry. Asking it to falsify three specific
+ * claims spends almost none.
+ *
+ * Recording the claims, not only the verdicts, is the point. A replay shows what the lead asserted as well as
+ * what turned out to be true, and an author who must write down falsifiable claims notices the weak ones while
+ * writing them.
+ */
+export const ClaimsChecked = z.strictObject({
+  type: z.literal("claims.checked"),
+  repoRoot: z.string().min(1).max(1000),
+  revision: WorkRevision,
+  by: SeatRef,
+  claims: z
+    .array(
+      z.strictObject({
+        /** What the lead asserted, in its own words. */
+        claim: z.string().trim().min(1).max(500),
+        /**
+         * `unclear` is the default and the only safe absence. A verdict we could not read is not a pass, and a
+         * claim the reader ignored has not been checked — treating either as confirmed would make this theatre.
+         */
+        verdict: z.enum(["confirmed", "refuted", "unclear"]),
+        /** Why, in the reader's own words. Required for a refusal; a bare "no" helps nobody. */
+        evidence: z.string().max(4000),
+      }),
+    )
+    .min(1)
+    .max(20),
+  /** False when the reader could not be run at all, so "nothing refuted" never stands in for "never asked". */
+  ran: z.boolean(),
+});
+
 export const RouteChanged = z.strictObject({
   type: z.literal("route.changed"),
   ...mission,
@@ -263,6 +302,7 @@ export const FanoutEvent = z.discriminatedUnion("type", [
   ChecksDone,
   ProofDone,
   BuddyReviewed,
+  ClaimsChecked,
   MergeApproved,
   MergeApplied,
   MergeConflict,

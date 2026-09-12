@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -416,5 +417,172 @@ describe("how git is invoked while building the copy", () => {
       if (before === undefined) delete process.env["GIT_WORK_TREE"];
       else process.env["GIT_WORK_TREE"] = before;
     }
+  });
+});
+
+/*
+ * Refuted by a cold reader checking the claim that this could not happen. The earlier guard covered untracked
+ * files copied in; `git worktree add` checks out symlinks HEAD already tracks, and a tracked link can point at an
+ * ignored .env, at ~/.ssh/id_rsa, or anywhere else on the machine.
+ */
+describe("symbolic links that point out of the review copy", () => {
+  const copyContents = async (): Promise<{ root: string; entries: string[] }> => {
+    let root = "";
+    let entries: string[] = [];
+    await buddyReview({
+      repoRoot: repo,
+      manifest: codex,
+      execute: (_binary, _args, options) => {
+        root = options.cwd;
+        entries = readdirSync(options.cwd);
+        return Promise.resolve({ stdout: reviewStream("fine"), stderr: "", exitCode: 0 });
+      },
+    });
+    return { root, entries };
+  };
+
+  it("cuts a link that HEAD tracks and that points outside the repository", async () => {
+    const secret = join(tmpdir(), `fanout-secret-${String(process.pid)}`);
+    writeFileSync(secret, "TOKEN=hunter2\n");
+    symlinkSync(secret, join(repo, "notes.txt"));
+    run(["add", "notes.txt"]);
+    run(["commit", "--quiet", "-m", "a tracked symlink"]);
+    dirty();
+
+    try {
+      const { entries } = await copyContents();
+      expect(entries).not.toContain("notes.txt");
+    } finally {
+      rmSync(secret, { force: true });
+    }
+  });
+
+  it("cuts a tracked link that climbs out with a relative path", async () => {
+    symlinkSync("../../../etc/passwd", join(repo, "passwd.txt"));
+    run(["add", "passwd.txt"]);
+    run(["commit", "--quiet", "-m", "a relative escape"]);
+    dirty();
+
+    const { entries } = await copyContents();
+    expect(entries).not.toContain("passwd.txt");
+  });
+
+  it("leaves a link alone when it stays inside the copy", async () => {
+    // Part of the repository's own shape: following it reads only what the reviewer was already shown.
+    symlinkSync("total.py", join(repo, "alias.py"));
+    run(["add", "alias.py"]);
+    run(["commit", "--quiet", "-m", "an internal link"]);
+    dirty();
+
+    const { entries } = await copyContents();
+    expect(entries).toContain("alias.py");
+  });
+
+  it("says which links it cut", async () => {
+    symlinkSync("/etc/passwd", join(repo, "passwd.txt"));
+    run(["add", "passwd.txt"]);
+    run(["commit", "--quiet", "-m", "escape"]);
+    dirty();
+
+    const { event } = await buddyReview({
+      repoRoot: repo,
+      manifest: codex,
+      execute: () => Promise.resolve({ stdout: reviewStream("fine"), stderr: "", exitCode: 0 }),
+    });
+    expect(event.findings).toContain("passwd.txt (symlink)");
+  });
+});
+
+/*
+ * The attack a cold reader used to refute the first fix: two links whose *text* stays inside the copy while the
+ * filesystem walks out of it. `path.resolve` folds `a/..` away before anything is followed; the kernel follows
+ * `a` to the root and lands `..` in the parent. Only realpath sees the difference.
+ */
+describe("symbolic links that escape by chaining", () => {
+  const entriesSeen = async (): Promise<string[]> => {
+    let entries: string[] = [];
+    await buddyReview({
+      repoRoot: repo,
+      manifest: codex,
+      execute: (_binary, _args, options) => {
+        entries = readdirSync(options.cwd);
+        return Promise.resolve({ stdout: reviewStream("fine"), stderr: "", exitCode: 0 });
+      },
+    });
+    return entries;
+  };
+
+  it("cuts a link that only looks contained until the links are followed", async () => {
+    symlinkSync(".", join(repo, "a"));
+    symlinkSync("a/../escaped.txt", join(repo, "leak"));
+    run(["add", "a", "leak"]);
+    run(["commit", "--quiet", "-m", "a chain out"]);
+    dirty();
+
+    const entries = await entriesSeen();
+    expect(entries).not.toContain("leak");
+  });
+
+  it("keeps the harmless half of that chain, which does stay inside", async () => {
+    symlinkSync(".", join(repo, "a"));
+    run(["add", "a"]);
+    run(["commit", "--quiet", "-m", "a link to here"]);
+    dirty();
+
+    expect(await entriesSeen()).toContain("a");
+  });
+
+  it("cuts a link that leads nowhere, rather than leaving a path it cannot explain", async () => {
+    symlinkSync("does-not-exist", join(repo, "dangling"));
+    run(["add", "dangling"]);
+    run(["commit", "--quiet", "-m", "dangling"]);
+    dirty();
+
+    expect(await entriesSeen()).not.toContain("dangling");
+  });
+
+  it("leaves nothing worth reaching in the copy's parent", async () => {
+    dirty();
+    let parent: string[] = [];
+    await buddyReview({
+      repoRoot: repo,
+      manifest: codex,
+      execute: (_binary, _args, options) => {
+        parent = readdirSync(join(options.cwd, ".."));
+        return Promise.resolve({ stdout: reviewStream("fine"), stderr: "", exitCode: 0 });
+      },
+    });
+    // The patch used to be written here, one `..` from anything the reviewer can read.
+    expect(parent).toEqual(["work"]);
+  });
+});
+
+/*
+ * The fourth and sharpest refutation, verified on this machine before it was fixed: Node's JavaScript
+ * `realpathSync` folds `..` lexically while resolving, so this link resolved to `<copy>/etc/passwd` while opening
+ * it returned the system's real `/etc/passwd`. Only `realpathSync.native`, which asks the operating system, sees
+ * where a chain actually lands.
+ */
+describe("symbolic links that defeat a lexical resolver", () => {
+  it("cuts a chain that only the operating system can see through", async () => {
+    mkdirSync(join(repo, "etc"), { recursive: true });
+    writeFileSync(join(repo, "etc", "passwd"), "DECOY\n");
+    symlinkSync(".", join(repo, "a"));
+    symlinkSync(`${"a/".repeat(5)}${"../".repeat(5)}etc/passwd`, join(repo, "leak"));
+    run(["add", "a", "leak", "etc/passwd"]);
+    run(["commit", "--quiet", "-m", "a chain a lexical resolver cannot follow"]);
+    dirty();
+
+    let entries: string[] = [];
+    await buddyReview({
+      repoRoot: repo,
+      manifest: codex,
+      execute: (_binary, _args, options) => {
+        entries = readdirSync(options.cwd);
+        return Promise.resolve({ stdout: reviewStream("fine"), stderr: "", exitCode: 0 });
+      },
+    });
+
+    expect(entries).not.toContain("leak");
   });
 });

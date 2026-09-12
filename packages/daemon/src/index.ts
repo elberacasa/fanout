@@ -30,3 +30,5 @@ export { originAllowed, readOrCreateToken, tokenMatches } from "./api/token.ts";
 export * from "./policy/seats.ts";
 export * from "./gate/revision.ts";
 export * from "./gate/buddy.ts";
+export * from "./gate/claims.ts";
+export * from "./gate/run-seat.ts";
