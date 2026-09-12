@@ -1,9 +1,27 @@
-import { existsSync, realpathSync, rmSync } from "node:fs";
-import { manifest as claude } from "@fanout/adapter-claude";
-import { manifest as codex } from "@fanout/adapter-codex";
-import { manifest as grok } from "@fanout/adapter-grok";
-import { Ledger, project, type AdapterManifest, type SeatInfo } from "@fanout/core";
-import { detectSeats, git, lines, readOrCreateToken, startApi, type CommandResult } from "@fanout/daemon";
+import { existsSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { createClaudeAdapter, manifest as claude } from "@fanout/adapter-claude";
+import { createCodexAdapter, manifest as codex } from "@fanout/adapter-codex";
+import { createGrokAdapter, manifest as grok } from "@fanout/adapter-grok";
+import {
+  Ledger,
+  project,
+  type AdapterManifest,
+  type SeatAdapter,
+  type SeatInfo,
+  type StoredEvent,
+} from "@fanout/core";
+import {
+  detectSeats,
+  git,
+  lines,
+  readOrCreateToken,
+  startApi,
+  type CommandResult,
+  type RunLimits,
+} from "@fanout/daemon";
+import { createFanoutServer } from "@fanout/mcp";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { fanoutHome, type FanoutHome } from "./home.ts";
 import { crewTable, missionLines } from "./format.ts";
 
@@ -15,11 +33,30 @@ import { crewTable, missionLines } from "./format.ts";
 
 export const SEATS: readonly AdapterManifest[] = [codex, claude, grok];
 
+/** Every seat we can drive today. A plan naming anything else is dropped with the reason, never guessed at. */
+export function adapters(): ReadonlyMap<string, SeatAdapter> {
+  return new Map([
+    ["codex", createCodexAdapter()],
+    ["claude", createClaudeAdapter()],
+    ["grok", createGrokAdapter()],
+  ]);
+}
+
+/** What a run is allowed before the supervisor stops it. Generous: a real agent thinks for minutes. */
+export const DEFAULT_LIMITS: RunLimits = {
+  startTimeoutMs: 90_000,
+  timeoutMs: 30 * 60_000,
+  killGraceMs: 5_000,
+  maxLogBytes: 16 * 1024 * 1024,
+  maxLineBytes: 200_000,
+};
+
 const HELP = `fanout — Claude Code leads, your other agents build
 
   fanout status     the crew on this machine, and any missions on the go
   fanout daemon     run the daemon the lead and the mission view talk to
   fanout clean      remove the worktrees and branches finished missions left behind
+  fanout mcp        speak MCP on stdin/stdout, for Claude Code to drive (the plugin runs this)
   fanout version    what you are running
   fanout help       this
 
@@ -49,6 +86,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       return daemon(home, io);
     case "clean":
       return clean(home, io);
+    case "mcp":
+      return mcp(home, io);
     case "version":
       io.out("fanout 0.5.0-dev\n");
       return 0;
@@ -164,6 +203,56 @@ async function clean(home: FanoutHome, io: Io): Promise<number> {
     io.err(`Still in use elsewhere, so left alone: ${kept.join(", ")}.\n`);
   }
   return kept.length === 0 ? 0 : 1;
+}
+
+/**
+ * Speaks MCP on stdin and stdout so Claude Code can drive the crew, and runs the daemon in the same process so the
+ * mission view and the lead's live feed have something to subscribe to.
+ *
+ * Nothing but MCP may touch stdout here: a stray line would corrupt the protocol, which is why every message this
+ * command prints goes to stderr.
+ */
+async function mcp(home: FanoutHome, io: Io): Promise<number> {
+  // The feed exists only once the API is listening, and the ledger is open before that; this holder is the join.
+  const feed: { publish?: (event: StoredEvent) => void } = {};
+  const ledger = Ledger.open(home.ledger, {
+    onAppend: (event) => {
+      feed.publish?.(event);
+    },
+  });
+  const token = readOrCreateToken(home.token);
+  const api = await startApi({
+    ledger,
+    token,
+    crew: () =>
+      detectSeats({ manifests: SEATS, ...(io.execute === undefined ? {} : { execute: io.execute }) }),
+  });
+  feed.publish = (event) => {
+    api.publish(event);
+  };
+
+  // Where the daemon is, for the mission view and any other client. Private, like everything else here.
+  writeFileSync(join(home.root, "daemon.json"), `${JSON.stringify({ url: api.url, pid: process.pid })}\n`, {
+    mode: 0o600,
+  });
+
+  const server = createFanoutServer({
+    ledger,
+    repoRoot: io.cwd ?? process.cwd(),
+    paths: { runs: home.runs, workspaces: home.workspaces },
+    adapters: adapters(),
+    manifests: SEATS,
+    limits: DEFAULT_LIMITS,
+  });
+
+  io.err(`fanout mcp ready. Live feed: ${api.url.replace("http", "ws")}/events?for=lead\n`);
+  await server.connect(new StdioServerTransport());
+  await (io.until ?? interrupted());
+
+  await server.close();
+  await api.close();
+  ledger.close();
+  return 0;
 }
 
 function interrupted(): Promise<void> {
