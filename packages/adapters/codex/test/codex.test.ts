@@ -205,3 +205,64 @@ describe("parsing anything else", () => {
     expect(events.find((event) => event.type === "run.tool")).toMatchObject({ files: ["/etc/hosts"] });
   });
 });
+
+/*
+ * Codex is the one seat that reviews code itself, which is what gives us a second vendor's opinion inside P0
+ * rather than P1. Recorded from a real `codex exec review --uncommitted --json` against a throwaway repository
+ * whose uncommitted change added a mandatory parameter to an existing function.
+ */
+describe("the review Codex runs on its own", () => {
+  const reviewFixture = readFileSync(new URL("../fixtures/review.jsonl", import.meta.url), "utf8")
+    .trimEnd()
+    .split("\n");
+
+  it("declares the verified review invocation, with a target it must always be given", () => {
+    const review = manifest.capabilities.review;
+    expect(review).not.toBeNull();
+    // Verified by running it: with no selector and no prompt the CLI exits 1 asking for one of
+    // --uncommitted, --base or --commit. An agent's work sits uncommitted in its worktree, so that is ours.
+    expect(review?.args).toContain("--uncommitted");
+    expect(review?.args).toContain("review");
+    expect(review?.args).toContain("--json");
+  });
+
+  it("speaks the same stream as an ordinary run, so one parser reads both", () => {
+    const adapter = createCodexAdapter();
+    const events = reviewFixture.flatMap((text) => adapter.parse(text, context()).events);
+
+    expect(events.length).toBeGreaterThan(0);
+    for (const event of events) expect(() => FanoutEvent.parse(event)).not.toThrow();
+  });
+
+  it("never leaves an unparsed line, which would mean the review format had drifted", () => {
+    const adapter = createCodexAdapter();
+    const unparsed = reviewFixture.flatMap((text) =>
+      adapter.parse(text, context()).signals.filter((signal) => signal.kind === "unparsed"),
+    );
+    expect(unparsed).toEqual([]);
+  });
+
+  /*
+   * The finding that shapes the merge gate: Codex reports its review as prose inside an `agent_message`, with a
+   * "- [P1] title — path:lines" convention and no structured severity, file or range field. We therefore treat a
+   * second-vendor review as a narrative for the lead to read, never as a machine-readable verdict to act on.
+   */
+  it("reports its findings as prose, not as a structured verdict", () => {
+    const messages = reviewFixture
+      .map((text) => JSON.parse(text) as { item?: { type?: string; text?: string } })
+      .filter((line) => line.item?.type === "agent_message");
+
+    expect(messages).toHaveLength(1);
+    const text = messages[0]?.item?.text ?? "";
+    expect(text).toContain("[P1]");
+    // No severity, file or line field exists to read: the prose is the whole payload.
+    const item = messages[0]?.item as Record<string, unknown>;
+    expect(Object.keys(item).sort()).toEqual(["id", "text", "type"]);
+  });
+
+  it("carries no path from the machine it was recorded on", () => {
+    const raw = reviewFixture.join("\n");
+    expect(raw).not.toMatch(/\/Users\//);
+    expect(raw).not.toContain("claude-501");
+  });
+});

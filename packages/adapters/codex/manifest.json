@@ -6,12 +6,49 @@
   "tier": "supported",
   "capabilities": {
     "resume": {
-      "args": ["exec", "resume", "{session}", "--json", "-C", "{workdir}", "-s", "{sandbox}", "{prompt}"]
+      "args": [
+        "exec",
+        "-C",
+        "{workdir}",
+        "-s",
+        "{sandbox}",
+        "resume",
+        "{session}",
+        "--json",
+        "-m",
+        "{model}",
+        "{prompt}"
+      ]
     },
     "fork": {
-      "args": ["exec", "fork", "{session}", "--json", "-C", "{workdir}", "-s", "{sandbox}", "{prompt}"]
+      "args": [
+        "exec",
+        "-C",
+        "{workdir}",
+        "-s",
+        "{sandbox}",
+        "fork",
+        "{session}",
+        "--json",
+        "-m",
+        "{model}",
+        "{prompt}"
+      ]
     },
-    "review": { "args": ["exec", "review", "--json", "-C", "{workdir}"] },
+    "review": {
+      "args": [
+        "exec",
+        "-C",
+        "{workdir}",
+        "-s",
+        "{sandbox}",
+        "review",
+        "--uncommitted",
+        "--json",
+        "-m",
+        "{model}"
+      ]
+    },
     "plan": null
   },
   "headless": {

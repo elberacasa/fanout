@@ -96,10 +96,11 @@ each one needs a recorded run before the daemon relies on it.
 
 | Capability | Codex | Claude Code | Why it matters |
 |---|---|---|---|
-| Resume a session headlessly | `codex exec resume <id>` / `--last` | ✅ `--resume <id>` — recorded: a follow-up saying "the file you just created" resolved | **Rework** replies into the session that wrote the diff instead of re-pasting context into a stranger |
-| Fork a session | `codex exec fork <id>` | ✅ `--resume <id> --fork-session` — recorded: new id, context inherited | Best-of-N from one shared setup (P2) |
-| **Choose** the session id up front | not exposed | ✅ `--session-id <uuid>`, honoured on every line of the stream | We never have to fish an id out of a stream, so a run killed at a timeout is still reachable (ADR 0018) |
-| Its own code review | `codex exec review` | ❌ none | **Second-vendor review** in P0 instead of P1: the worker's vendor reviews, and the lead reviews the reviewer |
+| Resume a session headlessly | ✅ `exec -C <dir> -s <mode> resume <id> --json <prompt>` — recorded: same thread id, remembered "the file you just created" | ✅ `--resume <id>` — recorded, same follow-up resolved | **Rework** replies into the session that wrote the diff instead of re-pasting context into a stranger |
+| Fork a session | ✅ `exec … fork <id> --json <prompt>` — recorded: new id, context inherited | ✅ `--resume <id> --fork-session` — recorded, same | Best-of-N from one shared setup (P2) |
+| **Choose** the session id up front | ❌ not exposed; the id arrives in `thread.started`, the **first** line | ✅ `--session-id <uuid>`, honoured on every line | A run killed at a timeout is still reachable (ADR 0018). Codex is safe anyway: it announces first, unlike Grok, which announces last |
+| Its own code review | ✅ `exec … review --uncommitted --json`. **A target is mandatory** — with none it exits 1 asking for `--uncommitted`, `--base <branch>` or `--commit <sha>` | ❌ none | **Second-vendor review** in P0 instead of P1: the worker's vendor reviews, and the lead reviews the reviewer |
+| Shape of a review's findings | ⚠️ **prose, not data** — one `agent_message` with a `- [P1] title — path:lines` convention and no severity, file or range field | n/a | A second-vendor review is a narrative for the lead to read, never a machine-readable verdict to act on |
 | Plan / subscription tier | not exposed — `codex login status` says only "Logged in using ChatGPT" | ✅ `claude auth status --json` → `subscriptionType` | Routing knows which seat is expensive without asking |
 | Usage and cost | no probe; a limit arrives inside a mid-run `error` item | real quota windows mid-run (5-hour and 7-day, with resets) | Routing on facts, not estimates |
 | Model tiers | `models` list, no cost ordering | to verify | "cheap for boilerplate, top model for foundations" |
