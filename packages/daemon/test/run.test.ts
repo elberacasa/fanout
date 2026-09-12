@@ -67,6 +67,8 @@ function scripted(
       if (text.startsWith("{")) return { events: [JSON.parse(text) as FanoutEventInput], signals: [] };
       if (text.startsWith("report: "))
         return { events: [], signals: [{ kind: "report", text: text.slice(8) }] };
+      if (text.startsWith("session: "))
+        return { events: [], signals: [{ kind: "session", id: text.slice(9) }] };
       return { events: [], signals: [{ kind: "unparsed", line: text }] };
     },
     parseStderr: (text): ParseResult =>
@@ -254,5 +256,56 @@ describe("startRun", () => {
     const started = Date.now();
     await expect(run.finished).rejects.toThrow();
     expect(Date.now() - started).toBeLessThan(5000);
+  });
+});
+
+/*
+ * Rework replies into the session that wrote the diff rather than re-explaining the work to a stranger, so the
+ * agent's name for that conversation has to be written down — and written down as soon as it is said, because the
+ * run most likely to need rework is the one that ended badly.
+ */
+describe("remembering which conversation a run was", () => {
+  it("records the session the moment the agent names it", async () => {
+    const run = startRun({
+      ledger,
+      adapter: scripted(["session: 01a0-thread", event({ type: "run.progress", phase: "coding" })]),
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+    });
+    await run.finished;
+
+    expect(typesOf(ledger.read())).toContain("run.session");
+    const projected = project(ledger.read()).missions[context.missionId]?.runs[context.runId];
+    expect(projected?.sessionId).toBe("01a0-thread");
+  });
+
+  it("keeps it even when the run then fails, which is when rework matters most", async () => {
+    const run = startRun({
+      ledger,
+      adapter: scripted(["session: 01a0-thread", "boom"], { exitCode: 1 }),
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+    });
+    const exit = await run.finished;
+
+    expect(exit.status).toBe("failed");
+    expect(project(ledger.read()).missions[context.missionId]?.runs[context.runId]?.sessionId).toBe(
+      "01a0-thread",
+    );
+  });
+
+  it("says nothing rather than inventing one for a CLI that never names its session", async () => {
+    const run = startRun({
+      ledger,
+      adapter: scripted([event({ type: "run.progress", phase: "coding" })]),
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+    });
+    await run.finished;
+
+    expect(project(ledger.read()).missions[context.missionId]?.runs[context.runId]?.sessionId).toBeNull();
   });
 });

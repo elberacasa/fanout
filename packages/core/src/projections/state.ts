@@ -28,6 +28,8 @@ export interface RunView {
   attempt: number;
   status: RunStatus;
   phase: RunPhase | null;
+  /** The agent's own name for this conversation, once it is known. Rework resumes it rather than starting over. */
+  sessionId: string | null;
   lastTool: { tool: string; summary: string | null } | null;
   /** Files the run touched, sorted, without duplicates. */
   files: string[];
@@ -290,6 +292,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
           attempt: event.attempt,
           status: "queued",
           phase: null,
+          sessionId: null,
           lastTool: null,
           files: [],
           diffStat: null,
@@ -327,6 +330,9 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
         startedSeq: event.seq,
         startedAt: event.ts,
       }));
+
+    case "run.session":
+      return updateRun(state, event, (run) => ({ ...run, sessionId: event.sessionId }));
 
     case "run.progress":
       return updateRun(state, event, (run) => ({ ...run, phase: event.phase }));

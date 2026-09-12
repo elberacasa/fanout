@@ -61,6 +61,14 @@ export function startRun(options: StartRunOptions): ActiveRun {
   let ledgerFailure: Error | undefined;
 
   const signal = (value: AdapterSignal): void => {
+    /*
+     * Written down the moment the agent names its conversation. Rework replies into the session that wrote the
+     * diff rather than re-explaining the work to a stranger, and the run most likely to need rework is the one
+     * that ended badly — so this cannot wait until the run finishes tidily.
+     */
+    if (value.kind === "session") {
+      record({ type: "run.session", missionId: ids.missionId, runId: ids.runId, sessionId: value.id });
+    }
     options.onSignal?.(value);
   };
 

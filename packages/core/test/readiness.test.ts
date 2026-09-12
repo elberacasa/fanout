@@ -49,6 +49,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
     attempt: 1,
     status: "done",
     phase: "reporting",
+    sessionId: null,
     lastTool: null,
     files: ["src/api/export.ts"],
     diffStat: { files: 1, insertions: 10, deletions: 1 },

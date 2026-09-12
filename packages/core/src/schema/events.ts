@@ -88,6 +88,20 @@ export const RunStarted = z.strictObject({
   argv: z.array(z.string().max(200_000)).min(1).max(200),
 });
 
+/**
+ * The agent's own name for this conversation, learned as soon as we have it.
+ *
+ * Recorded because rework depends on it: replying into the session that wrote a diff is worth far more than
+ * re-explaining the work to a stranger who happens to share its model. Some CLIs let us choose the id before
+ * launch and some announce it in their stream (ADR 0018); either way it is written down the moment it is known,
+ * because the run most likely to need rework is the one that ended badly.
+ */
+export const RunSession = z.strictObject({
+  type: z.literal("run.session"),
+  ...run,
+  sessionId: z.string().trim().min(1).max(200),
+});
+
 export const RunProgress = z.strictObject({
   type: z.literal("run.progress"),
   ...run,
@@ -302,6 +316,7 @@ export const FanoutEvent = z.discriminatedUnion("type", [
   SafetyReported,
   RunQueued,
   RunStarted,
+  RunSession,
   RunProgress,
   RunTool,
   RunUsage,

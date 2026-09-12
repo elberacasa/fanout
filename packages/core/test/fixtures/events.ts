@@ -85,6 +85,12 @@ export const samples: Samples = {
     workdir: "/tmp/fanout/api-export-1",
     argv: ["codex", "exec", "--json", "Add GET /export.csv."],
   },
+  "run.session": {
+    type: "run.session",
+    missionId: "csv-export",
+    runId: "api-export-1",
+    sessionId: "01a0-not-a-real-session",
+  },
   "run.progress": { type: "run.progress", missionId: "csv-export", runId: "api-export-1", phase: "coding" },
   "run.tool": {
     type: "run.tool",
