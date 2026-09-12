@@ -8,7 +8,7 @@ subject=$(sed -e '/^#/d' -e '/./,$!d' "$message_file" | sed -n '1p')
 second=$(sed -e '/^#/d' -e '/./,$!d' "$message_file" | sed -n '2p')
 
 types='feat|fix|perf|refactor|test|docs|build|ci|chore|revert'
-scopes='core|daemon|fake|plugin|ui|cli|docs|repo|adapters/[a-z0-9-]+'
+scopes='core|daemon|mcp|fake|plugin|ui|cli|docs|repo|adapters/[a-z0-9-]+'
 
 fail() {
   printf '\nCommit rejected: %s\n\n' "$1" >&2

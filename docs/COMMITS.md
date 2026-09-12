@@ -14,7 +14,8 @@ written so that `git log --oneline` reads like a changelog.
 ```
 
 - **type** — one of `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`, `ci`, `chore`, `revert`.
-- **scope** — the package or area: `core`, `daemon`, `fake`, `plugin`, `ui`, `cli`, `docs`, `repo`.
+- **scope** — the package or area: `core`, `daemon`, `mcp`, `fake`, `plugin`, `ui`, `cli`, `docs`, `repo`, or
+  `adapters/<cli>` for a seat.
 - **subject** — imperative mood ("add", not "added"), lower case, no full stop, 72 characters or fewer including the
   type and scope.
 - **body** — optional but expected for anything non-obvious: the reason, the proof (test counts, what failed on the
