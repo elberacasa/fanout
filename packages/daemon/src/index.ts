@@ -35,3 +35,4 @@ export * from "./gate/run-seat.ts";
 export { missionViewHtml } from "./api/view.ts";
 export * from "./gate/checks.ts";
 export * from "./gate/proof.ts";
+export * from "./gate/merge.ts";
