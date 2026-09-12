@@ -1,0 +1,21 @@
+{
+  "name": "@fanout/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@fanout/core": "workspace:*",
+    "@fanout/daemon": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.6.2"
+  },
+  "devDependencies": {
+    "@fanout/adapter-fake": "workspace:*"
+  }
+}

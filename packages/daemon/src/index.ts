@@ -15,5 +15,15 @@ export { createSafetyDependencies, type SafetyDependencyOptions } from "./safety
 export { detectSeats, type CommandResult, type DetectOptions } from "./detector/detect.ts";
 export { compareVersions, parseVersion, satisfies, type Version } from "./detector/version.ts";
 
+export {
+  createMissionRunner,
+  PlanRefused,
+  type LaunchRequest,
+  type MissionHandle,
+  type MissionOutcome,
+  type MissionRunnerOptions,
+  type RunOutcome,
+} from "./mission/runner.ts";
+
 export { startApi, LEAD_EVENTS, type ApiOptions, type ApiServer } from "./api/server.ts";
 export { originAllowed, readOrCreateToken, tokenMatches } from "./api/token.ts";
