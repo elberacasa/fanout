@@ -17,6 +17,12 @@ account. Everything below is what stands between here and that.
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
+- [ ] The mission view is blank for up to a second after loading, before the first poll answers — no "connecting",
+      nothing. Honest UI (non-negotiable 6) asks for better than a screen that cannot tell loading from empty.
+- [ ] `fanout owed` runs as a Stop hook after every turn and reports any finished-but-unreviewed run forever, so
+      one abandoned mission nags indefinitely. A cold reader refuted a claim of mine about this; the claim was
+      wrong, and the nagging is still a real question.
+
 - [x] ~~`pre-push` does not check lockfile drift~~ — `e2540f6`, written by a Codex agent, reworked once, merged
       through the gate.
 - [x] ~~No test that every manifest field has a consumer~~ — `66de242`, same route.
@@ -42,8 +48,10 @@ account. Everything below is what stands between here and that.
 
 ### Where we are
 
-P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **719 tests**
-(43 files), and so is CI — all six jobs on `7e63675`, including `installs from empty`. Repository: https://github.com/elberacasa/fanout (**public**).
+P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **730 tests**
+(45 files). **P0's acceptance run is done**: a real mission on this repository, through the MCP tools, went plan →
+safety → parallel launch → rework as resumed sessions → review → checks → proof → merge (`2d8f9fa`, `f1fcb44`),
+and exposed two real gate defects that are now fixed (`7c19f4a`, `c9052a4`). Repository: https://github.com/elberacasa/fanout (**public**).
 
 **Only #10 is left**, and most of it is done. Every package builds, installs into an empty directory and runs the
 demo end to end — `pnpm verify:pack`, now a CI job. What remains is not engineering:

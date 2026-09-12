@@ -17,6 +17,56 @@ Next: <the next step>
 
 ---
 
+### 2026-09-12 · A real mission on our own repository · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: 2 Codex agents (0.154.0), one rework round each
+
+The P0 acceptance run, done through Fanout rather than around it: plan → safety → parallel launch → rework as
+resumed sessions → review → checks → proof → merge, driven over the same stdio MCP transport the plugin uses.
+
+Built and merged:
+- **`perf(core)` an incremental projection**, `2d8f9fa`: by codex, reviewed by Claude, reworked once. Callers wrote
+  `project(ledger.read())`, decoding every event ever recorded; the MCP server did it per plan line and `/state`
+  does it once a second.
+- **`fix(mcp)` routing sees a seat that signed in mid-session**, `f1fcb44`: by codex, reviewed by Claude, reworked
+  once, **proven by the gate** — its test fails on `11982d6` and passes on the work.
+
+Then, from what the mission exposed:
+- **`fix(daemon)` the write scope is enforced, not merely reported**, `7c19f4a`: by the lead. ADR 0022.
+- **`fix(mcp)` a reworked run's diff is read from where it actually worked**, `c9052a4`: by the lead.
+
+Verified by the lead: typecheck ok · lint ok · 730 tests pass (45 files) · both merges made by the gate, with
+`Built-by`, `Approved-by` and `Fanout-run` trailers · the proof re-run by the gate in a fresh worktree at the base
+commit · both new refusals mutation-checked.
+
+Could not verify: CI was still running on `7c19f4a` when this was written.
+
+What the mission found, which nothing else had:
+1. **The gate reported scope violations and never enforced them.** `outsideScope` was computed in `collect` and
+   used in exactly one place: a line of prose. A run could write anywhere in its worktree and the gate would apply
+   it. Both agents wrote to `docs/BUILD_LOG.md`, which neither was granted, and the gate was ready to merge both.
+2. **`run_diff` could not find a reworked run's workspace** — a second copy of a rule fixed that same day in
+   `locate`. The fifth time this repository has been bitten by one rule with two implementations, and the first
+   time the answer was a structural test rather than another careful edit.
+3. **Our own rules caused the collision.** `AGENTS.md` told every agent to update the docs; no plan ever granted
+   them. Now it tells teammates to stay in scope and tells the lead to grant a doc to one line when it wants one.
+
+Honest notes:
+- **The lead wrote a false approval note.** The owner approved in chat, and `merge_run` correctly recorded
+  `via: relayed` — but the note said "approved by the owner in the mission view", which is where it did not
+  happen. That text was a default baked into the driver script before the owner answered, rather than a quote.
+  The ledger is append-only, so it stands and this entry is the correction. The `via` field did its job; the lead
+  did not. The driver now refuses to run without a quote.
+- **The lead's own planning error caused both rework rounds**: one prompt asked for an export from a file the plan
+  had not granted. That is what made finding 1 visible, and it is why widening a scope is deliberate rather than
+  forbidden.
+- The agents' work was better than specified. The projection's tests check snapshot immutability, an anomaly not
+  being recorded twice, and recovery from a failed read — none asked for, all real properties of a resumable fold.
+
+Next: the owner's word to publish to npm, and the 30-second video, which this mission is the material for.
+
+---
+
 ### 2026-09-12 · Routing, direct approval, and a publishable package · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: none this stretch (each piece was one decision the lead had to own)
