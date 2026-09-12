@@ -104,11 +104,19 @@ safety gate, runs each line in its own worktree, and brings the diffs back for r
 
 Requires **Node 22.18+** (the ledger uses Node's built-in SQLite; TypeScript runs without a build step).
 
-When the CLI lands you will be able to try the whole flow offline, with no accounts, using the simulated agent:
+### See it work, with no accounts at all
 
 ```sh
-fanout demo        # P0 · 10
+fanout demo
 ```
+
+A whole mission on a throwaway repository: three agents, three git worktrees, three real diffs, and a mission view
+on localhost to watch it happen. Everything is the real thing except the thinking — real worktrees, the real safety
+gate, the real append-only ledger — driven by a simulated agent that takes a script instead of a model. No
+subscription, no sign-in, nothing leaves your machine.
+
+The one thing it cannot do honestly is a second vendor's verdicts, so the demo's are written rather than read, and
+every surface that shows them says **simulated**.
 
 ## Why it is different
 

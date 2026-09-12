@@ -261,6 +261,14 @@ export const ClaimsChecked = z.strictObject({
     .max(20),
   /** False when the reader could not be run at all, so "nothing refuted" never stands in for "never asked". */
   ran: z.boolean(),
+  /**
+   * True when these verdicts were written by us rather than read by anyone — the offline demo, and nothing else.
+   *
+   * It exists so that the one thing the demo cannot do honestly is labelled everywhere it appears instead of
+   * being quietly indistinguishable from a real answer. Inventing a second opinion and presenting it as read
+   * would be faking the only claim this product makes.
+   */
+  simulated: z.boolean().default(false),
 });
 
 export const RouteChanged = z.strictObject({

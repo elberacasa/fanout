@@ -5,6 +5,8 @@ import { createCodexAdapter, manifest as codex } from "@fanout/adapter-codex";
 import { createGrokAdapter, manifest as grok } from "@fanout/adapter-grok";
 import {
   Ledger,
+  missionReport,
+  PlanGraph,
   project,
   SeatPosture,
   stanceFor,
@@ -20,6 +22,8 @@ import {
   lines,
   buddyReview,
   checkClaims,
+  createMissionRunner,
+  createWorkspaceManager,
   missionViewHtml,
   readOrCreateToken,
   readSeatPolicy,
@@ -32,7 +36,9 @@ import {
 } from "@fanout/daemon";
 import { createFanoutServer } from "@fanout/mcp";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { createFakeAdapter } from "@fanout/adapter-fake";
 import { fanoutHome, type FanoutHome } from "./home.ts";
+import { buildDemoRepo, demoClaims, demoLines, demoScenario, DEMO_GOAL } from "./demo.ts";
 import { crewTable, missionLines } from "./format.ts";
 import { ownWorkOwed, unfinishedReport, whatIsOwed } from "./unfinished.ts";
 
@@ -64,6 +70,7 @@ export const DEFAULT_LIMITS: RunLimits = {
 
 const HELP = `fanout — Claude Code leads, your other agents build
 
+  fanout demo       watch a whole mission run, offline, with no accounts at all
   fanout status     the crew on this machine, and any missions on the go
   fanout seat       how freely to spend a seat: preferred | normal | sparing | off
   fanout owed       what is waiting on you before anything can merge (the Stop hook runs this)
@@ -95,6 +102,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
   const home = fanoutHome(io.env ?? process.env);
 
   switch (command) {
+    case "demo":
+      return demo(home, io);
     case "status":
       return status(home, io);
     case "seat":
@@ -123,6 +132,114 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       io.err(`fanout: there is no "${command}" command.\n\n${HELP}`);
       return 64;
   }
+}
+
+/**
+ * `fanout demo` — the whole thing, on a machine with nothing signed in.
+ *
+ * Real worktrees, the real safety gate, the real ledger, real diffs from real files. Only the agents are
+ * simulated, by the `fake` seat: a genuine CLI speaking the genuine protocol from a script. Nothing inside the
+ * daemon takes a special path, because a demo of a special path is a demo of something nobody ships.
+ */
+async function demo(home: FanoutHome, io: Io): Promise<number> {
+  const root = join(home.root, "demo");
+  const repo = buildDemoRepo(join(root, "shop"));
+  const ledgerPath = join(root, "ledger.db");
+  rmSync(ledgerPath, { force: true });
+
+  // The feed exists only once the API is listening, and the ledger is open before that; this holder is the join.
+  const feed: { publish?: (event: StoredEvent) => void } = {};
+  const ledger = Ledger.open(ledgerPath, {
+    onAppend: (event) => {
+      feed.publish?.(event);
+    },
+  });
+  const adapter = createFakeAdapter({ scenarioFor: demoScenario });
+  const workspaces = createWorkspaceManager({ repoRoot: repo, workspaceRoot: join(root, "workspaces") });
+  const runner = createMissionRunner({
+    ledger,
+    workspaces,
+    adapters: new Map([["fake", adapter]]),
+    runsRoot: join(root, "runs"),
+    limits: DEFAULT_LIMITS,
+  });
+
+  const api = await startApi({
+    ledger,
+    token: readOrCreateToken(home.token),
+    view: missionViewHtml,
+    /*
+     * The demo's crew is the simulated seat, said plainly. Reporting the machine's real CLIs here would make the
+     * demo look like it was using them, and reporting nothing makes a working demo look broken.
+     */
+    crew: () =>
+      Promise.resolve([
+        {
+          id: "fake",
+          displayName: "Simulated agent",
+          binary: "fake",
+          version: "demo",
+          supported: true,
+          signedIn: "yes" as const,
+          models: ["demo"],
+          efforts: [],
+          billing: "unknown" as const,
+          plan: { name: "no account needed", source: "detected" as const },
+        },
+      ]),
+  });
+  feed.publish = (event) => {
+    api.publish(event);
+  };
+
+  const plan = PlanGraph.parse({ lines: demoLines() });
+  const head = (await git(["rev-parse", "HEAD"], { cwd: repo })).trim();
+  const missionId = "demo-csv-export";
+  ledger.appendAll([
+    {
+      type: "mission.created",
+      missionId,
+      goal: DEMO_GOAL,
+      repo: { root: repo, baseCommit: head },
+      limits: { maxParallel: 3, timeoutMinutes: 10 },
+    },
+    { type: "plan.proposed", missionId, plan, by: "lead" },
+  ]);
+
+  io.out(`\n  ${DEMO_GOAL}\n\n`);
+  io.out(`  Watch it at  ${api.url}/\n`);
+  io.out(`  The repo it is changing is ${repo}\n`);
+  io.out(`  Three simulated agents, three worktrees, no accounts. Ctrl-C when you have seen enough.\n\n`);
+
+  const handle = runner.launch({ missionId, plan, baseCommit: head, maxParallel: 3 });
+  await handle.finished;
+
+  /*
+   * The claim check the demo shows is written, not read: real verdicts need a real second vendor. It is recorded
+   * with `simulated: true` so every surface says so, because inventing a second opinion and presenting it as one
+   * would fake the only thing this product claims to do.
+   */
+  ledger.appendAll([
+    {
+      type: "claims.checked",
+      repoRoot: repo,
+      revision: "d3".repeat(32),
+      by: { id: "fake", model: "demo" },
+      claims: demoClaims(),
+      ran: true,
+      simulated: true,
+    },
+  ]);
+
+  const state = project(ledger.read({ missionId }));
+  const mission = state.missions[missionId];
+  if (mission !== undefined) io.out(`\n${missionReport(mission, new Date())}\n`);
+  io.out(`  Still watching at ${api.url}/ — Ctrl-C to stop.\n`);
+
+  await (io.until ?? new Promise<void>(() => undefined));
+  await api.close();
+  ledger.close();
+  return 0;
 }
 
 async function status(home: FanoutHome, io: Io): Promise<number> {

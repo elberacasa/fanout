@@ -19,6 +19,7 @@
     "@fanout/core": "workspace:*",
     "@fanout/daemon": "workspace:*",
     "@fanout/mcp": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.30.0"
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@fanout/adapter-fake": "workspace:*"
   }
 }

@@ -153,6 +153,7 @@ describe("what the lead's own work owes", () => {
     by: { id: "codex" },
     claims: [{ claim: "no behaviour change", verdict: "confirmed", evidence: "checked" }],
     ran: true,
+    simulated: false,
     at: "2026-09-12T12:00:00.000Z",
     ...over,
   });

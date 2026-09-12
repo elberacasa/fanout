@@ -140,6 +140,8 @@ export interface ClaimCheck {
   by: SeatRef;
   claims: EventOf<"claims.checked">["claims"];
   ran: boolean;
+  /** These verdicts were written, not read: the offline demo. Every surface that shows them must say so. */
+  simulated: boolean;
   at: string;
 }
 
@@ -200,6 +202,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
             by: event.by,
             claims: event.claims,
             ran: event.ran,
+            simulated: event.simulated,
             at: event.ts,
           },
         },
