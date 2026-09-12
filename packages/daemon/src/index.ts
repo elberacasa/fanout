@@ -33,3 +33,5 @@ export * from "./gate/buddy.ts";
 export * from "./gate/claims.ts";
 export * from "./gate/run-seat.ts";
 export { missionViewHtml } from "./api/view.ts";
+export * from "./gate/checks.ts";
+export * from "./gate/proof.ts";
