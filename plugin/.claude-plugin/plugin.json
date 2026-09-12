@@ -1,0 +1,12 @@
+{
+  "name": "fanout",
+  "description": "Lead a crew of the coding-agent CLIs you already pay for: plan, fan out into isolated git worktrees, watch, and review before anything merges.",
+  "version": "0.6.0",
+  "author": {
+    "name": "elberacasa"
+  },
+  "homepage": "https://github.com/elberacasa/fanout",
+  "repository": "https://github.com/elberacasa/fanout",
+  "license": "MIT",
+  "keywords": ["agents", "orchestration", "codex", "grok", "worktrees", "local-first"]
+}

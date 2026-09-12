@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "fanout status 2>/dev/null || true",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "fanout status 2>/dev/null | grep -E 'running|waiting for review' || true",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
