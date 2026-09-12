@@ -36,6 +36,11 @@ auto-update since its fixture was recorded at 1.0.13 — which the manifest's ve
 manifests declare ranges. `fanout clean` failed at first because git reports resolved paths (`/private/var/…`) while
 `FANOUT_HOME` was the symlinked form (`/var/…`), so it removed nothing and then could not delete the branch.
 
+Caught by Dependabot, not by us: the `ws` version was pinned from memory at 8.19.0, which carries a high-severity
+denial of service and a medium-severity memory disclosure, both fixed in 8.21.0. It is a runtime dependency, so it
+would have shipped. **Check a version against the registry before pinning it**, the same way a CLI's flags are
+verified before an adapter trusts them.
+
 Verified by the lead: typecheck ok · lint ok · **354 tests pass** (22 files) · `fanout status` and `fanout help` run
 against the real machine · CI green on macOS and Linux, Node 22 and 24.
 Could not verify: the daemon under a second concurrent client; `fanout clean` on Windows.
