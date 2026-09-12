@@ -285,6 +285,37 @@ export const ClaimsChecked = z.strictObject({
   simulated: z.boolean().default(false),
 });
 
+/**
+ * A seat said it has run out, in its own words.
+ *
+ * Not mission-scoped: a limit belongs to the account, not to whatever happened to be running when it was hit.
+ * The message is kept verbatim because "you have reached your usage limit" and "rate limited, retry in 30s" are
+ * different problems and only the vendor knows which one this is.
+ */
+export const SeatLimited = z.strictObject({
+  type: z.literal("seat.limited"),
+  seat: SeatId,
+  message: z.string().trim().min(1).max(500),
+  /** When the seat says it will work again. Absent when it did not say, which is usually. */
+  resetsAt: z.iso.datetime().optional(),
+});
+
+/**
+ * How full one of a seat's quota windows is, when the CLI reports it rather than us guessing.
+ *
+ * Claude Code is the only seat that says this today, per turn, for its five-hour and seven-day windows. It is the
+ * difference between routing on facts and routing on arithmetic we made up, so it is recorded as what it is —
+ * real, and belonging to a named window — rather than flattened into a token count that would read as estimated.
+ */
+export const SeatQuota = z.strictObject({
+  type: z.literal("seat.quota"),
+  seat: SeatId,
+  window: z.string().min(1).max(50),
+  /** 0.28 means 28% of that window is used. */
+  utilization: z.number().min(0).max(1),
+  resetsAt: z.iso.datetime().optional(),
+});
+
 export const RouteChanged = z.strictObject({
   type: z.literal("route.changed"),
   ...mission,
@@ -330,6 +361,8 @@ export const FanoutEvent = z.discriminatedUnion("type", [
   MergeApplied,
   MergeConflict,
   RunDropped,
+  SeatLimited,
+  SeatQuota,
   RouteChanged,
   PolicyBreach,
   MissionFinished,

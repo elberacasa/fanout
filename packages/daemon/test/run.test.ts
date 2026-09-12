@@ -372,3 +372,41 @@ describe("resuming a conversation instead of starting one", () => {
     ).toThrow(/cannot resume/);
   });
 });
+
+/*
+ * A seat running out belongs to the account, not to the mission that happened to be running. Left as a hint the
+ * runner might act on, it is a limit the next mission rediscovers by spending on it again.
+ */
+describe("remembering that a seat has run out", () => {
+  it("records the limit, in the seat's own words", async () => {
+    const run = startRun({
+      ledger,
+      adapter: scripted([], {
+        stderr: ["error: 403 usage limit reached for this billing cycle"],
+        exitCode: 2,
+      }),
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+    });
+    await run.finished;
+
+    const limits = ledger.read().filter((event) => event.type === "seat.limited");
+    expect(limits).toHaveLength(1);
+    expect((limits[0] as { message: string }).message).toContain("usage limit");
+    expect((limits[0] as { seat: string }).seat).toBe(context.line.seat.id);
+  });
+
+  it("says nothing about limits for a run that simply failed", async () => {
+    const run = startRun({
+      ledger,
+      adapter: scripted(["boom"], { exitCode: 1 }),
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+    });
+    await run.finished;
+
+    expect(ledger.read().filter((event) => event.type === "seat.limited")).toEqual([]);
+  });
+});

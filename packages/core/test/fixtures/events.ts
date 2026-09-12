@@ -48,6 +48,17 @@ export const samples: Samples = {
       plan: null,
     },
   },
+  "seat.limited": {
+    type: "seat.limited",
+    seat: "codex",
+    message: "You've reached your usage limit for this billing cycle.",
+  },
+  "seat.quota": {
+    type: "seat.quota",
+    seat: "claude",
+    window: "five_hour",
+    utilization: 0.28,
+  },
   "mission.created": {
     type: "mission.created",
     missionId: "csv-export",

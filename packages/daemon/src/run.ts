@@ -92,6 +92,28 @@ export function startRun(options: StartRunOptions): ActiveRun {
     if (value.kind === "session") {
       record({ type: "run.session", missionId: ids.missionId, runId: ids.runId, sessionId: value.id });
     }
+    /*
+     * A seat running out belongs to the account, not to this mission — the next mission needs to know as much as
+     * this one does. Recorded here rather than left as a hint the runner may or may not act on, because a limit
+     * nobody wrote down is a limit the crew rediscovers by spending on it again.
+     */
+    if (value.kind === "limit") {
+      record({
+        type: "seat.limited",
+        seat: context.line.seat.id,
+        message: value.message,
+        ...(value.resetsAt === undefined ? {} : { resetsAt: value.resetsAt }),
+      });
+    }
+    if (value.kind === "quota") {
+      record({
+        type: "seat.quota",
+        seat: context.line.seat.id,
+        window: value.window,
+        utilization: value.utilization,
+        ...(value.resetsAt === undefined ? {} : { resetsAt: value.resetsAt }),
+      });
+    }
     options.onSignal?.(value);
   };
 

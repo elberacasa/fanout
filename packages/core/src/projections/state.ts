@@ -155,9 +155,23 @@ export interface ClaimCheck {
   at: string;
 }
 
+/**
+ * What a seat has said about its own capacity.
+ *
+ * `limited` is the seat refusing work; `windows` is how full its named quota windows are when it reports them.
+ * Both are the vendor's words, never our arithmetic — a number we estimated and a number Claude Code measured
+ * should never be mistaken for each other in a routing decision.
+ */
+export interface SeatHeadroom {
+  limited: { message: string; at: string; resetsAt: string | null } | null;
+  windows: Record<string, { utilization: number; resetsAt: string | null }>;
+}
+
 export interface ProjectionState {
   lastSeq: number;
   crew: Record<string, SeatInfo>;
+  /** Per seat, what it last said about running out. Empty for a seat that has never said anything. */
+  headroom: Record<string, SeatHeadroom>;
   /** The most recent second-vendor review of the lead's own work, per repository root. */
   buddy: Record<string, BuddyReview>;
   /** The most recent claim check of the lead's own work, per repository root. */
@@ -168,7 +182,16 @@ export interface ProjectionState {
 }
 
 export function initialState(): ProjectionState {
-  return { lastSeq: 0, crew: {}, buddy: {}, claims: {}, usage: {}, missions: {}, anomalies: [] };
+  return {
+    lastSeq: 0,
+    crew: {},
+    headroom: {},
+    buddy: {},
+    claims: {},
+    usage: {},
+    missions: {},
+    anomalies: [],
+  };
 }
 
 /** Folds events into a state, starting from an empty one or from a state already projected. */
@@ -214,6 +237,38 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
             ran: event.ran,
             simulated: event.simulated,
             at: event.ts,
+          },
+        },
+      };
+
+    /*
+     * A seat's own account of its headroom, kept per seat rather than as a history. The only question anyone asks
+     * is whether this seat can be used right now; a list of every limit it ever hit answers a different one and
+     * buries this.
+     */
+    case "seat.limited":
+      return {
+        ...state,
+        headroom: {
+          ...state.headroom,
+          [event.seat]: {
+            ...(state.headroom[event.seat] ?? { windows: {} }),
+            limited: { message: event.message, at: event.ts, resetsAt: event.resetsAt ?? null },
+          },
+        },
+      };
+
+    case "seat.quota":
+      return {
+        ...state,
+        headroom: {
+          ...state.headroom,
+          [event.seat]: {
+            ...(state.headroom[event.seat] ?? { limited: null }),
+            windows: {
+              ...(state.headroom[event.seat]?.windows ?? {}),
+              [event.window]: { utilization: event.utilization, resetsAt: event.resetsAt ?? null },
+            },
           },
         },
       };
