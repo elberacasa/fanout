@@ -74,12 +74,16 @@ git config core.hooksPath .githooks
 npm run check      # typecheck + lint + 371 tests
 ```
 
-Then try it inside Claude Code:
+Then try it inside Claude Code. **No install step** — the plugin runs the CLI straight out of the checkout:
 
 ```sh
-pnpm --filter @fanout/cli link --global   # puts `fanout` on your PATH
-fanout status                             # your crew: each CLI, its version, whether it is signed in
 claude --plugin-dir "$PWD/plugin"         # /fanout, /fanout:crew, /fanout:watch
+```
+
+Optionally put `fanout` on your PATH for the terminal commands (`status`, `seat`, `review`, `owed`):
+
+```sh
+pnpm --filter @fanout/cli link --global
 ```
 
 Inside that session, `/fanout add CSV export and fix the flaky date test` plans a mission, checks it against the
