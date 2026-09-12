@@ -1,4 +1,4 @@
-import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathInScope } from "@fanout/core";
@@ -56,6 +56,19 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
   const path = join(root, "work");
   let created = false;
 
+  /*
+   * Patches are written beside the copy and applied by file, so that every git call in this module goes through
+   * the one helper that closes the environment. There used to be a second, bespoke invocation here that piped the
+   * patch to stdin and inherited the shell's — which in an editor's integrated terminal means its GIT_ASKPASS,
+   * its IPC auth token, and the user's system git config. Deleting the second path is a better guarantee than
+   * testing it, because there is now nothing left to drift.
+   */
+  const applyPatch = async (patch: string, name: string): Promise<void> => {
+    const file = join(root, name);
+    writeFileSync(file, patch, "utf8");
+    await run(["apply", "--whitespace=nowarn", file], path);
+  };
+
   const dispose = async (): Promise<void> => {
     if (created) {
       // `git worktree remove` first so the repository's administrative files are updated, not orphaned.
@@ -88,7 +101,7 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
 
     // The working tree as it stands.
     const patch = await run(["diff", "HEAD", "--no-ext-diff", "--no-color", "--binary"]);
-    if (patch.trim() !== "") await applyPatch(patch, path, options.timeoutMs);
+    if (patch.trim() !== "") await applyPatch(patch, "worktree.patch");
 
     /*
      * Then any file whose *index* differs from HEAD but whose working tree does not: staged, then reverted. It is
@@ -110,7 +123,7 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
         "--",
         ...stagedOnly,
       ]);
-      if (staged.trim() !== "") await applyPatch(staged, path, options.timeoutMs);
+      if (staged.trim() !== "") await applyPatch(staged, "staged.patch");
     }
 
     /*
@@ -143,20 +156,4 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
     await dispose();
     throw cause;
   }
-}
-
-async function applyPatch(patch: string, cwd: string, timeoutMs?: number): Promise<void> {
-  const { execFile } = await import("node:child_process");
-  const failure = await new Promise<Error | null>((resolve) => {
-    const child = execFile(
-      "git",
-      ["apply", "--whitespace=nowarn", "-"],
-      { cwd, timeout: timeoutMs ?? 60_000 },
-      (error) => {
-        resolve(error);
-      },
-    );
-    child.stdin?.end(patch);
-  });
-  if (failure !== null) throw failure;
 }

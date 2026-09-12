@@ -378,3 +378,43 @@ describe("what the review copy refuses to carry", () => {
     expect(seen).toContain("discount");
   });
 });
+
+/*
+ * Every git call in the isolation path goes through the one helper that replaces the environment rather than
+ * inheriting it. There used to be a second, bespoke invocation that piped a patch to stdin with the shell's
+ * environment intact — which, in an editor's integrated terminal, is its GIT_ASKPASS and an IPC auth token.
+ *
+ * This asserts the structure rather than a behaviour: the variables that worry us leak silently, so no observable
+ * difference exists to test for. The guarantee is that there is only one path, and this is what holds it there.
+ */
+describe("how git is invoked while building the copy", () => {
+  it("never spawns git itself, so the closed environment cannot be bypassed", () => {
+    const source = readFileSync(new URL("../src/gate/isolate.ts", import.meta.url), "utf8");
+
+    expect(source).not.toContain("execFile");
+    expect(source).not.toContain("spawn");
+    expect(source).toContain('from "../workspace/git.ts"');
+  });
+
+  it("still applies the work when the surrounding shell exports git variables", async () => {
+    dirty();
+    const before = process.env["GIT_WORK_TREE"];
+    process.env["GIT_WORK_TREE"] = join(tmpdir(), "fanout-not-a-work-tree");
+
+    try {
+      let patched = "";
+      await buddyReview({
+        repoRoot: repo,
+        manifest: codex,
+        execute: (_binary, _args, options) => {
+          patched = readFileSync(join(options.cwd, "total.py"), "utf8");
+          return Promise.resolve({ stdout: reviewStream("fine"), stderr: "", exitCode: 0 });
+        },
+      });
+      expect(patched).toContain("discount");
+    } finally {
+      if (before === undefined) delete process.env["GIT_WORK_TREE"];
+      else process.env["GIT_WORK_TREE"] = before;
+    }
+  });
+});

@@ -30,7 +30,7 @@ export interface GitOptions {
   maxBuffer?: number;
 }
 
-function gitEnv(): Record<string, string> {
+export function gitEnv(): Record<string, string> {
   const path = process.env["PATH"];
   const home = process.env["HOME"];
   return {
