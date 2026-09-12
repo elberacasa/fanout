@@ -95,6 +95,27 @@ describe("fanout status", () => {
     expect(printed()).toMatch(/OpenAI Codex\s+0\.154\.0\s+signed in\s*$/m);
   });
 
+  it("shows a posture the owner set, and stays quiet about the ones they did not", async () => {
+    await main(["seat", "grok", "sparing", "cheapest", "plan"], io());
+    out = [];
+    await main(["status"], io());
+
+    expect(printed()).toMatch(/Grok Build[^\n]*sparing/);
+    // "normal" is every seat nobody has decided about; printing it down the table would bury the real answers.
+    expect(printed()).not.toContain("normal");
+  });
+
+  it("counts a seat as ready only when the owner is willing to spend it", async () => {
+    await main(["status"], io());
+    expect(printed()).toContain("(1 ready)");
+
+    out = [];
+    await main(["seat", "codex", "off"], io());
+    out = [];
+    await main(["status"], io());
+    expect(printed()).toContain("(0 ready)");
+  });
+
   it("says there are no missions yet rather than showing an empty table", async () => {
     await main(["status"], io());
     expect(printed()).toContain("No missions yet");
@@ -203,5 +224,45 @@ describe("fanout daemon", () => {
     stop?.();
     expect(await run).toBe(0);
     expect(printed()).toContain("daemon stopped");
+  });
+});
+
+describe("fanout seat", () => {
+  it("records a posture with the owner's reason", async () => {
+    expect(await main(["seat", "grok", "sparing", "cheapest", "plan"], io())).toBe(0);
+    expect(printed()).toContain("grok is now sparing — cheapest plan");
+  });
+
+  it("survives a restart, because the point is not to be asked twice", async () => {
+    await main(["seat", "grok", "off"], io());
+    out = [];
+    await main(["status"], io());
+    expect(printed()).toMatch(/Grok Build[^\n]*off/);
+  });
+
+  it.each([
+    ["no arguments at all", []],
+    ["a seat but no posture", ["grok"]],
+    ["a posture we do not have", ["grok", "cheap"]],
+    ["a seat we do not have", ["gemini", "normal"]],
+  ])("refuses %s, and says what it wanted", async (_label, args) => {
+    expect(await main(["seat", ...args], io())).toBe(64);
+    expect(err.join("")).toContain("fanout:");
+  });
+
+  it("will not write on top of a policy file it could not read", async () => {
+    await main(["seat", "grok", "off"], io());
+    writeFileSync(join(home, "seats.json"), "{{{ not json");
+    err = [];
+
+    // Overwriting here would silently discard every preference the owner had set.
+    expect(await main(["seat", "codex", "preferred"], io())).toBe(65);
+    expect(err.join("")).toContain("before changing a seat");
+  });
+
+  it("warns on status when the policy cannot be read, instead of looking normal", async () => {
+    writeFileSync(join(home, "seats.json"), "{{{ not json");
+    await main(["status"], io());
+    expect(err.join("")).toContain("falls back to its default");
   });
 });

@@ -6,6 +6,7 @@ import { createGrokAdapter, manifest as grok } from "@fanout/adapter-grok";
 import {
   Ledger,
   project,
+  SeatPosture,
   type AdapterManifest,
   type SeatAdapter,
   type SeatInfo,
@@ -16,7 +17,10 @@ import {
   git,
   lines,
   readOrCreateToken,
+  readSeatPolicy,
+  setPosture,
   startApi,
+  writeSeatPolicy,
   type CommandResult,
   type RunLimits,
 } from "@fanout/daemon";
@@ -54,6 +58,7 @@ export const DEFAULT_LIMITS: RunLimits = {
 const HELP = `fanout — Claude Code leads, your other agents build
 
   fanout status     the crew on this machine, and any missions on the go
+  fanout seat       how freely to spend a seat: preferred | normal | sparing | off
   fanout daemon     run the daemon the lead and the mission view talk to
   fanout clean      remove the worktrees and branches finished missions left behind
   fanout mcp        speak MCP on stdin/stdout, for Claude Code to drive (the plugin runs this)
@@ -82,6 +87,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
   switch (command) {
     case "status":
       return status(home, io);
+    case "seat":
+      return seat(home, argv.slice(1), io);
     case "daemon":
       return daemon(home, io);
     case "clean":
@@ -107,7 +114,11 @@ async function status(home: FanoutHome, io: Io): Promise<number> {
     manifests: SEATS,
     ...(io.execute === undefined ? {} : { execute: io.execute }),
   });
-  io.out(crewTable(seats));
+  const { policy, problem } = readSeatPolicy(home.root);
+  // A policy we could not read is not the same as no policy, and the difference is whose money it is.
+  if (problem !== null)
+    io.err(`fanout: ${problem}\n  Until it is fixed, every seat falls back to its default.\n\n`);
+  io.out(crewTable(seats, policy));
 
   if (!existsSync(home.ledger)) {
     io.out("\nNo missions yet. The ledger appears the first time the lead plans one.\n");
@@ -123,6 +134,46 @@ async function status(home: FanoutHome, io: Io): Promise<number> {
   }
   return 0;
 }
+
+/** `fanout seat <id> <posture> [note]` — the one setting, and it is always the owner's to make. */
+function seat(home: FanoutHome, args: readonly string[], io: Io): number {
+  const [seatId, posture, ...rest] = args;
+  if (seatId === undefined || posture === undefined) {
+    io.err(`fanout: seat needs which seat and how freely to spend it.\n\n${SEAT_HELP}`);
+    return 64;
+  }
+
+  const wanted = SeatPosture.safeParse(posture);
+  if (!wanted.success) {
+    io.err(`fanout: "${posture}" is not a posture.\n\n${SEAT_HELP}`);
+    return 64;
+  }
+  if (!SEATS.some((manifest) => manifest.id === seatId)) {
+    const known = SEATS.map((manifest) => manifest.id).join(", ");
+    io.err(`fanout: there is no seat called "${seatId}". Seats: ${known}.\n`);
+    return 64;
+  }
+
+  const { policy, problem } = readSeatPolicy(home.root);
+  if (problem !== null) {
+    // Writing on top of a file we could not read would silently discard preferences the owner did set.
+    io.err(`fanout: ${problem}\n  Fix or delete that file before changing a seat.\n`);
+    return 65;
+  }
+
+  const note = rest.join(" ");
+  writeSeatPolicy(home.root, setPosture(policy, seatId, wanted.data, note));
+  io.out(`${seatId} is now ${wanted.data}${note === "" ? "" : ` — ${note}`}.\n`);
+  return 0;
+}
+
+const SEAT_HELP = `  fanout seat <id> <preferred|normal|sparing|off> [why]
+
+  preferred   reach for this one first
+  normal      use it when the plan calls for it
+  sparing     only when nothing else fits, and say so first
+  off         never, until you say otherwise
+`;
 
 async function daemon(home: FanoutHome, io: Io): Promise<number> {
   const ledger = Ledger.open(home.ledger);

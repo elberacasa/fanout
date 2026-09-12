@@ -1,4 +1,13 @@
-import { elapsedMs, formatDuration, silentMs, type ProjectionState, type SeatInfo } from "@fanout/core";
+import {
+  elapsedMs,
+  EMPTY_POLICY,
+  formatDuration,
+  silentMs,
+  stanceFor,
+  type ProjectionState,
+  type SeatInfo,
+  type SeatPolicy,
+} from "@fanout/core";
 
 /*
  * How the crew reads in a terminal. The rule everywhere: say what is known, say plainly what is not, and never let
@@ -11,14 +20,17 @@ const SIGN_IN: Record<SeatInfo["signedIn"], string> = {
   unknown: "unknown",
 };
 
-export function crewTable(seats: readonly SeatInfo[]): string {
+export function crewTable(seats: readonly SeatInfo[], policy: SeatPolicy = EMPTY_POLICY): string {
   if (seats.length === 0) return "No agent CLIs found on this machine.\n";
 
   const rows = seats.map((seat) => ({
     name: seat.displayName,
     version: seat.version ?? "not installed",
     state: seat.supported ? SIGN_IN[seat.signedIn] : seat.version === null ? "—" : "unsupported version",
-    ready: seat.supported && seat.signedIn === "yes",
+    ready: stanceFor(seat, policy).usable,
+    // "normal" is what a seat is when nobody has said anything, and printing it down every row would bury the
+    // one or two the owner actually decided about.
+    posture: stanceFor(seat, policy).posture === "normal" ? "" : stanceFor(seat, policy).posture,
     // Most CLIs do not report a tier. An empty column says that better than a word like "unknown" repeated
     // down the table, and the source travels with the value so nobody has to wonder who said it.
     plan: seat.plan === null ? "" : `${seat.plan.name} (${seat.plan.source})`,
@@ -27,12 +39,13 @@ export function crewTable(seats: readonly SeatInfo[]): string {
     name: Math.max(...rows.map((row) => row.name.length)),
     version: Math.max(...rows.map((row) => row.version.length)),
     state: Math.max(...rows.map((row) => row.state.length)),
+    plan: Math.max(...rows.map((row) => row.plan.length)),
   };
 
   const lines = rows.map((row) =>
     (
       `  ${row.ready ? "•" : " "} ${row.name.padEnd(width.name)}  ${row.version.padEnd(width.version)}  ` +
-      `${row.state.padEnd(width.state)}  ${row.plan}`
+      `${row.state.padEnd(width.state)}  ${row.plan.padEnd(width.plan)}  ${row.posture}`
     ).trimEnd(),
   );
   const ready = rows.filter((row) => row.ready).length;
