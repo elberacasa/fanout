@@ -84,7 +84,7 @@ Nothing is published yet, so this is the contributor path:
 git clone https://github.com/elberacasa/fanout.git && cd fanout
 corepack enable && pnpm install
 git config core.hooksPath .githooks
-npm run check      # typecheck + lint + 371 tests
+npm run check      # typecheck + lint + the whole suite
 ```
 
 Then try it inside Claude Code. **No install step** — the plugin runs the CLI straight out of the checkout:
@@ -102,7 +102,8 @@ pnpm --filter fanout-cli link --global
 Inside that session, `/fanout add CSV export and fix the flaky date test` plans a mission, checks it against the
 safety gate, runs each line in its own worktree, and brings the diffs back for review. Nothing merges without you.
 
-Requires **Node 22.18+** (the ledger uses Node's built-in SQLite; TypeScript runs without a build step).
+Requires **Node 22.18+** (the ledger uses Node's built-in SQLite; TypeScript runs without a build step — only
+`npm pack` compiles, because Node will not strip types under `node_modules`).
 
 ### See it work, with no accounts at all
 
@@ -131,7 +132,10 @@ every surface that shows them says **simulated**.
 
 ## Status
 
-P0 · **Claude leads, the crew builds** — 650 tests, green on macOS and Linux, Node 22 and 24.
+P0 · **Claude leads, the crew builds**. The badge above is the truth of the moment: typecheck, lint and the whole
+suite on macOS and Linux, Node 22 and 24, plus a job that installs the built package into an empty directory and
+runs the demo. Counts live in [docs/STATUS.md](docs/STATUS.md), which is rewritten every session — a number copied
+into two places is a number that will disagree with itself, and this one already had.
 
 | Milestone | State |
 |---|---|
@@ -143,9 +147,9 @@ P0 · **Claude leads, the crew builds** — 650 tests, green on macOS and Linux,
 | 5 · Daemon API + CLI | ✅ done |
 | 6 · The Claude Code plugin | ✅ done |
 | 7 · Merge gate — review, checks, proof, approval, `git apply -3` | ✅ done |
-| 8 · Mission view — live on localhost; not yet wired to the review queue | 🔨 in progress |
-| 9 · Routing when a seat hits its limit | ⬜ |
-| 10 · Offline demo ✅, video and npm | 🔨 in progress |
+| 8 · Mission view — live, with the review queue, reroutes, and your own approval | ✅ done |
+| 9 · Routing when a seat hits its limit — work moves, the reason is on the row | ✅ done |
+| 10 · Offline demo ✅, packages install from empty ✅ — left: publishing, and the video | 🔨 in progress |
 
 Full plan in [docs/ROADMAP.md](docs/ROADMAP.md); what changed and who built it in
 [docs/BUILD_LOG.md](docs/BUILD_LOG.md).

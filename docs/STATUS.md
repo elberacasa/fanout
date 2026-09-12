@@ -42,8 +42,8 @@ account. Everything below is what stands between here and that.
 
 ### Where we are
 
-P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green locally: **715 tests**
-(42 files). Repository: https://github.com/elberacasa/fanout (**public**).
+P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **719 tests**
+(43 files), and so is CI — all six jobs on `7e63675`, including `installs from empty`. Repository: https://github.com/elberacasa/fanout (**public**).
 
 **Only #10 is left**, and most of it is done. Every package builds, installs into an empty directory and runs the
 demo end to end — `pnpm verify:pack`, now a CI job. What remains is not engineering:
