@@ -8,4 +8,9 @@ if ! npm run check >/dev/null 2>&1; then
   printf '\nPush stopped: `npm run check` fails. Run it to see what broke.\n\n' >&2
   exit 1
 fi
+printf 'Checking lockfile before push…\n'
+if ! pnpm install --frozen-lockfile --ignore-scripts >/dev/null 2>&1; then
+  printf '\nPush stopped: lockfile check failed. Run `pnpm install --lockfile-only`, then try again.\n\n' >&2
+  exit 1
+fi
 printf 'Checks pass.\n'
