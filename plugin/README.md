@@ -23,7 +23,7 @@ The plugin runs `fanout mcp`, so the `fanout` command must be on your `PATH`.
 ```sh
 git clone https://github.com/elberacasa/fanout.git && cd fanout
 corepack enable && pnpm install
-pnpm --filter @fanout/cli link --global   # puts `fanout` on your PATH
+pnpm --filter fanout-cli link --global   # puts `fanout` on your PATH
 claude --plugin-dir "$PWD/plugin"          # try it in one session
 ```
 

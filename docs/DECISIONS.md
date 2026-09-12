@@ -247,3 +247,31 @@ commit message in the repository's own convention, which the lead writes, so the
 tree. Approving requires everything *except* the approval to be satisfied already (`blocksApproval`), so the
 strongest evidence in the ledger can never land on a diff nobody reviewed. Events written before this decision have
 no `via`; read them as `relayed`.
+
+## 0021 · Published packages ship compiled JavaScript (2026-09-12; amends 0015)
+
+**Choice:** the repository still has no build step — Node runs our TypeScript directly, the CLI is `node cli.ts`,
+the plugin runs out of a checkout (0015). What changes is that `npm pack` and `npm publish` compile to `dist/`
+first, through a `prepack` script, and the published packages point at that JavaScript via `publishConfig`.
+Development is untouched: the workspace still imports `./src/index.ts`.
+
+**Why:** not preference. **Node refuses to strip types from any file under `node_modules`** and throws
+`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`. A package of `.ts` files fails on the first import on every machine
+that installs it, so `npx fanout-cli` — the whole of milestone 10 — is impossible without compiling. Verified by
+building the smallest possible reproduction rather than by reading about it.
+
+`publishConfig` rather than changing `exports` outright, because a package that points at `dist` is a package
+nobody can work on without building first, and that is the cost 0015 was avoiding.
+
+**Consequences:** a published tarball is a different artifact from the source, which means it has its own ways of
+being wrong — and all three of the first ones were invisible from a checkout and passed `npm run check` while
+broken:
+
+1. runtime files the compiler ignores and `files` does not ship (the adapter manifests, the mission view);
+2. a path built as a string, which the compiler cannot rewrite — `./cli.ts` beside a `cli.js`, which killed all
+   three demo agents on the first spawn;
+3. a version written by hand that no longer matched the package naming it (two of them, disagreeing).
+
+So `npm run verify:pack` packs every package, installs into an empty directory, and runs the demo end to end. It is
+the only check in the repository that tests the *package* rather than the source, and it is the one that has to
+pass before anything is published.

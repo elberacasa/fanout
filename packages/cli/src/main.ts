@@ -14,6 +14,7 @@ import {
   type EventOf,
   type SeatAdapter,
   routeLine,
+  versionOf,
   EMPTY_POLICY,
   type SeatInfo,
   type StoredEvent,
@@ -72,7 +73,7 @@ export const DEFAULT_LIMITS: RunLimits = {
 
 const HELP = `fanout — Claude Code leads, your other agents build
 
-  fanout demo       watch a whole mission run, offline, with no accounts at all
+  fanout demo       watch a whole mission run, offline, with no accounts at all (--once to exit at the end)
   fanout status     the crew on this machine, and any missions on the go
   fanout seat       how freely to spend a seat: preferred | normal | sparing | off
   fanout owed       what is waiting on you before anything can merge (the Stop hook runs this)
@@ -105,7 +106,7 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
 
   switch (command) {
     case "demo":
-      return demo(home, io);
+      return demo(home, io, argv.slice(1));
     case "status":
       return status(home, io);
     case "seat":
@@ -123,7 +124,7 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
     case "mcp":
       return mcp(home, io);
     case "version":
-      io.out("fanout 0.5.0-dev\n");
+      io.out(`fanout ${versionOf(import.meta.url)}\n`);
       return 0;
     case "help":
     case "--help":
@@ -167,7 +168,7 @@ const DEMO_CREW: readonly SeatInfo[] = [
  * simulated, by the `fake` seat: a genuine CLI speaking the genuine protocol from a script. Nothing inside the
  * daemon takes a special path, because a demo of a special path is a demo of something nobody ships.
  */
-async function demo(home: FanoutHome, io: Io): Promise<number> {
+async function demo(home: FanoutHome, io: Io, argv: readonly string[] = []): Promise<number> {
   const root = join(home.root, "demo");
   const repo = buildDemoRepo(join(root, "shop"));
   const ledgerPath = join(root, "ledger.db");
@@ -259,6 +260,17 @@ async function demo(home: FanoutHome, io: Io): Promise<number> {
   const state = project(ledger.read({ missionId }));
   const mission = state.missions[missionId];
   if (mission !== undefined) io.out(`\n${missionReport(mission, new Date())}\n`);
+  /*
+   * `--once` exits when the mission does, instead of holding the view open. It is what a script wants: the
+   * packaging check runs this to prove an installed Fanout actually works, and a command that never returns
+   * cannot be checked by anything.
+   */
+  if (argv.includes("--once")) {
+    await api.close();
+    ledger.close();
+    return 0;
+  }
+
   io.out(`  Still watching at ${api.url}/ — Ctrl-C to stop.\n`);
 
   await (io.until ?? new Promise<void>(() => undefined));

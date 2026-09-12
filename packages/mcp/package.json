@@ -1,13 +1,38 @@
 {
   "name": "@fanout/mcp",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.7.0",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elberacasa/fanout.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/elberacasa/fanout#readme",
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
     "@fanout/core": "workspace:*",

@@ -7,6 +7,7 @@ import {
   PlanLine,
   project,
   validatePlan,
+  versionOf,
   type AdapterManifest,
   type Ledger,
   type SeatAdapter,
@@ -70,7 +71,7 @@ const MissionLimits = { maxParallel: z.int().min(1).max(16).default(3) };
 
 export function createFanoutServer(options: FanoutMcpOptions): McpServer {
   const server = new McpServer(
-    { name: "fanout", version: "0.6.0-dev" },
+    { name: "fanout", version: versionOf(import.meta.url) },
     {
       instructions:
         "Fanout runs the other coding-agent CLIs on this machine as a crew. Plan with `plan_check`, start with " +

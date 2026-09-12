@@ -8,7 +8,17 @@ import { Scenario, type ScenarioInput } from "./scenario.ts";
  * an account. It is a seat like any other: `command()` starts its CLI, `parse()` reads its stream.
  */
 
-export const FAKE_CLI_PATH = fileURLToPath(new URL("./cli.ts", import.meta.url));
+/*
+ * Its own extension, not a written-down one.
+ *
+ * A path built as a string is the one import the compiler cannot rewrite: `./cli.ts` stayed `./cli.ts` in the
+ * published `dist`, where the file beside it is `cli.js`, and all three demo agents died on the first spawn with
+ * `Cannot find module …/dist/cli.ts`. A checkout never sees it, because there the string is right. Found by
+ * installing the tarball into an empty directory and running the demo the way a stranger would.
+ */
+export const FAKE_CLI_PATH = fileURLToPath(
+  new URL(import.meta.url.endsWith(".ts") ? "./cli.ts" : "./cli.js", import.meta.url),
+);
 
 export interface FakeAdapterOptions {
   /** The scenario a plan line plays. */

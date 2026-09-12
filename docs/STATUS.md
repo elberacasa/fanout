@@ -56,7 +56,7 @@ repositories, and every job before that was refused before it started by a billi
 | `@fanout/daemon` | Supervisor, environment allowlist, run glue, workspaces, safety gate (8 checks), detector, mission runner, localhost API (HTTP + WebSocket, token, Origin check) |
 | `@fanout/adapters/*` | `fake`, `codex`, `grok`, `claude` (opt-in) — each parser built from a recorded real run |
 | `@fanout/mcp` | Thirteen tools, including `check_claims` and the gate's `merge_run`, which refuses anything `mergeReadiness` has not cleared |
-| `@fanout/cli` | `fanout status \| seat \| check \| review \| owed \| daemon \| clean \| mcp \| version \| help` |
+| `fanout-cli` | `fanout status \| seat \| check \| review \| owed \| daemon \| clean \| mcp \| version \| help` |
 | `plugin/` | `/fanout`, `/fanout:crew`, `/fanout:watch`, the lead's skill, hooks. **Zero install** — runs the CLI out of the checkout via `${CLAUDE_PLUGIN_ROOT}`. Passes `claude plugin validate` |
 
 ### The first real mission (2026-09-12)
@@ -192,7 +192,7 @@ Grok Build 1.0.25 (no status command → unknown), Kimi Code 0.36.1 (at its mont
 
 ```sh
 cd /Users/alejandroberacasa/fanout
-pnpm --filter @fanout/cli link --global   # puts `fanout` on PATH
+pnpm --filter fanout-cli link --global   # puts `fanout` on PATH
 fanout status
 claude --plugin-dir "$PWD/plugin"          # then /fanout <goal>
 ```

@@ -1,16 +1,44 @@
 {
-  "name": "@fanout/cli",
-  "version": "0.0.0",
-  "private": true,
+  "name": "fanout-cli",
+  "version": "0.7.0",
+  "description": "Let Claude Code lead the other coding-agent CLIs you already pay for.",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elberacasa/fanout.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/elberacasa/fanout#readme",
   "bin": {
     "fanout": "./src/cli.ts"
   },
   "exports": {
     ".": "./src/main.ts"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/main.d.ts",
+        "default": "./dist/main.js"
+      }
+    },
+    "bin": {
+      "fanout": "./dist/cli.js"
+    }
+  },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
     "@fanout/adapter-claude": "workspace:*",

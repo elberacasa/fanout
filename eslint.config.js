@@ -12,7 +12,24 @@ export default defineConfig(
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
   {
+    // The build scripts are plain Node ESM: real globals, and JSON that arrives as `any` however it is read.
+    files: ["scripts/*.mjs"],
+    rules: {
+      // TypeScript checks these files (`scripts/tsconfig.json`, `checkJs`), and it knows Node's globals; `no-undef`
+      // does not, and adding a dependency to teach it would be a dependency for nothing.
+      "no-undef": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+    },
+  },
+  {
     languageOptions: {
+      /*
+       * `scripts/tsconfig.json` exists so the build scripts are linted like everything else. A script that packs
+       * and publishes the product is the wrong place to stop checking, and without a project of their own the
+       * type-aware rules see every Node global as an error.
+       */
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
     rules: {

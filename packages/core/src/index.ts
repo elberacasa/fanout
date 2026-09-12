@@ -10,3 +10,4 @@ export * from "./format/run.ts";
 export * from "./gate/readiness.ts";
 export * from "./gate/routing.ts";
 export type * from "./adapter.ts";
+export * from "./version.ts";

@@ -96,7 +96,7 @@ claude --plugin-dir "$PWD/plugin"         # /fanout, /fanout:crew, /fanout:watch
 Optionally put `fanout` on your PATH for the terminal commands (`status`, `seat`, `review`, `owed`):
 
 ```sh
-pnpm --filter @fanout/cli link --global
+pnpm --filter fanout-cli link --global
 ```
 
 Inside that session, `/fanout add CSV export and fix the flaky date test` plans a mission, checks it against the
