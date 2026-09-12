@@ -8,3 +8,6 @@ coverage/
 !.env.example
 .fanout/runs/
 *.tsbuildinfo
+
+# Screenshots the owner drops in while we work
+Screenshot*.png
