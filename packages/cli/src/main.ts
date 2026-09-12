@@ -28,6 +28,7 @@ import { createFanoutServer } from "@fanout/mcp";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { fanoutHome, type FanoutHome } from "./home.ts";
 import { crewTable, missionLines } from "./format.ts";
+import { unfinishedReport, whatIsOwed } from "./unfinished.ts";
 
 /*
  * `fanout` is the terminal half of the product: the daemon the lead talks to, and a straight answer about the crew
@@ -59,6 +60,7 @@ const HELP = `fanout — Claude Code leads, your other agents build
 
   fanout status     the crew on this machine, and any missions on the go
   fanout seat       how freely to spend a seat: preferred | normal | sparing | off
+  fanout owed       what is waiting on you before anything can merge (the Stop hook runs this)
   fanout daemon     run the daemon the lead and the mission view talk to
   fanout clean      remove the worktrees and branches finished missions left behind
   fanout mcp        speak MCP on stdin/stdout, for Claude Code to drive (the plugin runs this)
@@ -89,6 +91,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       return status(home, io);
     case "seat":
       return seat(home, argv.slice(1), io);
+    case "owed":
+      return owed(home, io);
     case "daemon":
       return daemon(home, io);
     case "clean":
@@ -129,6 +133,27 @@ async function status(home: FanoutHome, io: Io): Promise<number> {
   try {
     const state = project(ledger.read());
     io.out(`\n${missionLines(state)}`);
+  } finally {
+    ledger.close();
+  }
+  return 0;
+}
+
+/**
+ * `fanout owed` — what the lead still owes before anything can merge.
+ *
+ * Run by the Stop hook on every turn, which is the point: a tool the lead chooses to call cannot catch a lead who
+ * believes the work is already finished. Prints nothing and exits 0 when there is nothing owed, so a quiet session
+ * stays quiet, and it never blocks — walking away from unfinished work is allowed, doing it unknowingly is not.
+ */
+function owed(home: FanoutHome, io: Io): number {
+  if (!existsSync(home.ledger)) return 0;
+
+  const ledger = Ledger.open(home.ledger);
+  try {
+    const state = project(ledger.read());
+    const report = unfinishedReport(whatIsOwed(Object.values(state.missions)));
+    if (report !== "") io.out(report);
   } finally {
     ledger.close();
   }

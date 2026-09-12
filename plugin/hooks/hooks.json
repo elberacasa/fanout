@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fanout status 2>/dev/null | grep -E 'running|waiting for review' || true",
+            "command": "fanout owed 2>/dev/null || true",
             "timeout": 20
           }
         ]
