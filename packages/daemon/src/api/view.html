@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>fanout</title>
+    <style>
+      /*
+       * Built for people who read terminals all day. Density over decoration, one accent, hairlines instead of
+       * shadows, and numbers that do not move sideways while they count. Nothing here is ornamental: if it is on
+       * the screen it is a fact about your machine.
+       */
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d10;
+        --panel: #11141a;
+        --line: #1d222b;
+        --line-soft: #161b22;
+        --fg: #e6e9ef;
+        --fg-dim: #9aa4b2;
+        --fg-faint: #626d7d;
+        --run: #4c8dff;
+        --ok: #3fb950;
+        --warn: #d9a441;
+        --bad: #f26d6d;
+        --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+        --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+      }
+      @media (prefers-color-scheme: light) {
+        :root:not([data-theme="dark"]) {
+          color-scheme: light;
+          --bg: #fbfbfc;
+          --panel: #fff;
+          --line: #e3e6ea;
+          --line-soft: #eef0f3;
+          --fg: #14171c;
+          --fg-dim: #5b6673;
+          --fg-faint: #8b95a3;
+          --run: #1f6feb;
+          --ok: #1a7f37;
+          --warn: #9a6700;
+          --bad: #cf222e;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 13px/1.5 var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      /* Every number that changes stays in its column instead of jittering as digits swap width. */
+      .num,
+      .lane,
+      code {
+        font-family: var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        background: var(--bg);
+        z-index: 2;
+      }
+      .brand {
+        font-family: var(--mono);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .goal {
+        color: var(--fg-dim);
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .clock {
+        color: var(--fg-faint);
+        font-size: 12px;
+      }
+
+      main {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 20px;
+        display: grid;
+        gap: 18px;
+      }
+      section {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+      h2 {
+        margin: 0;
+        padding: 10px 14px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--fg-faint);
+        border-bottom: 1px solid var(--line-soft);
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+      }
+      h2 .note {
+        font-weight: 400;
+        letter-spacing: 0;
+        text-transform: none;
+        color: var(--fg-faint);
+        margin-left: auto;
+      }
+
+      .runs {
+        display: grid;
+        grid-template-columns: 14px 108px 64px 62px 52px 60px 1fr;
+        align-items: baseline;
+        column-gap: 14px;
+      }
+      .row {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: subgrid;
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .row:last-of-type {
+        border-bottom: 0;
+      }
+      .mark {
+        font-family: var(--mono);
+      }
+      .mark.running {
+        color: var(--run);
+      }
+      .mark.done {
+        color: var(--ok);
+      }
+      .mark.bad {
+        color: var(--bad);
+      }
+      .mark.idle {
+        color: var(--fg-faint);
+      }
+      .seat,
+      .status,
+      .phase {
+        color: var(--fg-dim);
+      }
+      /* Four cells, one per named phase. Filled cells say where a run is, never how much of it is left. */
+      .bar {
+        display: inline-flex;
+        gap: 3px;
+      }
+      .bar i {
+        width: 9px;
+        height: 3px;
+        border-radius: 1px;
+        background: var(--line);
+      }
+      .bar i.on {
+        background: var(--run);
+      }
+      .done .bar i.on {
+        background: var(--ok);
+      }
+      .elapsed {
+        text-align: right;
+        color: var(--fg-dim);
+      }
+      .diff {
+        color: var(--fg-faint);
+        display: flex;
+        gap: 12px;
+      }
+      .diff .add {
+        color: var(--ok);
+      }
+      .diff .del {
+        color: var(--bad);
+      }
+      .quiet {
+        color: var(--warn);
+      }
+      /* Subordinate to the run above it: indented to the id column and never louder than the row it belongs to. */
+      .tool {
+        grid-column: 2 / -1;
+        color: var(--fg-faint);
+        padding: 0 0 9px;
+        margin-top: -3px;
+        font-family: var(--mono);
+        font-size: 12px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .tool::before {
+        content: "└ ";
+        color: var(--line);
+      }
+
+      /* The claims are the point of the product, so they get room that the tables do not. */
+      .claim {
+        display: grid;
+        grid-template-columns: 16px 1fr;
+        gap: 10px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .claim:last-child {
+        border-bottom: 0;
+      }
+      .claim .v {
+        font-family: var(--mono);
+        font-weight: 600;
+      }
+      .claim.confirmed .v {
+        color: var(--ok);
+      }
+      .claim.refuted .v {
+        color: var(--bad);
+      }
+      .claim.unclear .v {
+        color: var(--warn);
+      }
+      .claim .what {
+        font-weight: 500;
+      }
+      .claim.refuted .what {
+        color: var(--fg);
+      }
+      .claim .why {
+        color: var(--fg-dim);
+        font-family: var(--mono);
+        font-size: 12px;
+        margin-top: 3px;
+      }
+      .claim.refuted {
+        background: color-mix(in oklab, var(--bad) 7%, transparent);
+      }
+
+      .crew {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        padding: 10px 14px;
+      }
+      .seatchip {
+        display: flex;
+        gap: 7px;
+        align-items: baseline;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--fg-faint);
+        display: inline-block;
+      }
+      .dot.ready {
+        background: var(--ok);
+      }
+      .dot.off {
+        background: var(--fg-faint);
+        opacity: 0.4;
+      }
+      .seatchip .meta {
+        color: var(--fg-faint);
+      }
+
+      .empty {
+        padding: 22px 14px;
+        color: var(--fg-dim);
+      }
+      .empty code {
+        color: var(--fg);
+        background: var(--line-soft);
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+
+      /*
+       * A failed load must never look like an empty one. This bar is the difference between "nothing is happening"
+       * and "I cannot see what is happening", and the sixth non-negotiable turns on it.
+       */
+      #offline {
+        display: none;
+        padding: 9px 20px;
+        background: color-mix(in oklab, var(--bad) 16%, var(--bg));
+        border-bottom: 1px solid var(--bad);
+        color: var(--fg);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      body.stale #offline {
+        display: block;
+      }
+      body.stale main {
+        opacity: 0.5;
+      }
+
+      .sim {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 1px 6px;
+        border: 1px solid var(--warn);
+        border-radius: 3px;
+        color: var(--warn);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        vertical-align: 1px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .mark.running {
+          animation: pulse 2s ease-in-out infinite;
+        }
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.45;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="offline"></div>
+    <header>
+      <span class="brand">fanout</span>
+      <span class="goal" id="goal"></span>
+      <span class="clock num" id="clock"></span>
+    </header>
+    <main id="main"></main>
+
+    <script>
+      // Stamped into the page by the daemon: a browser cannot put an Authorization header on a navigation.
+      const TOKEN = "{{TOKEN}}";
+
+      const el = (tag, cls, text) => {
+        const node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+
+      const PHASES = ["reading", "coding", "testing", "reporting"];
+      const phaseBar = (phase) => {
+        const reached = phase ? PHASES.indexOf(phase) + 1 : 0;
+        const bar = el("span", "bar");
+        bar.title = phase ?? "no phase reported";
+        for (let i = 0; i < PHASES.length; i += 1) bar.append(el("i", i < reached ? "on" : null));
+        return bar;
+      };
+
+      /** Rounds down, always: a run is in the second it has finished, not the one it is working on. */
+      const duration = (ms) => {
+        const total = Math.max(0, Math.floor(ms / 1000));
+        const s = String(total % 60).padStart(2, "0");
+        const m = Math.floor(total / 60) % 60;
+        const h = Math.floor(total / 3600);
+        if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${s}`;
+        return `${m}:${s}`;
+      };
+
+      const MARK = {
+        queued: ["◌", "idle"],
+        running: ["●", "running"],
+        done: ["✓", "done"],
+        merged: ["✓", "done"],
+        failed: ["✗", "bad"],
+        killed: ["✗", "bad"],
+        timeout: ["✗", "bad"],
+        conflict: ["!", "bad"],
+        dropped: ["·", "idle"],
+      };
+
+      let snapshot = null;
+      let lastOk = 0;
+
+      function runRow(run, now) {
+        const wrap = document.createDocumentFragment();
+        const [glyph, tone] = MARK[run.status] ?? ["·", "idle"];
+        const row = el("div", `row ${tone}`);
+        row.append(el("span", `mark ${tone}`, glyph));
+        row.append(el("span", "lane", run.runId));
+        row.append(el("span", "seat", run.seat.id));
+        row.append(el("span", "status", run.status));
+        row.append(phaseBar(run.phase));
+
+        // Computed here from a real stamp, so the clock ticks without the daemon being asked again.
+        const started = run.startedAt ? Date.parse(run.startedAt) : null;
+        const ended = run.endedAt ? Date.parse(run.endedAt) : null;
+        const elapsed = started === null ? null : Math.max(0, (ended ?? now) - started);
+        row.append(el("span", "elapsed num", elapsed === null ? "—" : duration(elapsed)));
+
+        const right = el("span", "diff");
+        if (run.diffStat) {
+          const stat = el("span");
+          stat.append(el("span", "add", `+${run.diffStat.insertions}`));
+          stat.append(document.createTextNode(" "));
+          stat.append(el("span", "del", `−${run.diffStat.deletions}`));
+          right.append(stat);
+        } else if (run.files.length > 0) {
+          right.append(el("span", null, `${run.files.length} file${run.files.length === 1 ? "" : "s"}`));
+        }
+        // Only a run that is actually working can be quiet; a queued one has not started and a finished one is over.
+        if (started !== null && ended === null) {
+          const silent = now - Date.parse(run.updatedAt);
+          if (silent >= 60000) right.append(el("span", "quiet", `quiet ${duration(silent)}`));
+        }
+        row.append(right);
+        wrap.append(row);
+
+        if (run.status === "running" && run.lastTool) {
+          const summary = run.lastTool.summary ? `: ${run.lastTool.summary}` : "";
+          wrap.append(el("div", "tool", `${run.lastTool.tool}${summary}`));
+        }
+        return wrap;
+      }
+
+      function claimsSection(check, now) {
+        const section = el("section");
+        const head = el("h2");
+        head.append(document.createTextNode("Claims"));
+        if (check?.simulated) head.append(el("span", "sim", "simulated"));
+        const note = el("span", "note");
+        if (check) {
+          // "0:00 ago" is technically true and reads as broken; under a minute, people say "just now".
+          const since = now - Date.parse(check.at);
+          note.textContent = `read cold by ${check.by.id} · ${since < 60000 ? "just now" : `${duration(since)} ago`}`;
+        }
+        head.append(note);
+        section.append(head);
+
+        if (!check) {
+          const empty = el("div", "empty");
+          empty.append(document.createTextNode("Nothing checked yet. State what you believe: "));
+          empty.append(el("code", null, 'fanout check "…"'));
+          section.append(empty);
+          return section;
+        }
+        if (!check.ran) {
+          section.append(el("div", "empty", "The reader could not run, so nothing here was checked."));
+          return section;
+        }
+
+        // Refutations first: they are the only ones that ask anything of the reader.
+        const order = { refuted: 0, unclear: 1, confirmed: 2 };
+        const glyph = { confirmed: "✓", refuted: "✗", unclear: "?" };
+        for (const claim of [...check.claims].sort((a, b) => order[a.verdict] - order[b.verdict])) {
+          const row = el("div", `claim ${claim.verdict}`);
+          row.append(el("span", "v", glyph[claim.verdict]));
+          const body = el("div");
+          body.append(el("div", "what", claim.claim));
+          body.append(el("div", "why", claim.evidence));
+          row.append(body);
+          section.append(row);
+        }
+        return section;
+      }
+
+      function draw() {
+        const now = Date.now();
+        document.getElementById("clock").textContent = new Date(now).toTimeString().slice(0, 8);
+
+        // Say it is stale rather than letting an old picture pass for a current one.
+        document.body.classList.toggle("stale", lastOk !== 0 && now - lastOk > 4000);
+        if (!snapshot) return;
+
+        const { state, seats } = snapshot;
+        const missions = Object.values(state.missions);
+        const mission = missions.find((m) => m.status === "running") ?? missions.at(-1) ?? null;
+        document.getElementById("goal").textContent = mission ? mission.goal : "";
+
+        const main = document.getElementById("main");
+        main.replaceChildren();
+
+        const crew = el("section");
+        crew.append(el("h2", null, "Crew"));
+        const chips = el("div", "crew");
+        for (const seat of seats) {
+          const chip = el("span", "seatchip");
+          const ready = seat.supported && seat.signedIn === "yes";
+          chip.append(el("span", `dot ${ready ? "ready" : "off"}`));
+          chip.append(el("span", null, seat.id));
+          const meta = [seat.version ?? "not installed", seat.plan ? seat.plan.name : null]
+            .filter(Boolean)
+            .join(" · ");
+          chip.append(el("span", "meta", meta));
+          chips.append(chip);
+        }
+        if (seats.length === 0) chips.append(el("span", "meta", "no agent CLIs found"));
+        crew.append(chips);
+        main.append(crew);
+
+        const runs = el("section");
+        const runsHead = el("h2");
+        runsHead.append(document.createTextNode("Runs"));
+        if (mission) {
+          // Counted, not restated: "running · 2 running" says one thing twice.
+          const runs = Object.values(mission.runs);
+          const tally = [
+            [runs.filter((r) => r.status === "running").length, "running"],
+            [runs.filter((r) => r.status === "queued").length, "queued"],
+            [runs.filter((r) => r.status === "done").length, "waiting for review"],
+            [runs.filter((r) => r.status === "merged").length, "merged"],
+          ].filter(([n]) => n > 0);
+          runsHead.append(
+            el(
+              "span",
+              "note",
+              tally.length > 0 ? tally.map(([n, w]) => `${n} ${w}`).join(" · ") : mission.status,
+            ),
+          );
+        }
+        runs.append(runsHead);
+        if (!mission || mission.runOrder.length === 0) {
+          const empty = el("div", "empty");
+          empty.append(document.createTextNode("No mission yet. Start one from Claude Code with "));
+          empty.append(el("code", null, "/fanout <goal>"));
+          runs.append(empty);
+        } else {
+          const grid = el("div", "runs");
+          for (const id of mission.runOrder) grid.append(runRow(mission.runs[id], now));
+          runs.append(grid);
+        }
+        main.append(runs);
+
+        const repo = Object.keys(state.claims ?? {})[0];
+        main.append(claimsSection(repo ? state.claims[repo] : null, now));
+      }
+
+      async function poll() {
+        try {
+          const response = await fetch("/state", { headers: { authorization: `Bearer ${TOKEN}` } });
+          if (!response.ok) throw new Error(String(response.status));
+          snapshot = await response.json();
+          lastOk = Date.now();
+          document.getElementById("offline").textContent = "";
+        } catch (error) {
+          document.getElementById("offline").textContent =
+            `Not reading the daemon (${error.message}). What you see below is the last picture, not the current one.`;
+        }
+      }
+
+      poll();
+      setInterval(poll, 1000);
+      // Redrawn on its own beat so the clocks move smoothly whether or not the daemon answered.
+      setInterval(draw, 250);
+      draw();
+    </script>
+  </body>
+</html>

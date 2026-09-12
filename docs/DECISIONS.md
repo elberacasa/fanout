@@ -198,3 +198,29 @@ no way back into it. An id we chose before launch is known even if the process d
 assignment. Seats that do not (Codex today, as far as `--help` shows) keep the parsed `session` adapter signal, so
 both paths must survive; the manifest says which applies rather than the daemon assuming. The id must be a fresh
 UUID per run and must never be derived from anything about the repository or the user.
+
+## 0019 · The mission view is one file, with no build and no framework (2026-09-12; amends ARCHITECTURE)
+
+**Choice:** the mission view is a single self-contained HTML page served by the daemon on `127.0.0.1` — no React,
+no bundler, no npm dependencies, no build step. It reads a JSON snapshot from the daemon and redraws. The earlier
+plan (React, a design system, a component library) is dropped.
+
+**Why:** three reasons, in order of weight.
+
+First, **this page renders your private source code**, and every dependency it carries is something that could read
+that. A view with zero dependencies has a supply chain of exactly one file that a person can read in a sitting;
+that is a security property, not a matter of taste, and it is the same argument that made the ledger refuse to
+rewrite its own history rather than promising not to.
+
+Second, the project's whole shape is already "no build step" — Node runs our TypeScript directly since 0015, the
+CLI is `node cli.ts`, the plugin runs out of a checkout. A UI toolchain would be the only thing in the repository
+that needs compiling, and `fanout demo` — the thing that has to work on a stranger's machine in sixty seconds —
+would inherit it.
+
+Third, what this view actually does is small: lanes, elapsed times, phases, a diff and a list of claims with their
+verdicts. That is not a framework's worth of problem.
+
+**Consequences:** no component library, so shared vocabulary lives in CSS custom properties and small functions
+rather than in a design system; we accept that. If the view later grows a plan-editing canvas (P1), this decision
+is worth revisiting on its own merits rather than by default. The page is never hosted and never published as an
+artifact, which was already true and matters more now that it is trivially portable.

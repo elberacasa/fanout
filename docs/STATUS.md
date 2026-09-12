@@ -5,7 +5,13 @@
 ### Where we are
 
 P0 milestones **1–6 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **590 tests** (36 files).
-CI green on macOS and Linux, Node 22 and 24. Repository: https://github.com/elberacasa/fanout (**private**).
+Repository: https://github.com/elberacasa/fanout (**public**). CI green on macOS and Linux, Node 22 and 24.
+
+The repository is **public** since 2026-09-12, which is also how CI came back: Actions is free for public
+repositories, and every job before that was refused before it started by a billing hold on the private one.
+
+> Worth remembering: this file claimed "CI green on macOS and Linux" for an entire session during which no job had
+> started. Nobody checked. Write it only from a run you have looked at.
 
 | Package | What works |
 |---|---|

@@ -20,6 +20,7 @@ import {
   lines,
   buddyReview,
   checkClaims,
+  missionViewHtml,
   readOrCreateToken,
   readSeatPolicy,
   setPosture,
@@ -423,6 +424,7 @@ async function daemon(home: FanoutHome, io: Io): Promise<number> {
     token,
     crew: () =>
       detectSeats({ manifests: SEATS, ...(io.execute === undefined ? {} : { execute: io.execute }) }),
+    view: missionViewHtml,
   });
 
   io.out(
@@ -517,6 +519,7 @@ async function mcp(home: FanoutHome, io: Io): Promise<number> {
     token,
     crew: () =>
       detectSeats({ manifests: SEATS, ...(io.execute === undefined ? {} : { execute: io.execute }) }),
+    view: missionViewHtml,
   });
   feed.publish = (event) => {
     api.publish(event);

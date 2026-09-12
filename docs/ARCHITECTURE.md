@@ -129,11 +129,11 @@ The lead never sees raw logs, only summaries and the diffs it asks for. That kee
   complete it is, because an agent can sit in one phase for a minute or twenty. Unknown prints as `—`, never as a
   zero that reads like a fact. Only a run that is actually working can be "quiet": a queued run has not been
   launched and a finished one is over.
-- **Mission view:** React, served by the daemon on localhost, with a live WebSocket feed. Lanes per run, phase bars,
-  tool ticker, diff peek, review queue, keyboard actions. Never hosted and never published as an artifact: it shows
-  your code.
-- **Design system:** tokens and components defined once (seat chip, energy bar, run lane, phase bar, diff peek,
-  toast). Keyboard-first.
+- **Mission view:** one self-contained HTML page served by the daemon on localhost — no framework, no bundler, no
+  dependencies (ADR 0019). Lanes per run, phase bars, elapsed and quiet times, tool ticker, diff peek, and the
+  claims a cold reader confirmed or refuted. Never hosted and never published as an artifact: it shows your code,
+  and every dependency it carried would be something else that could read it.
+- **Shared vocabulary** lives in CSS custom properties and small functions rather than a component library.
 - **Later:** plan editing in the view (P1), a terminal companion, a native wrapper.
 
 ## Stack and layout (proposed; confirmed in session 1 with milestone 1)

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
-import type { EventType, Ledger, SeatInfo, StoredEvent } from "@fanout/core";
+import { project, type EventType, type Ledger, type SeatInfo, type StoredEvent } from "@fanout/core";
 import { WebSocketServer, type WebSocket } from "ws";
 import { originAllowed, tokenMatches } from "./token.ts";
 
@@ -31,6 +31,13 @@ export interface ApiOptions {
   crew?: () => Promise<readonly SeatInfo[]>;
   /** 0 asks the operating system for a free port, which is what tests want. */
   port?: number;
+  /**
+   * The mission view's HTML, with `{{TOKEN}}` wherever the page needs this daemon's token.
+   *
+   * Passed in rather than read from disk here so the daemon has no opinion about where the page lives, and so a
+   * test can serve a one-line page without a file.
+   */
+  view?: () => string;
 }
 
 export interface ApiServer {
@@ -126,6 +133,29 @@ async function handle(
     return;
   }
 
+  /*
+   * The mission view itself, and the only route that answers a browser.
+   *
+   * It carries no data — the page asks for that with the token it is handed below — so serving it before the
+   * Origin and token checks gives away nothing except that a daemon is running, which `/health` already says.
+   * A browser cannot send an Authorization header on a plain navigation, which is why the token is stamped into
+   * the page rather than demanded from it.
+   */
+  if (url.pathname === "/" && options.view !== undefined) {
+    const page = options.view().replaceAll("{{TOKEN}}", options.token);
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      // It shows your source code: nothing about it may be cached, framed, or fetched from anywhere else.
+      "cache-control": "no-store",
+      "content-security-policy":
+        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'",
+      "x-frame-options": "DENY",
+      "referrer-policy": "no-referrer",
+    });
+    response.end(page);
+    return;
+  }
+
   if (!originAllowed(request.headers.origin, port)) {
     send(response, 403, { error: "a page in a browser cannot drive the daemon" });
     return;
@@ -136,6 +166,17 @@ async function handle(
   }
   if (request.method !== "GET") {
     send(response, 405, { error: `${request.method ?? "that"} is not something this daemon does yet` });
+    return;
+  }
+
+  /*
+   * Everything the view draws, in one answer. The page redraws from a whole snapshot rather than stitching
+   * together deltas, because a view that can drift from the ledger is a view that will eventually lie about it.
+   */
+  if (url.pathname === "/state") {
+    const state = project(options.ledger.read());
+    const seats = options.crew === undefined ? [] : await options.crew();
+    send(response, 200, { state, seats, now: new Date().toISOString() });
     return;
   }
 

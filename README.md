@@ -58,8 +58,21 @@ flowchart TB
 2. **Plan.** Claude reads the repo and proposes lines: who builds what, in which files, with which agent.
 3. **Safety report.** Overlapping write scopes, secrets, sandbox and network flags, and the exact commands that
    will run — green before anything launches.
-4. **Watch.** Every agent runs in its own worktree. Phases, tool calls, files, tests and a growing diff, live.
+4. **Watch.** Every agent runs in its own worktree. Phases, tool calls, files, elapsed time and a growing diff,
+   live, in a mission view served on localhost.
 5. **Merge gate.** Review, your project's checks, a bug fix proven to fail on the old code, then your approval.
+
+And the part that works even when you fan nothing out: **state what you believe about your own changes, and let a
+second vendor try to disprove it.**
+
+```sh
+fanout check "no caller of total() passes fewer than two arguments" \
+             "nothing outside src/api/ changed behaviour"
+```
+
+Most of the code in a session is written by you and read by nobody else, and your own reasoning is what hides your
+mistakes from you. A reader holding only the diff is not smarter — it is differently placed. A claim comes back
+confirmed only if it was explicitly confirmed; anything skipped or garbled comes back unclear, never as a pass.
 
 <!-- The 30-second demo lands with the mission view (P0 · 10). See docs/media/README.md. -->
 
@@ -110,7 +123,7 @@ fanout demo        # P0 · 10
 
 ## Status
 
-P0 · **Claude leads, the crew builds** — 371 tests, green on macOS and Linux, Node 22 and 24.
+P0 · **Claude leads, the crew builds** — 590 tests, green on macOS and Linux, Node 22 and 24.
 
 | Milestone | State |
 |---|---|
