@@ -8,6 +8,7 @@ import {
   type PlanLine,
   type SeatAdapter,
 } from "@fanout/core";
+import type { Routing } from "@fanout/core";
 import { baseEnv } from "../env.ts";
 import { startRun, type RunLimits } from "../run.ts";
 import type { RunExitStatus } from "../supervisor/types.ts";
@@ -27,6 +28,14 @@ import type { Workspace, WorkspaceManager } from "../workspace/types.ts";
  */
 
 export interface MissionRunnerOptions {
+  /**
+   * Where each line should actually run, asked as the line starts.
+   *
+   * Injected rather than worked out here: the runner has a ledger and a set of adapters, not the crew's sign-in
+   * state or the owner's posture, and giving it those would put three more reasons to change into the one place
+   * that must not be wrong. Omitted, every line runs on the seat the plan named.
+   */
+  route?: (line: PlanLine) => Routing;
   ledger: Ledger;
   workspaces: WorkspaceManager;
   /** Seat id to the adapter that drives it. A line whose seat is missing is dropped, not guessed at. */
@@ -118,6 +127,33 @@ function run(options: MissionRunnerOptions, request: LaunchRequest): MissionHand
   };
 
   const start = async (line: PlanLine): Promise<void> => {
+    /*
+     * Decided at the moment the line starts, not when the mission was planned: a seat that was fine an hour ago
+     * may have run out since, and the line after this one may be the one that finds out. A move is recorded
+     * before anything runs, so the reason is in the history whatever happens next.
+     */
+    const routing = options.route?.(line) ?? { kind: "keep" as const, seat: line.seat.id };
+    if (routing.kind === "stuck") {
+      drop(line, routing.reason);
+      return;
+    }
+    if (routing.kind === "move") {
+      ledger.append({
+        type: "route.changed",
+        missionId: request.missionId,
+        lineId: line.id,
+        from: { id: routing.from },
+        to: { id: routing.seat },
+        reason: routing.reason,
+      });
+      /*
+       * The id moves and the model does not. `gpt-5-codex` means nothing to Claude's CLI, and a model string a
+       * seat does not recognise is how we already lost twenty minutes once — Codex answered "The '' model is not
+       * supported" and sat there. The new seat gets its own default, which is the only model we know it has.
+       */
+      line = { ...line, seat: { id: routing.seat } };
+    }
+
     const runId = runIdFor(line);
     const adapter = adapters.get(line.seat.id);
     if (adapter === undefined) {

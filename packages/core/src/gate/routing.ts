@@ -36,19 +36,30 @@ export type Routing =
   | { kind: "move"; seat: string; from: string; reason: string }
   | { kind: "stuck"; from: string; reason: string };
 
-/** Why a seat cannot take work right now, or null when it can. */
+/**
+ * Why a seat cannot take work right now, or null when it can.
+ *
+ * `asFallback` is stricter, and the difference matters. When the plan named a seat, the person writing the plan
+ * chose it and a CLI that simply cannot report its own sign-in — Grok and Kimi have no status command at all — is
+ * not a reason to overrule them; we find out by running it. Moving work *onto* a seat is our decision rather than
+ * theirs, and spending someone's subscription on a guess about whether it will even answer is not a decision to
+ * make on their behalf.
+ */
 export function unavailable(
   seat: SeatInfo,
   policy: SeatPolicy,
   headroom: SeatHeadroom | undefined,
   now: Date,
+  asFallback = false,
 ): string | null {
   const stance = stanceFor(seat, policy);
   if (stance.posture === "off") return `you set it to off (${stance.reason})`;
   if (seat.version === null) return "it is not installed";
   if (!seat.supported) return `version ${seat.version} is outside what its adapter was verified against`;
   if (seat.signedIn === "no") return "it is not signed in";
-  if (seat.signedIn === "unknown") return "its CLI cannot tell us whether it is signed in";
+  if (asFallback && seat.signedIn === "unknown") {
+    return "its CLI cannot tell us whether it is signed in, and this is not the seat you asked for";
+  }
 
   const limited = headroom?.limited;
   if (limited != null) {
@@ -73,13 +84,15 @@ export function routeLine(input: RoutingInput): Routing {
   const byId = new Map(input.seats.map((seat) => [seat.id, seat]));
   const asked = byId.get(input.wanted);
 
-  const why = (seat: SeatInfo): string | null =>
-    unavailable(seat, input.policy, input.headroom[seat.id], input.now);
+  const why = (seat: SeatInfo, asFallback: boolean): string | null =>
+    unavailable(seat, input.policy, input.headroom[seat.id], input.now, asFallback);
 
-  if (asked !== undefined && why(asked) === null) return { kind: "keep", seat: asked.id };
+  if (asked !== undefined && why(asked, false) === null) return { kind: "keep", seat: asked.id };
 
   const blocked =
-    asked === undefined ? `${input.wanted} is not a seat on this machine` : `${input.wanted}: ${why(asked)}`;
+    asked === undefined
+      ? `${input.wanted} is not a seat on this machine`
+      : `${input.wanted}: ${why(asked, false) ?? "unavailable"}`;
 
   /*
    * Ordered by what the owner said, then by name so the same crew always routes the same way. A stable answer
@@ -88,7 +101,7 @@ export function routeLine(input: RoutingInput): Routing {
    */
   const rank = { preferred: 0, normal: 1, sparing: 2, off: 3 };
   const candidates = input.seats
-    .filter((seat) => seat.id !== input.wanted && why(seat) === null)
+    .filter((seat) => seat.id !== input.wanted && why(seat, true) === null)
     .sort((a, b) => {
       const order = rank[stanceFor(a, input.policy).posture] - rank[stanceFor(b, input.policy).posture];
       return order !== 0 ? order : a.id.localeCompare(b.id);

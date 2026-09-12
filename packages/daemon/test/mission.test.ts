@@ -226,3 +226,90 @@ describe("running a plan", () => {
     expect(existsSync(join(dir, "runs", MISSION, "api-1", "run.log"))).toBe(true);
   });
 });
+
+/*
+ * A seat that was fine when the mission was planned may have run out since, and the line after this one is often
+ * the one that finds out. Routing is asked as each line starts, and a move is recorded before anything runs so
+ * the reason survives whatever happens next.
+ */
+describe("routing a line as it starts", () => {
+  const typesOf = (): string[] => ledger.read().map((event) => event.type);
+
+  it("runs on the seat the plan named when nothing says otherwise", async () => {
+    await runner().launch({ missionId: MISSION, plan: plan([line("api")]), baseCommit, maxParallel: 1 })
+      .finished;
+
+    expect(typesOf()).not.toContain("route.changed");
+  });
+
+  it("moves the work, and records why before the run begins", async () => {
+    const moved = runner({
+      route: () => ({
+        kind: "move",
+        seat: "fake",
+        from: "codex",
+        reason: "codex: it said: you have reached your usage limit",
+      }),
+    });
+    await moved.launch({
+      missionId: MISSION,
+      plan: plan([line("api", { seat: { id: "codex" } })]),
+      baseCommit,
+      maxParallel: 1,
+    }).finished;
+
+    const events = ledger.read();
+    const change = events.find((event) => event.type === "route.changed");
+    expect(change).toMatchObject({ from: { id: "codex" }, to: { id: "fake" } });
+    expect((change as unknown as { reason: string }).reason).toContain("usage limit");
+
+    // Before the run, so a crash between the two leaves the reason rather than losing it.
+    const changeAt = events.findIndex((event) => event.type === "route.changed");
+    const queuedAt = events.findIndex((event) => event.type === "run.queued");
+    expect(changeAt).toBeLessThan(queuedAt);
+
+    // And the work really ran on the seat it moved to, not the one the plan named.
+    expect(events[queuedAt]).toMatchObject({ seat: { id: "fake" } });
+  });
+
+  /*
+   * A model name belongs to the seat that offers it. Carrying `gpt-5-codex` onto Claude would hand a CLI a model
+   * it has never heard of — the failure we already paid for once, when an empty `-m ""` left Codex answering
+   * "The '' model is not supported" and burning twenty minutes on it.
+   */
+  it("leaves the old seat's model behind when it moves the work", async () => {
+    const moved = runner({
+      route: () => ({ kind: "move", seat: "fake", from: "codex", reason: "codex: it is not signed in" }),
+    });
+    await moved.launch({
+      missionId: MISSION,
+      plan: plan([line("api", { seat: { id: "codex", model: "gpt-5-codex" } })]),
+      baseCommit,
+      maxParallel: 1,
+    }).finished;
+
+    const queued = ledger.read().find((event) => event.type === "run.queued");
+    expect(queued).toMatchObject({ seat: { id: "fake" } });
+    expect((queued as unknown as { seat: { model?: string } }).seat.model).toBeUndefined();
+  });
+
+  it("drops the line with the reason when no seat can take it", async () => {
+    const stuck = runner({
+      route: () => ({
+        kind: "stuck",
+        from: "fake",
+        reason: "fake: it said: out of credit, and no other seat can take it",
+      }),
+    });
+    const outcome = await stuck.launch({
+      missionId: MISSION,
+      plan: plan([line("api")]),
+      baseCommit,
+      maxParallel: 1,
+    }).finished;
+
+    expect(outcome.dropped).toBe(1);
+    const dropped = ledger.read().find((event) => event.type === "run.dropped");
+    expect((dropped as unknown as { reason: string }).reason).toContain("out of credit");
+  });
+});

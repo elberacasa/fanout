@@ -650,7 +650,7 @@ async function mcp(home: FanoutHome, io: Io): Promise<number> {
   const server = createFanoutServer({
     ledger,
     repoRoot: io.cwd ?? process.cwd(),
-    paths: { runs: home.runs, workspaces: home.workspaces },
+    paths: { runs: home.runs, workspaces: home.workspaces, home: home.root },
     adapters: adapters(),
     manifests: SEATS,
     limits: DEFAULT_LIMITS,

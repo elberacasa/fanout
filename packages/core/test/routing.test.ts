@@ -39,9 +39,22 @@ describe("why a seat cannot take work", () => {
     ["it is not installed", { version: null, supported: false }, "not installed"],
     ["its version is not one we verified", { supported: false }, "outside what its adapter"],
     ["it is not signed in", { signedIn: "no" as const }, "not signed in"],
-    ["its CLI cannot say", { signedIn: "unknown" as const }, "cannot tell us"],
   ])("says so when %s", (_label, overrides, expected) => {
     expect(unavailable(seat("codex", overrides), EMPTY_POLICY, undefined, NOW)).toContain(expected);
+  });
+
+  /*
+   * Grok and Kimi have no status command at all. Refusing every seat that cannot report its own sign-in would
+   * make them unusable even when the plan asked for them by name — the person writing the plan chose that seat,
+   * and we find out by running it.
+   */
+  it("keeps a seat the plan asked for even when its CLI cannot report sign-in", () => {
+    expect(unavailable(seat("grok", { signedIn: "unknown" }), EMPTY_POLICY, undefined, NOW)).toBeNull();
+  });
+
+  it("will not fall back onto one, because that spend would be our guess and not their choice", () => {
+    const why = unavailable(seat("grok", { signedIn: "unknown" }), EMPTY_POLICY, undefined, NOW, true);
+    expect(why).toContain("not the seat you asked for");
   });
 
   it("says so when the owner switched it off, and repeats their own reason", () => {

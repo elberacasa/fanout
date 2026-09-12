@@ -10,9 +10,11 @@ import {
   type AdapterManifest,
   type Ledger,
   type SeatAdapter,
+  type SeatInfo,
 } from "@fanout/core";
 import {
   checkClaims,
+  chooseSeat,
   createSafetyDependencies,
   filesInPatch,
   mergeRun,
@@ -49,8 +51,8 @@ export interface FanoutMcpOptions {
   ledger: Ledger;
   /** The repository the session is working in. */
   repoRoot: string;
-  /** Where run logs, reports and workspaces live. */
-  paths: { runs: string; workspaces: string };
+  /** Where run logs, reports and workspaces live, and where the owner's seat preferences are kept. */
+  paths: { runs: string; workspaces: string; home?: string };
   /** Seat id to adapter, and the manifests behind them. */
   adapters: ReadonlyMap<string, SeatAdapter>;
   manifests: readonly AdapterManifest[];
@@ -81,12 +83,37 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
     repoRoot: options.repoRoot,
     workspaceRoot: options.paths.workspaces,
   });
+  /*
+   * The crew is read once, when the server starts, and the headroom is read from the ledger every time a line
+   * starts. Detection spawns processes and a line should not wait on four CLIs to answer before it can begin;
+   * a seat running out, though, is exactly the thing that changes between one line and the next.
+   */
+  let crew: readonly SeatInfo[] = [];
+  void detectSeats({
+    manifests: options.manifests,
+    ...(options.execute === undefined ? {} : { execute: options.execute }),
+  }).then((seats) => {
+    crew = seats;
+  });
+
   const runner = createMissionRunner({
     ledger: options.ledger,
     workspaces,
     adapters: options.adapters,
     runsRoot: options.paths.runs,
     limits: options.limits,
+    route: (line) => {
+      const home = options.paths.home;
+      // Without a home there are no seat preferences to honour, and routing without them could spend a seat the
+      // owner switched off. The plan's own seat is the choice that can only fail loudly.
+      if (home === undefined) return { kind: "keep", seat: line.seat.id };
+      return chooseSeat(line.seat.id, {
+        home,
+        crew,
+        headroom: project(options.ledger.read()).headroom,
+        now: new Date(),
+      });
+    },
   });
   const missions = new Map<string, MissionHandle>();
 
