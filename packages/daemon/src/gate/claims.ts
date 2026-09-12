@@ -1,6 +1,6 @@
 import type { AdapterManifest, FanoutEventInput, SeatRef } from "@fanout/core";
 import { isolateWork } from "./isolate.ts";
-import { workSnapshot } from "./revision.ts";
+import { CLEAN_REVISION, workSnapshot, type WorkSnapshot } from "./revision.ts";
 import { runSeat, type SeatExecute } from "./run-seat.ts";
 
 /*
@@ -43,7 +43,28 @@ export interface ClaimsResult {
 const VERDICT_LINE = /^\s*CLAIM\s+(\d+)\s*:\s*(CONFIRMED|REFUTED|UNCLEAR)\b\s*[-—:]?\s*(.*)$/i;
 
 export async function checkClaims(options: ClaimsOptions): Promise<ClaimsResult> {
-  const snapshot = await workSnapshot({ cwd: options.repoRoot });
+  /*
+   * A session started outside a repository is an ordinary thing, not an exception. Throwing here would make the
+   * tool look broken to whoever called it; answering "there is nothing here to check" is both true and useful.
+   */
+  let snapshot: WorkSnapshot;
+  try {
+    snapshot = await workSnapshot({ cwd: options.repoRoot });
+  } catch {
+    return {
+      event: {
+        type: "claims.checked",
+        repoRoot: options.repoRoot,
+        revision: CLEAN_REVISION,
+        by: { id: options.manifest.id },
+        claims: options.claims.map((claim) =>
+          unclear(claim, `${options.repoRoot} is not a git repository, so there are no changes to check`),
+        ),
+        ran: false,
+      },
+      refuted: [],
+    };
+  }
   const by: SeatRef = {
     id: options.manifest.id,
     ...(options.model === undefined ? {} : { model: options.model }),

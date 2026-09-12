@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { AdapterManifest } from "@fanout/core";
 import { describe, expect, it } from "vitest";
-import { readVerdicts } from "../src/gate/claims.ts";
+import { checkClaims, readVerdicts } from "../src/gate/claims.ts";
 import { agentText, fillTemplate } from "../src/gate/run-seat.ts";
 
 /*
@@ -109,5 +112,28 @@ describe("filling a seat's arguments", () => {
 
   it("does not mistake a literal argument for a placeholder", () => {
     expect(fillTemplate(["--json", "review"], {})).toEqual(["--json", "review"]);
+  });
+});
+
+/*
+ * A session started outside a repository is ordinary, not exceptional. Found by calling the MCP tool from a real
+ * Claude Code session launched in /tmp: it threw, and a tool that throws looks broken rather than answering.
+ */
+describe("asking about a directory that is not a repository", () => {
+  it("answers that there is nothing to check, instead of failing", async () => {
+    const manifest = AdapterManifest.parse(
+      JSON.parse(readFileSync(new URL("../../adapters/codex/manifest.json", import.meta.url), "utf8")),
+    );
+    const { event, refuted } = await checkClaims({
+      repoRoot: tmpdir(),
+      claims: ["something is true"],
+      manifest,
+      execute: () => Promise.resolve({ stdout: "", stderr: "", exitCode: 0 }),
+    });
+
+    expect(event.ran).toBe(false);
+    expect(refuted).toEqual([]);
+    expect(event.claims[0]?.verdict).toBe("unclear");
+    expect(event.claims[0]?.evidence).toContain("not a git repository");
   });
 });

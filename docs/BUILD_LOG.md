@@ -17,6 +17,63 @@ Next: <the next step>
 
 ---
 
+### 2026-09-12 · The claim loop; milestone 7's contract · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: codex (gpt-6-astra, high) × 2, plus Codex as the reader for every claim
+
+Built:
+- **The merge gate's contract** (`@fanout/core`): every step records the `revision` it judged, and `mergeReadiness`
+  merges only what review, checks, proof and a person all agreed on — the tie that makes "reviewed and checked"
+  mean something when a worktree can move between the two. `merge.approved` answers who authorised a change;
+  `merge.applied` records where it landed. `PlanLine.fixesBug` declares a fix when the mission is planned, not
+  after an agent has explained why its change is fine.
+- **`fanout review`**: a second vendor reads the lead's own uncommitted work, in an isolated copy.
+- **`fanout check` and the `check_claims` MCP tool**: the lead states falsifiable claims; a cold reader tries to
+  refute each. Cheaper and sharper than broad review, because the asymmetry was never about model quality — the
+  lead carries the plan and the reasoning, and that is what hides its mistakes from it.
+- **The Stop hook** (`fanout owed`) now covers the lead's own working tree as well as the crew's runs, and
+  distinguishes never-checked, checked-at-older-bytes, could-not-run, and refuted-and-unfixed.
+- **Zero-install plugin**: `${CLAUDE_PLUGIN_ROOT}` runs the CLI straight out of the checkout. Verified by a fresh
+  session started outside the repository with nothing on PATH.
+- **Seat posture** (`preferred · normal · sparing · off`) and **capability profiles** for both supported seats.
+
+Verified by the lead: `npm run check` green, **590 tests** (36 files). Resume, fork and review recorded from real
+runs on both seats. The zero-install plugin and the `check_claims` tool exercised from real Claude Code sessions.
+
+What the second vendor found, in the lead's own code, this session:
+- `Not logged in` matched the pattern for `Logged in`, so a signed-out seat reported as ready. Shipped code.
+- Detection could hang forever on one unresponsive CLI and hide every seat that had answered.
+- `fanout review` spent the Codex seat without reading the posture setting built thirty minutes earlier.
+- An exit code of zero with nothing parsable was reported as "read 12 files and had nothing to say".
+- **Four escalating refutations of one claim about symlink isolation**: a copied-in link; a link tracked in HEAD
+  that `git worktree add` checks out; a chain (`a -> .` plus `leak -> a/../x`) that `path.resolve` folds away
+  lexically while the kernel follows the link first; and finally Node's own JavaScript `realpathSync`, which folds
+  `..` lexically *while resolving* — measured on this machine answering `<copy>/etc/passwd` for a link that opens
+  the real `/etc/passwd`. Only `realpathSync.native` is a boundary.
+
+Changed in review (the lead's own mistakes, recorded because they are the argument for the product):
+- `runSeat` never honoured `stdin: "closed"`, which every manifest declares and the codex-fanout skill warns about
+  in bold. `codex exec` blocked for twenty minutes on 0.35s of CPU. Third time this session that a rule written as
+  data was not consulted by new code (the deny-list and the seat policy were the others).
+- The suite reported 544 passing while a test file was failing to load on a duplicate import.
+- The first escape test passed against the broken resolver: it lacked the decoy file that makes the lexical answer
+  look real, so the link was cut for the wrong reason.
+- A prompt error sent an agent to edit `packages/adapters/fake/manifest.json`, which does not exist; it refused to
+  invent one rather than guessing.
+
+Could not verify: CI on GitHub at the time of writing. The `fanout demo` path does not exist yet, so nobody
+without a Codex subscription can try any of this.
+
+Honest note: the last claim of the session — that `fanout owed` stays silent on a clean tree with no running
+mission — was refuted correctly, and **no code was changed**. A finished mission holding an unreviewed diff is
+exactly what is owed; the belief was wrong, not the guard. A refutation says a belief was false. It does not say
+whether to change the code or the belief, and a version of this that "fixed" every refutation would have broken a
+correct check.
+
+Next: `fanout demo` (offline, no accounts) so the loop can be seen without a subscription; then the rest of
+milestone 7 — the checks runner, proof, and `git apply -3`; then Codex writing the failing test from its own
+refutation, which is what would make the proof requirement free.
+
 ### 2026-09-12 · Scope narrowed; honest progress; capability profiles · session 2
 
 Lead: Claude Code (Opus 5) · Teammates: codex (gpt-6-astra, high) × 1

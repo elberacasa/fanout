@@ -4,7 +4,7 @@
 
 ### Where we are
 
-P0 milestones **1–6 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **410 tests** (25 files).
+P0 milestones **1–6 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **590 tests** (36 files).
 CI green on macOS and Linux, Node 22 and 24. Repository: https://github.com/elberacasa/fanout (**private**).
 
 | Package | What works |
@@ -12,9 +12,9 @@ CI green on macOS and Linux, Node 22 and 24. Repository: https://github.com/elbe
 | `@fanout/core` | Event, plan, scope and manifest schemas; plan validation; append-only ledger (with an on-append listener); projections; the `SeatAdapter` contract |
 | `@fanout/daemon` | Supervisor, environment allowlist, run glue, workspaces, safety gate (8 checks), detector, mission runner, localhost API (HTTP + WebSocket, token, Origin check) |
 | `@fanout/adapters/*` | `fake`, `codex`, `grok`, `claude` (opt-in) — each parser built from a recorded real run |
-| `@fanout/mcp` | Seven tools: `seats`, `repo_overview`, `plan_check`, `launch`, `mission_status`, `run_diff`, `cancel_mission`. No merge tool, and a test asserts its absence |
-| `@fanout/cli` | `fanout status | daemon | clean | mcp | version | help` |
-| `plugin/` | `/fanout`, `/fanout:crew`, `/fanout:watch`, the lead's skill, hooks. Passes `claude plugin validate` |
+| `@fanout/mcp` | Eight tools, including **`check_claims`**. No merge tool, and a test asserts its absence |
+| `@fanout/cli` | `fanout status \| seat \| check \| review \| owed \| daemon \| clean \| mcp \| version \| help` |
+| `plugin/` | `/fanout`, `/fanout:crew`, `/fanout:watch`, the lead's skill, hooks. **Zero install** — runs the CLI out of the checkout via `${CLAUDE_PLUGIN_ROOT}`. Passes `claude plugin validate` |
 
 ### The first real mission (2026-09-12)
 
@@ -56,32 +56,62 @@ Probing the CLIs for capability data found three things worth the narrowing, all
 `codex exec fork` (best-of-N later), plus `claude auth status --json` → `subscriptionType` and `grok usage`.
 ⚠️ That Claude probe also returns the owner's email and org id: read two fields, discard the rest, scrub the fixture.
 
+### The thing that changed this session: the claim loop
+
+Fanout was guarding the wrong code. It reviewed what agents produced in worktrees, while most of the code in a
+Claude Code session is written by the lead and read by nobody else. The loop now is:
+
+```text
+claim  →  refuted  →  failing test  →  fix  →  checked again  →  confirmed
+```
+
+`check_claims` (MCP tool) and `fanout check` (terminal) put falsifiable claims in front of a cold reader — another
+vendor's CLI, holding only the diff, with no idea why it was written. The asymmetry is not model quality: the lead
+knows why its code is right, so its code looks right. A reader with no context is differently placed, and that is
+cheap to buy three claims at a time.
+
+**Everything bends one way.** A claim is `confirmed` only when the reader said so explicitly; a missing line, a
+drifted format or a reader that contradicts itself leaves it `unclear`, never a pass. The Stop hook repeats a
+refuted claim, with its reason, until it is dealt with.
+
+**What it caught in the lead's own code today:** a signed-out seat reported as ready (shipped), detection that
+could hang forever, a command spending a seat the owner had switched off, silence reported as a clean review, and
+four escalating symlink escapes ending in Node's own `realpathSync` folding `..` lexically while resolving. See
+`docs/BUILD_LOG.md`.
+
+**And its limit, learned the same day:** the last refutation of the session was correct and **no code changed** —
+the belief was wrong, not the guard. A refutation says a belief was false, not which of the two to fix.
+
 ### Next: finish 4b, then milestone 7
 
-**4b · capability profiles — half done.** Manifests now declare a `tier` and four `capabilities` (resume, fork,
-review, plan), each `null` when unverified. What remains, in order:
+**4b · capability profiles — done**, except one carried item. Manifests declare a `tier` and four `capabilities`
+(resume, fork, review, plan), each `null` when unverified:
 
-1. **Run the plan probe behind its allowlist.** `capabilities.plan.keep` names the only fields the daemon may keep
-   from `claude auth status --json`; the schema proves `planField` is one of them, but **no code reads the probe
-   yet, so the allowlist protects nothing today**. The detector must filter against `keep` before anything reaches
-   the ledger, a log or a projection, with a test feeding it a response that carries an email and an org id.
-2. **Verify Claude's resume, fork and review** by recording real runs; they are `null` on purpose until then.
-3. **Seat posture** — `preferred · normal · sparing · off` per seat in `seats.json` under `FANOUT_HOME`, defaults
-   from what was detected, shown by `fanout status`, and asked in-session the first time a mission would spend a
-   sparing seat. Every value shows where it came from: detected, observed, or set by you.
+1. ~~**Run the plan probe behind its allowlist**~~ — done. The detector filters through `keepAllowed` at the moment
+   of reading, so the fields it must not keep never exist. Verified against the real CLI: `fanout status` shows
+   `max (detected)` and a grep of the whole output finds no address, org id or home path.
+2. ~~**Verify Claude's resume, fork and review**~~ — done from real runs. Resume and fork work on both seats;
+   Claude has no review command, so that stays `null`. The better find was `--session-id`, which lets us choose a
+   run's identity before launch instead of fishing it out of a stream (ADR 0018).
+3. **Left open:** Grok's phase never advancing (community seat), and a contract test asserting that every manifest
+   field has a consumer — three times this session a rule written as data was not read by new code.
+4. ~~**Seat posture**~~ — done: `fanout seat <id> <preferred|normal|sparing|off> [why]`, honoured by every command
+   that spends a subscription, and a policy file that cannot be read refuses the write rather than discarding it.
 
 ### Then: milestone 7, the merge gate
 
-The promise the whole product rests on. In order:
+The contract is **built and tested**; the mechanics are not. `mergeReadiness` judges correctly — including that
+every step must have judged the *same revision* — but nothing yet runs the project's checks, proves a fix, or
+applies a diff. What remains: the checks runner, proof (restore the old code, watch the new test fail), `git
+apply -3` with conflicts reported and never forced, and rework as a **resumed session** now that resume is
+verified on both seats.
 
-1. **Lead first (contract):** `review` (verdict + notes, recorded), `checks` (run the project's own commands against
-   the applied diff), `proof` (a bug fix's new test must fail on the old code), `merge` (`git apply -3` plus new
-   files; conflicts reported, never forced), `drop`, and rework (notes back to the same worktree, max 2).
-2. **Settle the contract gaps** listed in `docs/ARCHITECTURE.md` for this milestone: an approval event so a replay
-   shows who authorised a change, and the revision each check and proof ran against.
-3. **Then** the MCP tools for them and the plugin's review flow.
-4. **Good fan-out for teammates** once the shapes are committed: the checks runner, and an adversarial audit of the
-   gate itself (read-only) — it is the most dangerous code in the project.
+Before that, one thing matters more: **`fanout demo`**. Nobody without a Codex subscription and a checkout can try
+any of this, which is the difference between a good tool and one anyone adopts.
+
+**Good fan-out for teammates** once the gate's shapes are committed: the checks runner, and an adversarial audit of
+the gate itself (read-only) — it is the most dangerous code in the project. The two audits this session found real
+bugs in the lead's own work every time.
 
 ### Also queued
 
