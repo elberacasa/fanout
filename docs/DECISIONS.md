@@ -275,3 +275,28 @@ broken:
 So `npm run verify:pack` packs every package, installs into an empty directory, and runs the demo end to end. It is
 the only check in the repository that tests the *package* rather than the source, and it is the one that has to
 pass before anything is published.
+
+## 0022 · A plan's write scope is enforced at merge, not merely reported (2026-09-12)
+
+**Choice:** `mergeRun` refuses any file the plan's write scope did not grant. A lead who wants one anyway names
+each path in `allowOutsideScope`, and those paths are written into the commit as an `Outside-scope:` trailer.
+
+**Why:** the scope was already computed. `collect` worked out what each run had written outside its declared
+scope, and the only thing that ever happened to that list was being printed in one line of `run_diff`'s prose.
+Nothing in `mergeReadiness` or `mergeRun` looked at it. So a run could write anywhere in its worktree — a CI
+workflow, a lockfile, a hook — and the gate would apply it, provided the lead did not happen to read that line.
+
+The safety report shows the user those scopes before anything launches, and the user approves on that basis. A
+scope that is shown and then not enforced is worse than no scope, because it buys trust it does not pay for.
+
+Found by running a real mission on this repository: both agents wrote to `docs/BUILD_LOG.md`, which neither had
+been granted, and the gate was ready to merge both.
+
+**Consequences:** widening is deliberate rather than forbidden, because sometimes it is right — the lead's own
+prompt asked one agent for an export the plan had forgotten to grant, which is exactly how this was found.
+Naming each path means a lead cannot wave through a file it has not looked at, and the trailer means an override
+is still visible to whoever reads the history a year later. A plan whose scope forgets a file now costs a rework
+round, which is the right price for the lead getting it wrong.
+
+`AGENTS.md` now tells teammates to stay inside their scope including docs, and tells the lead to put a doc in a
+line's scope when it wants that doc written — by one line only.

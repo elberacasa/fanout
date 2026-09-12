@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { mergeReadiness, type PlanLine, type RunView } from "@fanout/core";
+import { mergeReadiness, pathInScope, type PlanLine, type RunView } from "@fanout/core";
 import { git, lines, zeroSeparated } from "../workspace/git.ts";
 
 /*
@@ -37,6 +37,19 @@ export interface MergeOptions {
    * the caller's to write.
    */
   message?: string;
+  /**
+   * Files this merge may apply even though the plan did not grant them, each named in full.
+   *
+   * The plan's write scope is what the safety report showed the user before anything launched, and until this
+   * existed it was decoration at merge time: `collect` worked out what a run had written outside its scope and
+   * the only thing that ever happened to that list was being printed. A run could write anywhere in its worktree
+   * and the gate would apply it, provided nobody read one line of prose.
+   *
+   * Widening it is sometimes right — the lead's own prompt asks for an export the plan forgot to grant, which is
+   * how this was found — so the answer is not to forbid it but to make it deliberate. Naming each path means a
+   * lead cannot wave through a file it has not looked at, and the paths are recorded in the commit.
+   */
+  allowOutsideScope?: readonly string[];
   timeoutMs?: number;
 }
 
@@ -55,6 +68,26 @@ export async function mergeRun(options: MergeOptions): Promise<MergeOutcome> {
   const readiness = mergeReadiness(options.run, options.line, options.revision);
   if (!readiness.ready) {
     return { kind: "refused", why: readiness.blockers.map((blocker) => blocker.message) };
+  }
+
+  /*
+   * The plan's write scope, enforced rather than reported. Checked against what is about to be applied — the
+   * patch and the new files — rather than against anything recorded earlier, for the same reason the revision is
+   * re-collected: the question is what this merge would do to your repository now.
+   */
+  const allowed = new Set(options.allowOutsideScope ?? []);
+  const ungranted = [...new Set([...filesInPatch(options.patch), ...options.newFiles])]
+    .filter((file) => !options.line.scope.write.some((pattern) => pathInScope(file, pattern)))
+    .filter((file) => !allowed.has(file))
+    .sort();
+  if (ungranted.length > 0) {
+    return {
+      kind: "refused",
+      why: [
+        `${options.run.runId} wrote outside the scope its plan declared: ${ungranted.join(", ")}. ` +
+          "Send it back, or name those paths in allowOutsideScope if you have read them and want them.",
+      ],
+    };
   }
 
   const inRepo = {
@@ -175,6 +208,10 @@ function commitMessage(options: MergeOptions): string {
     "",
     `Built-by: ${run.seat.id}${run.seat.model === undefined ? "" : ` (${run.seat.model})`} via fanout`,
     `Approved-by: ${by}`,
+    // Only when the plan's scope was widened. A silent override would be no override at all.
+    ...(options.allowOutsideScope === undefined || options.allowOutsideScope.length === 0
+      ? []
+      : [`Outside-scope: ${[...options.allowOutsideScope].sort().join(", ")}`]),
     `Fanout-run: ${run.runId}`,
   ].join("\n");
 }

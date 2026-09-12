@@ -39,8 +39,15 @@ are community seats (ADR 0017). Details: `docs/PRODUCT.md`.
   (`docs/ADAPTERS.md`). Unknown CLI versions show "unsupported version" instead of guessing.
 - **Small commits, tests green, on `main`.** One idea per commit. Run `npm run check` (typecheck + lint + tests)
   before every commit once it exists.
-- **Docs are part of the change.** When behaviour changes, update the doc in the same commit. Update the resume block
-  in `docs/STATUS.md` at the end of every session so the next agent can start cold.
+- **Docs are part of the change** — for whoever the plan gave them to. When behaviour changes, update the doc in
+  the same commit. Update the resume block in `docs/STATUS.md` at the end of every session so the next agent can
+  start cold.
+  - **Teammates: write only inside your line's declared write scope, docs included.** If the change deserves a
+    doc and the plan did not give you that file, say so in your report and leave the file alone. Two agents on
+    one mission both edited `docs/BUILD_LOG.md` because this rule did not say so, and neither diff could land.
+  - **Lead: if you want an agent to touch a doc, put the doc in that line's write scope**, and give it to one
+    line only. The merge gate now refuses anything a plan did not grant, so a scope that forgot a file is a
+    rework round you pay for.
 - **Phase discipline.** Build what the current phase in `docs/ROADMAP.md` asks for, not later phases. Write ideas
   into the roadmap instead of building them.
 

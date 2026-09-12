@@ -184,6 +184,46 @@ describe("what it refuses", () => {
   });
 });
 
+/*
+ * The plan's write scope is what the safety report showed the user before anything launched. Until this was
+ * enforced it was decoration at merge time: `collect` worked out what a run had written outside its scope, and
+ * the only thing that ever happened to that list was being printed for a lead who might not read it.
+ */
+describe("work that strayed outside the scope its plan declared", () => {
+  /** The same agent work, plus a file the line was never granted. */
+  const strayed = () => {
+    writeFileSync(join(work, "deploy.yml"), "on: push\n");
+    const patch = execFileSync("git", ["diff", "HEAD", "--"], { cwd: work, env, encoding: "utf8" });
+    return { patch, newFiles: ["src/csv.ts", "deploy.yml"] };
+  };
+
+  it("refuses it, and names what it was not granted", async () => {
+    const outcome = await merge(strayed());
+
+    expect(outcome.kind).toBe("refused");
+    expect((outcome as { why: string[] }).why.join(" ")).toContain("deploy.yml");
+    // Nothing applied: a refusal that half-merged would be worse than no check at all.
+    expect(existsSync(join(repo, "deploy.yml"))).toBe(false);
+    expect(existsSync(join(repo, "src", "csv.ts"))).toBe(false);
+  });
+
+  it("applies it when the lead names that exact path, and records that it did", async () => {
+    const outcome = await merge({ ...strayed(), allowOutsideScope: ["deploy.yml"] });
+
+    expect(outcome.kind).toBe("merged");
+    expect(existsSync(join(repo, "deploy.yml"))).toBe(true);
+    // In the history, because an override nobody can find afterwards is not an override.
+    expect(git(["log", "-1", "--format=%B"])).toContain("Outside-scope: deploy.yml");
+  });
+
+  it("is not satisfied by naming some other path", async () => {
+    const outcome = await merge({ ...strayed(), allowOutsideScope: ["something-else.yml"] });
+
+    expect(outcome.kind).toBe("refused");
+    expect((outcome as { why: string[] }).why.join(" ")).toContain("deploy.yml");
+  });
+});
+
 describe("when the work disagrees with the repository", () => {
   it("reports a conflict and rolls the whole attempt back", async () => {
     const { patch, newFiles } = agentWork();

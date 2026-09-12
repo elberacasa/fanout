@@ -605,6 +605,15 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
           .min(1)
           .max(2000)
           .describe("What the user actually said when they approved this merge, in their own words."),
+        allowOutsideScope: z
+          .array(z.string().trim().min(1).max(400))
+          .max(50)
+          .optional()
+          .describe(
+            "Paths this run wrote that its plan did not grant, which you have read and want anyway. The merge " +
+              "refuses otherwise, and names them. Copy them from `run_diff`'s 'Outside its scope' line only " +
+              "after looking at each one — they are recorded in the commit as Outside-scope.",
+          ),
         message: z
           .string()
           .trim()
@@ -619,7 +628,7 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
           ),
       },
     },
-    async ({ missionId, runId, approvedBy, message }) => {
+    async ({ missionId, runId, approvedBy, message, allowOutsideScope }) => {
       const found = locate(missionId, runId);
       if (found?.exists !== true) return text(`No workspace for ${runId} to merge.`, { runId });
 
@@ -653,6 +662,7 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
         revision,
         patch: diff.patch,
         newFiles: diff.newFiles,
+        ...(allowOutsideScope === undefined ? {} : { allowOutsideScope }),
         ...(message === undefined ? {} : { message }),
       });
 
