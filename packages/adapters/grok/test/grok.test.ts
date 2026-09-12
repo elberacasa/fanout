@@ -109,6 +109,17 @@ describe("parsing a recorded run", () => {
     expect(usage.every((event) => event.unit === "tokens" && !event.estimated)).toBe(true);
   });
 
+  /*
+   * Grok announces its tool list four times in this one recorded run. Reading each announcement as progress
+   * walked the phase back to `reading` after the write — on the mission view, an agent that gave up and started
+   * over. Every other test here passed while it did that, because none of them looked at the whole sequence.
+   */
+  it("never walks the phase backwards when the CLI repeats its handshake", () => {
+    const phases = events.flatMap((event) => (event.type === "run.progress" ? [event.phase] : []));
+
+    expect(phases).toEqual(["reading", "coding", "reporting"]);
+  });
+
   it("ends in the reporting phase, with the session and the assembled report", () => {
     expect(events.filter((event) => event.type === "run.progress").at(-1)).toMatchObject({
       phase: "reporting",

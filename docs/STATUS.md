@@ -20,7 +20,10 @@ account. Everything below is what stands between here and that.
 - [x] ~~`pre-push` does not check lockfile drift~~ — `e2540f6`, written by a Codex agent, reworked once, merged
       through the gate.
 - [x] ~~No test that every manifest field has a consumer~~ — `66de242`, same route.
-- [ ] Grok's phase never advances (community seat, so it gates nothing).
+- [x] ~~Grok's phase never advances~~ — the note was stale: it does advance. Looking properly found a different
+      and realer bug, which every existing test passed while it was broken. Grok announces its tool list four
+      times in one run and each announcement was read as progress, walking the phase *backwards* from `coding` —
+      on the mission view, an agent that gave up and started over.
 - [x] ~~The mission view shows the review queue but cannot merge from it~~ — a person now approves from the page
       itself (`f9263b1`), which is the half that had to stop going through an agent. The merge stays a tool call
       on purpose: the commit message must follow the repository's own convention, and the lead writes that.

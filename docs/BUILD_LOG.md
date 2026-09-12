@@ -17,6 +17,51 @@ Next: <the next step>
 
 ---
 
+### 2026-09-12 · Routing, direct approval, and a publishable package · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: none this stretch (each piece was one decision the lead had to own)
+
+Built:
+- **Routing wired into real missions** (P0 9), `afcbfdc` `41a8bec`: by the lead. Three rules the wiring itself had
+  to get right, each with a test that fails without it — a CLI that cannot report its own sign-in is kept when the
+  plan named it and refused only as a fallback; a move carries the seat id and not the model; an unreadable
+  `seats.json` moves nothing, because `readSeatPolicy` says its defaults are not safe to act on. The reroute and
+  its reason now show on the run's own row.
+- **A person approves their own merge** (P0 8), `f9263b1`: by the lead. ADR 0020. `merge_run` recorded
+  `by: {kind: "user"}` on the lead's word that it asked, so the fourth non-negotiable was a convention rather than
+  a property — an agent that skipped the asking wrote a byte-identical event. Approvals now carry
+  `via: direct | relayed`, and `POST /approve` is the daemon's first write route.
+- **`fix(daemon)` the last event of a run**, `00fb9d2`: by the lead, from CI. `run.finished` was a bare
+  `ledger.append` — the one event in a run with no handling — and threw out of a floating promise when the daemon
+  closed its ledger on the way out.
+- **The packages can be published**, `ea15f39` `7e63675`: by the lead. ADR 0021.
+- **Grok's phase stops going backwards**: by the lead, against the recorded fixture — a community seat, so it cost
+  nothing to exercise. The logged debt said the phase never advanced; it does. Reading it properly found the real
+  bug beneath the stale note, which all sixteen existing tests passed while it was broken.
+
+Verified by the lead: typecheck ok · lint ok · 719 tests pass (43 files) · `pnpm verify:pack` green (packs,
+installs into an empty directory, runs the demo end to end) · the approve button clicked by hand in a browser
+against a seeded ledger · CI green on `7e63675`: all six jobs, including the new `installs from empty`.
+Could not verify: nothing. Every claim here was read off a run or a command that was looked at.
+
+Honest notes, because each cost real time:
+- **`npx fanout-cli` could never have worked.** Node refuses to strip types from any file under `node_modules`
+  (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, reproduced minimally). Publishing raw TypeScript was impossible,
+  not merely untidy, and nothing in the repository would ever have said so.
+- **Three packaging bugs passed `npm run check` while broken**: runtime assets missing from `files`; a path built
+  as a string (`./cli.ts` beside a `cli.js`) that killed all three demo agents on the first spawn; two hand-written
+  version strings naming versions that did not exist and disagreeing with each other. All three were found by
+  installing the tarball into an empty directory — now `pnpm verify:pack`, and a CI job.
+- **A page that redraws itself cannot hold state in the DOM.** The approve button kept "are you sure?" in a
+  closure and disarmed itself within 250ms. Found by clicking it, not by reading it.
+- **A class name collided** (`.why` already belonged to the claims list) and put "moved:" in front of every piece
+  of evidence on the page. The view now has its first test, because it has no build step to catch a typo.
+
+Next: the owner's word to publish (nothing is on npm; `fanout-cli` and `@fanout` are free, bare `fanout` is taken),
+then the 30-second video. Debts: all clear. The last one was stale, and looking at it properly found a real bug underneath.
+
+---
+
 ### 2026-09-12 · The merge gate, the demo, the view · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: codex as the cold reader throughout

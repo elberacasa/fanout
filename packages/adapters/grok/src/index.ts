@@ -27,6 +27,15 @@ const WRITING = /write|edit|replace|create|patch/i;
 export function createGrokAdapter(): SeatAdapter {
   /** Grok streams its prose in pieces; a run's report is all of them, in order, joined. */
   const spoken = new Map<string, string>();
+  /*
+   * Runs that have already seen the tool-list handshake.
+   *
+   * Grok announces its available commands several times in one run — four, in the stream we recorded — and each
+   * announcement is the CLI listing what it can do, not a statement about what it is doing. Treating every one of
+   * them as "reading" walked the phase backwards from `coding` mid-run, which on the mission view looks exactly
+   * like an agent that gave up and started over.
+   */
+  const greeted = new Set<string>();
 
   return {
     id: manifest.id,
@@ -60,8 +69,12 @@ export function createGrokAdapter(): SeatAdapter {
       const run = { missionId: context.missionId, runId: context.runId };
 
       switch (line.type) {
-        case "available_commands":
+        case "available_commands": {
+          // The first one is genuine news: the run is up and reading. The rest are the same handshake repeated.
+          if (greeted.has(context.runId)) return { events: [], signals: [] };
+          greeted.add(context.runId);
           return { events: [{ type: "run.progress", ...run, phase: "reading" }], signals: [] };
+        }
 
         case "thought":
           return { events: [], signals: [] };
@@ -112,6 +125,7 @@ export function createGrokAdapter(): SeatAdapter {
         case "end": {
           const report = spoken.get(context.runId) ?? "";
           spoken.delete(context.runId);
+          greeted.delete(context.runId);
           return {
             events: [{ type: "run.progress", ...run, phase: "reporting" }],
             signals: [
