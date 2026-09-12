@@ -13,9 +13,13 @@ coverage/
 Screenshot*.png
 
 # Throwaway scripts for driving a real mission by hand. Never committed.
+# A real mission on this repository writes these beside the driver script: records of one run.
 *.dev.mjs
 *.dev.id
 *.dev.log
+*.dev.diff
+*.dev.json
+mission.dev.*
 
 # Copied into each package by scripts/prepack.mjs so every published tarball carries the licence.
 packages/**/LICENSE

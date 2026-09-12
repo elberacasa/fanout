@@ -292,23 +292,18 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
       },
     },
     async ({ missionId, runId, patch }) => {
-      const state = project(options.ledger.read({ missionId }));
-      const run = state.missions[missionId]?.runs[runId];
-      if (run === undefined) return text(`No run called ${runId} in ${missionId}.`, { missionId, runId });
-
-      const plan = state.missions[missionId]?.plan;
-      const line = plan?.lines.find((entry) => entry.id === run.lineId);
-      const workspace = {
-        missionId,
-        runId,
-        kind: "worktree" as const,
-        path: join(options.paths.workspaces, missionId, runId),
-        branch: `fanout/${missionId}/${runId}`,
-        baseCommit: state.missions[missionId]?.repo.baseCommit ?? "",
-      };
-      if (line === undefined || !existsSync(workspace.path)) {
+      /*
+       * Through `locate`, like every other tool here. This used to derive the path from the run id, which is the
+       * one thing that is wrong for a reworked run: it continues in the worktree of the attempt before it. So the
+       * diff was unreadable for exactly the runs a lead most needs to read — found by running a real mission and
+       * being unable to see what came back. `locate` had already been fixed; this was a second copy of the rule.
+       */
+      const found = locate(missionId, runId);
+      if (found === null) return text(`No run called ${runId} in ${missionId}.`, { missionId, runId });
+      if (!found.exists) {
         return text(`The workspace for ${runId} is gone, so there is nothing left to read.`, { runId });
       }
+      const { line, workspace } = found;
 
       const diff = await workspaces.collect(workspace, line);
       const reportPath = join(options.paths.runs, missionId, runId, "report.md");
