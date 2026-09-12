@@ -11,7 +11,7 @@ account. Everything below is what stands between here and that.
 | 1–6 | Foundations, seats, daemon, CLI, plugin | ✅ | tagged `v0.1.0`–`v0.6.0` |
 | 4b | Capability profiles | ✅ | resume, fork, review and plan recorded from real runs, not `--help` |
 | 7 | Merge gate | ✅ | review, rework, checks, proof, approval, `git apply -3` — run on real work through the gate itself |
-| 8 | Mission view | 🔨 | ✅ live, with the review queue and the gate's own reasons · left: merging from the page itself |
+| 8 | Mission view | ✅ | live, with the review queue, the gate's own reasons, reroutes, and a person's own approval — `f9263b1` |
 | 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
 | 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · a 30-second video · `npx fanout-cli` works on a clean machine |
 
@@ -21,7 +21,9 @@ account. Everything below is what stands between here and that.
       through the gate.
 - [x] ~~No test that every manifest field has a consumer~~ — `66de242`, same route.
 - [ ] Grok's phase never advances (community seat, so it gates nothing).
-- [ ] The mission view shows the review queue but cannot merge from it; that is still a tool call.
+- [x] ~~The mission view shows the review queue but cannot merge from it~~ — a person now approves from the page
+      itself (`f9263b1`), which is the half that had to stop going through an agent. The merge stays a tool call
+      on purpose: the commit message must follow the repository's own convention, and the lead writes that.
 
 **What "robust" means here**, so it is not a feeling:
 
@@ -37,8 +39,10 @@ account. Everything below is what stands between here and that.
 
 ### Where we are
 
-P0 milestones **1–7 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **650 tests** (40 files).
-Repository: https://github.com/elberacasa/fanout (**public**). CI green on macOS and Linux, Node 22 and 24.
+P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green locally: **715 tests**
+(42 files). Repository: https://github.com/elberacasa/fanout (**public**).
+
+**Only #10 is left**: the 30-second video, and `npx fanout-cli` working on a clean machine.
 
 The repository is **public** since 2026-09-12, which is also how CI came back: Actions is free for public
 repositories, and every job before that was refused before it started by a billing hold on the private one.

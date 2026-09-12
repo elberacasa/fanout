@@ -224,3 +224,26 @@ verdicts. That is not a framework's worth of problem.
 rather than in a design system; we accept that. If the view later grows a plan-editing canvas (P1), this decision
 is worth revisiting on its own merits rather than by default. The page is never hosted and never published as an
 artifact, which was already true and matters more now that it is trivially portable.
+
+## 0020 · An approval records how we know it happened (2026-09-12)
+
+**Choice:** `merge.approved` by a person carries `via: "direct" | "relayed"`. `direct` means the daemon received
+the click itself, over loopback, with its own token, from the mission view it served. `relayed` means the lead
+called `merge_run` and quoted the user in `approvedBy`. The daemon grows one write route, `POST /approve`, and the
+mission view grows one button — the only control on the page.
+
+**Why:** the fourth non-negotiable says nothing merges without the user's approval, and until now that was a
+convention rather than a property. `merge_run`'s description tells the lead to ask the user first and quote the
+answer; nothing checked that it had. A language model that skipped the asking wrote a byte-identical event, and
+the ledger — whose whole purpose is to answer "who authorised this?" months later — could not tell the two apart.
+
+Recording the provenance is cheaper and more honest than trying to verify the relayed case, which cannot be
+verified: we have no access to the conversation, and an agent's account of it is exactly the kind of evidence this
+project refuses everywhere else. So we keep both, and stop pretending they are the same fact.
+
+**Consequences:** the gate still accepts either, because a policy may pre-approve and a lead-relayed yes is usually
+a real one; what changes is that an auditor can tell. The route approves and never merges: applying a diff needs a
+commit message in the repository's own convention, which the lead writes, so the daemon never touches the user's
+tree. Approving requires everything *except* the approval to be satisfied already (`blocksApproval`), so the
+strongest evidence in the ledger can never land on a diff nobody reviewed. Events written before this decision have
+no `via`; read them as `relayed`.
