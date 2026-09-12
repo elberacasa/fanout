@@ -127,7 +127,7 @@
 
       .runs {
         display: grid;
-        grid-template-columns: 14px 108px 64px 62px 52px 60px 1fr;
+        grid-template-columns: 14px 108px 104px 62px 52px 60px 1fr;
         align-items: baseline;
         column-gap: 14px;
       }
@@ -197,6 +197,27 @@
         color: var(--warn);
       }
       /* Subordinate to the run above it: indented to the id column and never louder than the row it belongs to. */
+      /*
+       * A seat the plan did not ask for. The arrow is on the row so the substitution is visible at a glance, and
+       * the reason sits under it in the router's own words — a row that silently said `claude` under a plan that
+       * said `codex` is how someone stops trusting the rest of the screen.
+       */
+      .moved {
+        color: var(--fg-faint);
+        white-space: nowrap;
+      }
+      .reroute {
+        grid-column: 2 / -1;
+        color: var(--warn);
+        padding: 0 0 9px;
+        margin-top: -3px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .reroute::before {
+        content: "↳ moved: ";
+        color: var(--fg-faint);
+      }
       .tool {
         grid-column: 2 / -1;
         color: var(--fg-faint);
@@ -440,7 +461,9 @@
         const row = el("div", `row ${tone}`);
         row.append(el("span", `mark ${tone}`, glyph));
         row.append(el("span", "lane", run.runId));
-        row.append(el("span", "seat", run.seat.id));
+        const seat = el("span", "seat", run.seat.id);
+        if (run.movedFrom) seat.append(el("span", "moved", ` ←${run.movedFrom.seat}`));
+        row.append(seat);
         row.append(el("span", "status", run.status));
         row.append(phaseBar(run.phase));
 
@@ -467,6 +490,8 @@
         }
         row.append(right);
         wrap.append(row);
+
+        if (run.movedFrom) wrap.append(el("div", "reroute", run.movedFrom.reason));
 
         if (run.status === "running" && run.lastTool) {
           const summary = run.lastTool.summary ? `: ${run.lastTool.summary}` : "";

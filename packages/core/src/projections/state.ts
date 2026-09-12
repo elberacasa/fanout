@@ -38,6 +38,14 @@ export interface RunView {
    * finding. A recorded fact beats a naming rule the moment anything reuses anything.
    */
   workdir: string | null;
+  /**
+   * The seat the plan asked for, when it is not the seat that ran — with the reason in the words the router used.
+   *
+   * Carried on the run rather than left on the mission because everything that shows a run needs it. A row saying
+   * `claude` under a plan that said `codex`, with nothing to explain the difference, is the kind of silent
+   * substitution that makes someone stop trusting the whole screen.
+   */
+  movedFrom: { seat: string; reason: string } | null;
   lastTool: { tool: string; summary: string | null } | null;
   /** Files the run touched, sorted, without duplicates. */
   files: string[];
@@ -348,6 +356,12 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
     case "run.queued":
       return updateMission(state, event, (mission) => {
         if (Object.hasOwn(mission.runs, event.runId)) return `run "${event.runId}" already exists`;
+        /*
+         * The router records its decision before the run is queued, so the move for this line is already here.
+         * The last one wins: a line reworked onto a third seat was moved twice, and the move that explains the
+         * seat in front of you is the most recent one.
+         */
+        const moved = mission.routes.filter((change) => change.lineId === event.lineId).at(-1);
         const run: RunView = {
           runId: event.runId,
           lineId: event.lineId,
@@ -357,6 +371,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
           phase: null,
           sessionId: null,
           workdir: null,
+          movedFrom: moved?.to.id === event.seat.id ? { seat: moved.from.id, reason: moved.reason } : null,
           lastTool: null,
           files: [],
           diffStat: null,

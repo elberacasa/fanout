@@ -155,6 +155,16 @@ describe("project", () => {
       routes: [{ lineId: "api-export", to: { id: "kimi" }, reason: "Codex hit its 5-hour limit" }],
     });
 
+    /*
+     * The run carries its own move. Anything showing a run — the mission view, the CLI, the report — would
+     * otherwise print `kimi` under a plan that said `codex` with nothing to explain the difference.
+     */
+    expect(mission?.runs["api-1"]?.movedFrom).toEqual({
+      seat: "codex",
+      reason: "Codex hit its 5-hour limit",
+    });
+    expect(mission?.runs["map-1"]?.movedFrom).toBeNull();
+
     expect(mission?.runs["map-1"]).toMatchObject({
       status: "done",
       phase: "reading",

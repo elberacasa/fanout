@@ -13,6 +13,8 @@ import {
   type AdapterManifest,
   type EventOf,
   type SeatAdapter,
+  routeLine,
+  EMPTY_POLICY,
   type SeatInfo,
   type StoredEvent,
 } from "@fanout/core";
@@ -135,6 +137,30 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
 }
 
 /**
+ * The demo's crew: the simulated seat, said plainly, and nothing else.
+ *
+ * One list, used both by the page that shows the crew and by the router that decides on it. Two copies would let
+ * the screen say one thing while the routing did another, which on this particular screen is the whole product.
+ *
+ * Reporting the machine's real CLIs here would make the demo look like it was using them, and reporting nothing
+ * makes a working demo look broken.
+ */
+const DEMO_CREW: readonly SeatInfo[] = [
+  {
+    id: "fake",
+    displayName: "Simulated agent",
+    binary: "fake",
+    version: "demo",
+    supported: true,
+    signedIn: "yes",
+    models: ["demo"],
+    efforts: [],
+    billing: "unknown",
+    plan: { name: "no account needed", source: "detected" },
+  },
+];
+
+/**
  * `fanout demo` — the whole thing, on a machine with nothing signed in.
  *
  * Real worktrees, the real safety gate, the real ledger, real diffs from real files. Only the agents are
@@ -162,6 +188,19 @@ async function demo(home: FanoutHome, io: Io): Promise<number> {
     adapters: new Map([["fake", adapter]]),
     runsRoot: join(root, "runs"),
     limits: DEFAULT_LIMITS,
+    /*
+     * The real router, over the demo's real crew — which is the simulated seat and nothing else. The `ui` line
+     * asks for Codex, so it is moved and the reason on screen is the router's own sentence rather than a caption
+     * we wrote. A demo that faked this would be demonstrating a code path nobody ships.
+     */
+    route: (line) =>
+      routeLine({
+        wanted: line.seat.id,
+        seats: DEMO_CREW,
+        policy: EMPTY_POLICY,
+        headroom: {},
+        now: new Date(),
+      }),
   });
 
   const api = await startApi({
@@ -172,21 +211,7 @@ async function demo(home: FanoutHome, io: Io): Promise<number> {
      * The demo's crew is the simulated seat, said plainly. Reporting the machine's real CLIs here would make the
      * demo look like it was using them, and reporting nothing makes a working demo look broken.
      */
-    crew: () =>
-      Promise.resolve([
-        {
-          id: "fake",
-          displayName: "Simulated agent",
-          binary: "fake",
-          version: "demo",
-          supported: true,
-          signedIn: "yes" as const,
-          models: ["demo"],
-          efforts: [],
-          billing: "unknown" as const,
-          plan: { name: "no account needed", source: "detected" as const },
-        },
-      ]),
+    crew: () => Promise.resolve(DEMO_CREW),
   });
   feed.publish = (event) => {
     api.publish(event);

@@ -94,8 +94,13 @@ export function demoLines(): PlanLine[] {
       id: "ui",
       title: "Export button",
       role: "builder",
+      /*
+       * The one line that asks for a seat this machine does not have. Nothing here fakes the consequence: the
+       * demo's crew really is the simulated seat alone, so the router really does move this line and really does
+       * say why — which is the behaviour worth showing, and the only honest way to show it offline.
+       */
       prompt: "Add the export column and a button that hits the new endpoint.",
-      seat: { id: "fake", model: "demo" },
+      seat: { id: "codex", model: "gpt-5-codex" },
       scope: { write: ["src/ui/**"] },
       dependsOn: [],
       checks: ["npm run check"],
