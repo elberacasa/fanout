@@ -49,6 +49,8 @@ export interface RunView {
   startedAt: string | null;
   /** When the agent's own work stopped. Review, merge and drop happen after this and do not move it. */
   endedAt: string | null;
+  /** The last time this run produced any event at all: its most recent sign of life. */
+  updatedAt: string;
 }
 
 /**
@@ -67,6 +69,18 @@ export function elapsedMs(run: RunView, now: Date): number | null {
   const from = Date.parse(run.startedAt);
   const to = run.endedAt === null ? now.getTime() : Date.parse(run.endedAt);
   return Math.max(0, to - from);
+}
+
+/**
+ * How long a still-running run has said nothing, in milliseconds, or `null` once it has ended — a finished run is
+ * not silent, it is simply over.
+ *
+ * Elapsed time alone cannot tell a thinking agent from a dead one: both counters climb. The gap since the last
+ * event can, which makes this the number worth putting in front of someone deciding whether to wait or to kill.
+ */
+export function silentMs(run: RunView, now: Date): number | null {
+  if (run.endedAt !== null) return null;
+  return Math.max(0, now.getTime() - Date.parse(run.updatedAt));
 }
 
 export interface RouteChange {
@@ -220,6 +234,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
           queuedAt: event.ts,
           startedAt: null,
           endedAt: null,
+          updatedAt: event.ts,
         };
         return {
           ...mission,
@@ -334,7 +349,7 @@ function updateRun(
     if (typeof next === "string") return next;
     return {
       ...mission,
-      runs: { ...mission.runs, [event.runId]: { ...next, updatedSeq: event.seq } },
+      runs: { ...mission.runs, [event.runId]: { ...next, updatedSeq: event.seq, updatedAt: event.ts } },
     };
   });
 }

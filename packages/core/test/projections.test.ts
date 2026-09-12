@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyEvent,
   elapsedMs,
+  silentMs,
   initialState,
   Ledger,
   project,
@@ -411,6 +412,58 @@ describe("run timing", () => {
     expect(run.endedAt).toBeNull();
     expect(elapsedMs(run, new Date("2026-09-12T10:02:11.000Z"))).toBe(120_000);
     expect(elapsedMs(run, new Date("2026-09-12T10:15:11.000Z"))).toBe(900_000);
+  });
+
+  /*
+   * The landing mission's Grok line sat on "reading" for fifteen minutes. Elapsed time alone does not separate a
+   * thinking agent from a dead one — only the gap since its last sign of life does.
+   */
+  it("tells a working run from a silent one by when it last said anything", () => {
+    const talking = [
+      samples["mission.created"],
+      { type: "run.queued", missionId: M, runId: "r1", lineId: "l1", seat: { id: "codex" }, attempt: 1 },
+      { type: "run.started", missionId: M, runId: "r1", workdir: "/tmp/f/r1", argv: ["codex", "exec"] },
+      { type: "run.progress", missionId: M, runId: "r1", phase: "coding" },
+    ] satisfies FanoutEventInput[];
+
+    const state = project(
+      timed(
+        clock(
+          "2026-09-12T10:00:00.000Z",
+          "2026-09-12T10:00:05.000Z",
+          "2026-09-12T10:00:11.000Z",
+          "2026-09-12T10:04:00.000Z",
+        ),
+        talking,
+      ),
+    );
+    const run = state.missions[M]?.runs["r1"];
+    if (run === undefined) throw new Error("no run");
+
+    expect(run.updatedAt).toBe("2026-09-12T10:04:00.000Z");
+    // Four minutes in, and it spoke nine seconds ago: slow, not stuck.
+    expect(elapsedMs(run, new Date("2026-09-12T10:04:09.000Z"))).toBe(238_000);
+    expect(silentMs(run, new Date("2026-09-12T10:04:09.000Z"))).toBe(9_000);
+    // Six minutes later it has said nothing at all, and that is the number worth showing.
+    expect(silentMs(run, new Date("2026-09-12T10:10:00.000Z"))).toBe(360_000);
+  });
+
+  it("reports no silence for a run that has already ended", () => {
+    const state = project(
+      timed(
+        clock(
+          "2026-09-12T10:00:00.000Z",
+          "2026-09-12T10:00:05.000Z",
+          "2026-09-12T10:00:11.000Z",
+          "2026-09-12T10:06:49.000Z",
+        ),
+        upTo(4),
+      ),
+    );
+    const run = state.missions[M]?.runs["r1"];
+    if (run === undefined) throw new Error("no run");
+
+    expect(silentMs(run, new Date("2026-09-12T18:00:00.000Z"))).toBeNull();
   });
 
   it("says nothing rather than zero for a run that has not started", () => {
