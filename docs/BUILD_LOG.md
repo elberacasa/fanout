@@ -17,6 +17,34 @@ Next: <the next step>
 
 ---
 
+### 2026-09-11 · P0 milestone 6, The Claude Code plugin · session 1 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: none (the tool surface and what it refuses to do stay with the lead)
+
+Built:
+- **The mission runner**: a plan becomes runs in dependency order, each in its own worktree, never more at once than
+  allowed, with a failed dependency dropping its dependents by reason rather than hope.
+- **The MCP server**: seven tools and no more. `launch` refuses a plan the gate blocks unless the user's own words
+  are passed as an override, which is recorded with the mission. There is no merge tool at all, and a test asserts
+  its absence: the surface is a promise, not a convenience.
+- **The plugin**: `/fanout`, `/fanout:crew`, `/fanout:watch`, the lead's skill, and hooks. `claude plugin validate`
+  passes.
+- **`fanout mcp`**: MCP on stdio plus the daemon in one process, so one process owns the ledger and the live feed
+  has something to serve. Everything it prints goes to stderr, because stdout belongs to the protocol.
+
+Verified beyond the tests: JSON-RPC spoken to the real `fanout mcp` over a pipe — it initialises, lists its seven
+tools, writes `~/.fanout/daemon.json` (mode 600) and reports the feed URL on stderr.
+
+The commit hook rejected the MCP server's own commit because `mcp` was not a known scope. That is the hook working:
+an unknown scope is more likely a typo than a new package. The standard was widened deliberately, in its own commit.
+
+Verified by the lead: typecheck ok · lint ok · **371 tests pass** (24 files) · plugin validated · MCP spoken over a
+real pipe · CI green on macOS and Linux, Node 22 and 24.
+Could not verify: the plugin inside a live Claude Code session (the owner installs it; the package is not published,
+so `fanout` must be linked onto PATH first).
+Next: milestone 7, the merge gate — review, the project's checks, proof that a fix fails on the old code, and the
+user's approval before `git apply -3`.
+
 ### 2026-09-11 · P0 milestone 5, Daemon API + CLI · session 1 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: none (the API's security model and the CLI's voice stay with the lead)

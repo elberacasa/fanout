@@ -2,8 +2,9 @@
 
 ## Resume here (2026-09-11, end of session 1)
 
-- **Where we are:** P0 milestones 1–5 are **done**. `npm run check` is green: **354 tests** (22 files), and CI is
-  green on macOS and Linux, Node 22 and 24.
+- **Where we are:** P0 milestones 1–6 are **done**. `npm run check` is green: **371 tests** (24 files), and CI is
+  green on macOS and Linux, Node 22 and 24. Fanout can be used from inside Claude Code: `/fanout <goal>` plans a
+  mission, runs it across the installed CLIs in isolated worktrees, and brings the diffs back for review.
   - `packages/core`: schemas (events, plan, scope, manifest), plan validation, the append-only ledger, projections,
     the `SeatAdapter` contract.
   - `packages/daemon`: supervisor, environment allowlist, run glue, workspaces, safety gate, detector, and the
@@ -16,16 +17,16 @@
 - **Open for contributors:** Kimi ([#4](https://github.com/elberacasa/fanout/issues/4)) and Cursor
   ([#5](https://github.com/elberacasa/fanout/issues/5)), each with the CLI's flags already verified and a
   seven-step walkthrough in `docs/ADAPTERS.md`.
-- **Next:** milestone 6, the Claude Code plugin. This is the milestone that makes the product *itself* usable.
-  1. Lead first: an MCP server (`fanout mcp`, stdio) exposing the lead's tools — `seats`, `repo_overview`,
-     `propose_plan` (returns the safety report), `launch`, `run_status`, `run_diff`, `review`, `merge`, `drop`.
-     It talks to the daemon over the localhost API, starting one if none is running.
-  2. The plugin around it: the skill (the lead's judgment, trimmed from `codex-fanout`), `/fanout` commands, hooks
-     (SessionStart crew summary, PreToolUse guard against committing unreviewed agent work, Stop warning about open
-     runs), and a status line.
-  3. The Monitor feed: `ws://127.0.0.1:<port>/events?for=lead` already exists and is what the lead subscribes to.
-  4. Good fan-out for teammates once the tool shapes are committed: the status line script, the hook scripts, and an
-     adversarial audit of the API's security model (read-only).
+- **Next:** milestone 7, the merge gate. This is the promise the whole product rests on.
+  1. Lead first: `review` (a verdict with notes, recorded), `checks` (run the project's own commands against the
+     applied diff), `proof` (a bug fix's new test must fail on the old code), then `merge` — `git apply -3` plus new
+     files, conflicts reported and never forced — and `drop`. Rework sends the notes back to the same worktree,
+     twice at most.
+  2. The settled contract gaps for this milestone are in `docs/ARCHITECTURE.md`: an approval event so a replay shows
+     who authorised a change, and the revision each check and proof ran against.
+  3. Then the MCP tools for them, and the plugin's review flow.
+  4. Good fan-out for teammates once the shapes are committed: the checks runner, and an adversarial audit of the
+     gate (read-only) — it is the most dangerous code in the project.
 - **Crew method:** strongest model (gpt-6-astra, high) for foundation code and audits; budget models only for
   low-risk, easily redone work. Record each agent's model in the build log.
 - **Owner's machine (verified 2026-09-11):** macOS 26.5 arm64, Node 25.6, pnpm 10.28. Claude Code 2.1.269 (signed

@@ -66,15 +66,19 @@ Nothing is published yet, so this is the contributor path:
 git clone https://github.com/elberacasa/fanout.git && cd fanout
 corepack enable && pnpm install
 git config core.hooksPath .githooks
-npm run check      # typecheck + lint + 354 tests
+npm run check      # typecheck + lint + 371 tests
 ```
 
-Two things already work from source:
+Then try it inside Claude Code:
 
 ```sh
-node packages/cli/src/cli.ts status   # your crew: each CLI, its version, whether it is signed in
-node packages/cli/src/cli.ts daemon   # the daemon the lead and the mission view talk to
+pnpm --filter @fanout/cli link --global   # puts `fanout` on your PATH
+fanout status                             # your crew: each CLI, its version, whether it is signed in
+claude --plugin-dir "$PWD/plugin"         # /fanout, /fanout:crew, /fanout:watch
 ```
+
+Inside that session, `/fanout add CSV export and fix the flaky date test` plans a mission, checks it against the
+safety gate, runs each line in its own worktree, and brings the diffs back for review. Nothing merges without you.
 
 Requires **Node 22.18+** (the ledger uses Node's built-in SQLite; TypeScript runs without a build step).
 
@@ -97,7 +101,7 @@ fanout demo        # P0 · 10
 
 ## Status
 
-P0 · **Claude leads, the crew builds** — 354 tests, green on macOS and Linux, Node 22 and 24.
+P0 · **Claude leads, the crew builds** — 371 tests, green on macOS and Linux, Node 22 and 24.
 
 | Milestone | State |
 |---|---|
@@ -106,8 +110,8 @@ P0 · **Claude leads, the crew builds** — 354 tests, green on macOS and Linux,
 | 3 · Workspace + safety report | ✅ done |
 | 4 · Real seats — Codex, Grok, Claude (opt-in) built from recorded runs; Kimi waiting on its own quota | ✅ done |
 | 5 · Daemon API + CLI | ✅ done |
-| 6 · The Claude Code plugin | 🔨 next |
-| 7 · Merge gate | ⬜ |
+| 6 · The Claude Code plugin | ✅ done |
+| 7 · Merge gate | 🔨 next |
 | 8 · Mission view | ⬜ |
 | 9 · Routing when a seat hits its limit | ⬜ |
 | 10 · Offline demo, video, README refresh | ⬜ |

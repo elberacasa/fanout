@@ -8,6 +8,28 @@ between minor versions.
 
 Nothing yet.
 
+## [0.6.0] — 2026-09-11
+
+Fanout becomes usable from inside Claude Code.
+
+### Added
+
+- **The Claude Code plugin** (`plugin/`): `/fanout <goal>` plans and launches a mission, `/fanout:crew` shows the
+  seats, `/fanout:watch` subscribes to the live feed. A skill carries the lead's judgment — when a fan-out is worth
+  it, how to write a prompt an agent can follow, how to review what comes back — and hooks put the crew in front of
+  you at the start of a session. Passes `claude plugin validate`.
+- **MCP server** (`@fanout/mcp`): seven tools and no more — `seats`, `repo_overview`, `plan_check`, `launch`,
+  `mission_status`, `run_diff`, `cancel_mission`. `launch` refuses a plan whose safety report has a blocking
+  failure unless the user's own reason is passed as an override, and that override is recorded. Nothing merges
+  here: `run_diff` reads the workspace itself and hands you the decision.
+- **Mission runner** (`@fanout/daemon`): a plan becomes runs — each in its own worktree, in dependency order, never
+  more at once than allowed. A line whose dependency failed is dropped with the reason rather than started
+  hopefully, and `run.finished` carries the diff read from the workspace rather than the agent's account of it.
+- **`fanout mcp`** (`@fanout/cli`): speaks MCP on stdin and stdout for Claude Code while running the daemon in the
+  same process, so one process owns the ledger and the live feed has something to serve.
+- **The ledger tells a listener** (`@fanout/core`) when an event is recorded, after it commits, so the live feed
+  never shows something that could still be rolled back.
+
 ## [0.5.0] — 2026-09-11
 
 The daemon and the command line: the first parts you can actually run.
