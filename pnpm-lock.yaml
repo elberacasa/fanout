@@ -74,6 +74,9 @@ importers:
       '@fanout/adapter-codex':
         specifier: workspace:*
         version: link:../adapters/codex
+      '@fanout/adapter-fake':
+        specifier: workspace:*
+        version: link:../adapters/fake
       '@fanout/adapter-grok':
         specifier: workspace:*
         version: link:../adapters/grok
