@@ -1,4 +1,4 @@
-import { AdapterManifest, type SeatInfo } from "@fanout/core";
+import { AdapterManifest, SeatInfo } from "@fanout/core";
 import { describe, expect, it, vi } from "vitest";
 import { detectSeats, type CommandResult } from "../src/detector/detect.ts";
 import { compareVersions, parseVersion, satisfies } from "../src/detector/version.ts";
@@ -347,3 +347,98 @@ describe("classifying sign-in without fooling itself", () => {
     expect(seat?.signedIn).toBe("no");
   });
 });
+
+/*
+ * Also from the audit: detection is the first thing a session does, so it must always finish. A CLI that hangs is
+ * not hypothetical — one of the seats on this machine has no status command at all, and a probe that waits on EOF
+ * waits forever.
+ */
+describe("detection always settles", () => {
+  it("gives up on a probe that never answers, and says unknown", async () => {
+    const seats = await detectSeats({
+      manifests: [manifest],
+      timeoutMs: 30,
+      execute: (_binary, args) =>
+        args[0] === "--version" ? Promise.resolve(ok("codex-cli 0.154.0")) : never(),
+    });
+
+    expect(seats).toHaveLength(1);
+    expect(seats[0]).toMatchObject({ version: "0.154.0", supported: true, signedIn: "unknown" });
+  });
+
+  it("gives up on a version probe that never answers", async () => {
+    const seats = await detectSeats({
+      manifests: [manifest],
+      timeoutMs: 30,
+      execute: () => never(),
+    });
+    expect(seats[0]).toMatchObject({ version: null, supported: false, signedIn: "unknown" });
+  });
+
+  it("does not let one hanging seat hide the seats that answered", async () => {
+    const kimi = AdapterManifest.parse({ ...manifest, id: "kimi", binary: "kimi" });
+    const seats = await detectSeats({
+      manifests: [manifest, kimi],
+      timeoutMs: 30,
+      execute: (binary, args) =>
+        binary === "kimi"
+          ? never()
+          : Promise.resolve(args[0] === "--version" ? ok("codex-cli 0.154.0") : ok("Logged in")),
+    });
+
+    expect(seats.map((seat) => seat.id)).toEqual(["codex", "kimi"]);
+    expect(seats[0]?.signedIn).toBe("yes");
+    expect(seats[1]?.signedIn).toBe("unknown");
+  });
+});
+
+/* Two smaller honesty holes the audit found in the plan probe. */
+describe("refusing a plan we should not believe", () => {
+  const withPlan = AdapterManifest.parse({
+    ...manifest,
+    id: "claude",
+    binary: "claude",
+    supportedVersions: ">=2.0 <3",
+    capabilities: {
+      resume: null,
+      fork: null,
+      review: null,
+      plan: {
+        probe: ["auth", "status", "--json"],
+        format: "json",
+        keep: ["loggedIn", "subscriptionType"],
+        planField: "subscriptionType",
+      },
+    },
+  });
+
+  const detectPlan = (stdout: string) =>
+    detectSeats({
+      manifests: [withPlan],
+      execute: (_binary, args) => Promise.resolve(args[0] === "--version" ? ok("2.1.269") : ok(stdout)),
+    });
+
+  it("does not report a plan for an account that is signed out", async () => {
+    // The allowlist keeps `loggedIn` precisely so we can ask this; ignoring it would let a stale tier be
+    // presented as the current account's.
+    const [seat] = await detectPlan(JSON.stringify({ loggedIn: false, subscriptionType: "max" }));
+    expect(seat?.plan).toBeNull();
+  });
+
+  it("refuses a plan name too long for the seat schema to carry", async () => {
+    const [seat] = await detectPlan(JSON.stringify({ loggedIn: true, subscriptionType: "x".repeat(101) }));
+    expect(seat?.plan).toBeNull();
+  });
+
+  it("returns a seat that its own schema accepts, whatever the CLI said", async () => {
+    const [seat] = await detectPlan(JSON.stringify({ loggedIn: true, subscriptionType: "x".repeat(101) }));
+    expect(SeatInfo.safeParse(seat).success).toBe(true);
+  });
+});
+
+/** A probe that never answers. Named, because `new Promise(() => {})` reads like a mistake at every call site. */
+function never(): Promise<CommandResult> {
+  return new Promise<CommandResult>(() => {
+    /* deliberately never settles */
+  });
+}

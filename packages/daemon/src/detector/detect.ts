@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { AdapterManifest, SeatInfo } from "@fanout/core";
+import { SeatInfo, type AdapterManifest } from "@fanout/core";
 import { baseEnv } from "../env.ts";
 import { parseVersion, satisfies } from "./version.ts";
 
@@ -29,9 +29,64 @@ export interface DetectOptions {
 }
 
 export async function detectSeats(options: DetectOptions): Promise<SeatInfo[]> {
-  const execute = options.execute ?? defaultExecute(options.timeoutMs ?? 10_000);
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  const execute = options.execute ?? defaultExecute(timeoutMs);
+  // Every probe gets its own deadline, and so does the seat as a whole: a CLI can hang between probes as easily
+  // as during one, and `execFile`'s own timeout does not exist at all when a caller injects an executor.
+  const bounded = (binary: string, args: readonly string[]): Promise<CommandResult> =>
+    within(execute(binary, args), timeoutMs, null).then((result) => result ?? NO_ANSWER);
 
-  return Promise.all(options.manifests.map((manifest) => detectSeat(manifest, execute)));
+  return Promise.all(
+    options.manifests.map(async (manifest) =>
+      // Detection is the first thing a session does, so it must always finish. One CLI that never answers must
+      // not hide the seats that did: an unfinished probe becomes "unknown" for that seat and nothing more.
+      within(detectSeat(manifest, bounded), timeoutMs * 3, unknownSeat(manifest)),
+    ),
+  );
+}
+
+/** What a probe that never answered "said". Not an error: we simply do not know, which is a valid answer here. */
+const NO_ANSWER: CommandResult = { stdout: "", stderr: "", exitCode: -1 };
+
+/**
+ * Resolves with `whenLate` if `work` has not settled in time.
+ *
+ * A promise cannot be cancelled, so this stops *waiting*; it does not stop the work. That is the honest
+ * description and also the safe one: for the real executor the child already carries its own kill timeout, and
+ * for an injected one there is nothing to kill. The timer is unref'd so a straggler cannot hold the process open.
+ */
+function within<T>(work: Promise<T>, ms: number, whenLate: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => {
+      resolve(whenLate);
+    }, ms);
+    timer.unref();
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(whenLate);
+      },
+    );
+  });
+}
+
+function unknownSeat(manifest: AdapterManifest): SeatInfo {
+  return {
+    id: manifest.id,
+    displayName: manifest.displayName,
+    binary: manifest.binary,
+    models: manifest.models,
+    efforts: manifest.efforts,
+    billing: manifest.billing,
+    version: null,
+    supported: false,
+    signedIn: "unknown",
+    plan: null,
+  };
 }
 
 async function detectSeat(
@@ -96,12 +151,18 @@ async function planState(
   const parsed = parseJsonObject(result.stdout);
   if (parsed === null) return null;
 
-  const name = keepAllowed(parsed, plan.keep)[plan.planField];
-  // A CLI that answers in a shape we did not expect has told us nothing, and a guess here would be recorded as a
-  // fact and routed on.
-  if (typeof name !== "string" || name === "") return null;
+  const kept = keepAllowed(parsed, plan.keep);
 
-  return { name, source: "detected" };
+  // A tier belongs to an account, so a signed-out answer carries no current plan — only, at best, the last one
+  // this machine happened to see. `loggedIn` is on the allowlist precisely so this question can be asked.
+  if (Object.hasOwn(kept, "loggedIn") && kept["loggedIn"] !== true) return null;
+
+  const name = kept[plan.planField];
+  // A CLI that answers in a shape we did not expect has told us nothing, and a guess here would be recorded as a
+  // fact and routed on. The schema has the final say, so detection cannot return a seat it could not itself store.
+  const candidate = typeof name === "string" ? { name, source: "detected" as const } : null;
+  const checked = SeatInfo.shape.plan.safeParse(candidate);
+  return checked.success ? checked.data : null;
 }
 
 function parseJsonObject(text: string): Record<string, unknown> | null {
