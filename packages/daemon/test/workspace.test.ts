@@ -111,6 +111,57 @@ describe("workspace for an editing run", () => {
     expect(diff.patch).toContain("src/api/csv.ts");
   });
 
+  /*
+   * Found by watching `fanout demo`: a run that wrote a whole new file reported "+0 −0", which reads as a run
+   * that did nothing. New files were counted towards the file total and their lines were never counted at all.
+   */
+  it("counts the lines in a new file, not just the file", async () => {
+    const line = plan("builder", ["src/api/**"]);
+    const workspace = await workspaces.create({ missionId: MISSION, runId: "api-1", baseCommit, line });
+
+    write("src/api/brand-new.ts", "one\ntwo\nthree\n", workspace.path);
+
+    const diff = await workspaces.collect(workspace, line);
+    expect(diff.stat.files).toBe(1);
+    expect(diff.stat.insertions).toBe(3);
+    expect(diff.stat.deletions).toBe(0);
+  });
+
+  it("counts a new file with no trailing newline as the line it is", async () => {
+    const line = plan("builder", ["src/api/**"]);
+    const workspace = await workspaces.create({ missionId: MISSION, runId: "api-1", baseCommit, line });
+
+    write("src/api/one-liner.ts", "no newline at the end", workspace.path);
+
+    expect((await workspaces.collect(workspace, line)).stat.insertions).toBe(1);
+  });
+
+  it("adds a new file's lines to the ones the tracked changes already had", async () => {
+    const line = plan("builder", ["src/api/**"]);
+    const workspace = await workspaces.create({ missionId: MISSION, runId: "api-1", baseCommit, line });
+
+    write("src/api/csv.ts", "export const csv = 2;\nexport const extra = 1;\n", workspace.path);
+    write("src/api/writer.ts", "a\nb\n", workspace.path);
+
+    const diff = await workspaces.collect(workspace, line);
+    expect(diff.stat.insertions).toBeGreaterThanOrEqual(3);
+  });
+
+  it("does not invent a line count for a binary file", async () => {
+    const line = plan("builder", ["src/api/**"]);
+    const workspace = await workspaces.create({ missionId: MISSION, runId: "api-1", baseCommit, line });
+
+    // Git reports "-" rather than a number for binary; counting its bytes as lines would be a made-up figure.
+    writeFileSync(
+      join(workspace.path, "src", "api", "logo.png"),
+      Buffer.from([0x89, 0x50, 0x00, 0x1a, 0x0a]),
+    );
+
+    const diff = await workspaces.collect(workspace, line);
+    expect(diff.stat.files).toBe(1);
+    expect(diff.stat.insertions).toBe(0);
+  });
+
   it("collects a patch that applies back to the repository", async () => {
     const line = plan("builder", ["src/**"]);
     const workspace = await workspaces.create({ missionId: MISSION, runId: "api-1", baseCommit, line });

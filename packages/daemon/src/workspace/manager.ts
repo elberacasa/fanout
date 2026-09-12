@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -96,12 +97,45 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): Worksp
       .filter((file) => !line.scope.write.some((pattern) => pathInScope(file, pattern)))
       .sort();
 
+    /*
+     * A new file has no tracked diff, so `git diff` says nothing about it at all. Counting it towards the file
+     * total while leaving its lines at zero is how a run that wrote a whole file came to report "+0 −0" — which
+     * reads as a run that did nothing, in the one number a person glances at.
+     */
+    const added = newFiles.reduce((total, file) => total + linesIn(join(workspace.path, file)), 0);
+
     return {
-      stat: { ...stat, files: stat.files + newFiles.length },
+      stat: {
+        files: stat.files + newFiles.length,
+        insertions: stat.insertions + added,
+        deletions: stat.deletions,
+      },
       patch,
       newFiles,
       outsideScope,
     };
+  };
+
+  /**
+   * How many lines a new file adds.
+   *
+   * Read rather than asked of git, because asking would mean a subprocess per file or writing to the index of a
+   * worktree we are only inspecting. Binary files count as nothing: git itself reports `-` instead of a number
+   * for them, and turning bytes into a line count would be inventing a figure to put in front of someone.
+   */
+  const linesIn = (path: string): number => {
+    let contents: Buffer;
+    try {
+      contents = readFileSync(path);
+    } catch {
+      // Listed a moment ago and gone now: report nothing rather than guess at what it held.
+      return 0;
+    }
+    if (contents.includes(0)) return 0;
+    if (contents.length === 0) return 0;
+    const newlines = contents.filter((byte) => byte === 0x0a).length;
+    // A file that does not end in a newline still ends in a line.
+    return contents.at(-1) === 0x0a ? newlines : newlines + 1;
   };
 
   const remove = async (workspace: Workspace): Promise<void> => {
