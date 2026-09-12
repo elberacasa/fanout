@@ -44,7 +44,7 @@ export async function runSeat(options: RunSeatOptions): Promise<SeatAnswer> {
     ...(options.model === undefined ? {} : { "{model}": options.model }),
   });
 
-  const execute = options.execute ?? defaultExecute;
+  const execute = options.execute ?? runCliOnce;
   let stdout: string;
   try {
     const result = await execute(manifest.binary, args, {
@@ -124,7 +124,7 @@ function firstLines(text: string, count = 5): string {
  * no input at all. It cost an hour of a run that looked busy and was blocked, in code whose own manifest says the
  * rule out loud, which is the argument for honouring declarations rather than remembering them.
  */
-const defaultExecute: SeatExecute = async (binary, args, options) => {
+export const runCliOnce: SeatExecute = async (binary, args, options) => {
   const { execFile } = await import("node:child_process");
 
   // Resolved either way; the caller turns a failure into an answer of "we could not ask", never into a verdict.

@@ -1,6 +1,6 @@
 import type { AdapterManifest, FanoutEventInput, SeatRef } from "@fanout/core";
-import { baseEnv } from "../env.ts";
 import { isolateWork } from "./isolate.ts";
+import { runCliOnce } from "./run-seat.ts";
 import { workSnapshot, type WorkSnapshot } from "./revision.ts";
 
 /*
@@ -104,7 +104,7 @@ export async function buddyReview(options: BuddyOptions): Promise<BuddyResult> {
     ...(options.model === undefined ? {} : { "{model}": options.model }),
   });
 
-  const execute = options.execute ?? defaultExecute;
+  const execute = options.execute ?? runCliOnce;
   let stdout: string;
   try {
     const result = await execute(manifest.binary, args, {
@@ -212,30 +212,4 @@ function firstLines(text: string, count = 5): string {
 
 function describe(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
-}
-
-async function defaultExecute(
-  binary: string,
-  args: readonly string[],
-  options: { cwd: string; timeoutMs: number },
-): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const { execFile } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const run = promisify(execFile);
-  try {
-    const { stdout, stderr } = await run(binary, [...args], {
-      cwd: options.cwd,
-      timeout: options.timeoutMs,
-      env: baseEnv(),
-      maxBuffer: 64 * 1024 * 1024,
-      windowsHide: true,
-    });
-    return { stdout, stderr, exitCode: 0 };
-  } catch (cause) {
-    const detail = cause as { stdout?: string; stderr?: string; code?: number };
-    if (typeof detail.code === "number") {
-      return { stdout: detail.stdout ?? "", stderr: detail.stderr ?? "", exitCode: detail.code };
-    }
-    throw cause;
-  }
 }
