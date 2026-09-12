@@ -5,8 +5,37 @@
   "supportedVersions": ">=2.0 <3",
   "tier": "supported",
   "capabilities": {
-    "resume": null,
-    "fork": null,
+    "resume": {
+      "args": [
+        "-p",
+        "{prompt}",
+        "--resume",
+        "{session}",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--permission-mode",
+        "{sandbox}",
+        "--permission-prompts",
+        "none"
+      ]
+    },
+    "fork": {
+      "args": [
+        "-p",
+        "{prompt}",
+        "--resume",
+        "{session}",
+        "--fork-session",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--permission-mode",
+        "{sandbox}",
+        "--permission-prompts",
+        "none"
+      ]
+    },
     "review": null,
     "plan": {
       "probe": ["auth", "status", "--json"],

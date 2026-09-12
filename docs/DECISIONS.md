@@ -180,3 +180,21 @@ either, and Grok's fixtures keep a third and fourth implementation honest at no 
 the lead, so a Claude *worker* spends the same subscription window the lead is running in: Claude-as-worker stays
 opt-in, and the safety report says whose quota a line will draw from. Lead-versus-worker contention becomes the
 interesting case for milestone 9 rather than a smaller one.
+
+## 0018 · Assign a run's session id; never fish for it (2026-09-12)
+
+**Choice:** where a CLI lets us set the session identifier for a non-interactive run, Fanout generates the id and
+passes it in, rather than parsing whichever line the CLI happens to announce it on. Verified on Claude Code:
+`claude -p … --session-id <uuid>` is honoured, and every line of the resulting stream carries it. Resuming with
+`--resume <id>` genuinely continues that conversation — a follow-up saying "the file you just created" resolved
+correctly — and `--resume <id> --fork-session` inherits the context under a new id.
+
+**Why:** rework is the merge gate's most valuable move, and it depends on being able to reach the session that wrote
+a diff. Parsing the id out of a stream makes that ability contingent on the run behaving: Grok reports its session
+only in its final line, so a run killed at a timeout — precisely the run most likely to need rework — leaves us with
+no way back into it. An id we chose before launch is known even if the process dies in its first second.
+
+**Consequences:** `{session}` becomes a launch-time placeholder, not only a resume-time one, for seats that support
+assignment. Seats that do not (Codex today, as far as `--help` shows) keep the parsed `session` adapter signal, so
+both paths must survive; the manifest says which applies rather than the daemon assuming. The id must be a fresh
+UUID per run and must never be derived from anything about the repository or the user.
