@@ -215,8 +215,21 @@ export class Ledger {
     return Number(row?.["seq"] ?? 0);
   }
 
+  /**
+   * Whether this ledger can still be written to.
+   *
+   * A daemon shutting down closes the ledger while runs may still be in flight, and a process that exits a moment
+   * later tries to record how it ended. That is expected, not exceptional, and a caller needs to be able to tell
+   * it apart from a ledger that has actually broken — one means "we are going away", the other means "stop the
+   * run, we can no longer record what it is doing".
+   */
+  get isOpen(): boolean {
+    return this.#db.isOpen;
+  }
+
+  /** Idempotent: closing twice is what happens when shutdown and a test's cleanup both do the right thing. */
   close(): void {
-    this.#db.close();
+    if (this.#db.isOpen) this.#db.close();
   }
 }
 

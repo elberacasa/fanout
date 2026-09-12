@@ -168,6 +168,36 @@ describe("startRun", () => {
     });
   });
 
+  /*
+   * A daemon shutting down closes the ledger while runs may still be alive, and each one then tries to record how
+   * it ended. Until CI caught it on macOS — two errors printed beside 695 passing tests, which is the shape of a
+   * bug a green suite hides — that append was the one event in a run with no handling at all, and it threw out of
+   * a promise nobody was holding.
+   */
+  it("does not throw when the ledger closes between the agent exiting and the finish being recorded", async () => {
+    const run = startRun({
+      ledger,
+      adapter: scripted(["report: done"]),
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+      /*
+       * Awaited immediately before the finish is recorded, which makes it the exact moment the race happens and
+       * the only way to reproduce it without depending on how fast a machine is. The CI failure that prompted
+       * this test appeared on macOS and never once locally.
+       */
+      collectDiff: () => {
+        ledger.close();
+        return Promise.resolve(undefined);
+      },
+    });
+
+    // The run still resolves with what actually happened. Only the recording of it is lost, which is what a
+    // shutdown means — and an unfinished run is a state the projection and `fanout owed` already show honestly.
+    const exit = await run.finished;
+    expect(exit.status).toBe("done");
+  });
+
   it("refuses events an adapter must not emit, and says so", async () => {
     const signals: AdapterSignal[] = [];
     const foreign = JSON.stringify({

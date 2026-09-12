@@ -130,6 +130,9 @@ export function startRun(options: StartRunOptions): ActiveRun {
     }
   };
 
+  /** What went wrong with the ledger, if anything. A function so a caller's narrowing cannot go stale. */
+  const ledgerBroke = (): Error | undefined => ledgerFailure;
+
   const belongsToRun = (event: FanoutEventInput): boolean =>
     ADAPTER_EVENT_TYPES.has(event.type) &&
     "runId" in event &&
@@ -163,14 +166,33 @@ export function startRun(options: StartRunOptions): ActiveRun {
   const finished = handle.done.then(async (exit) => {
     if (ledgerFailure !== undefined) throw ledgerFailure;
     const diffStat = await options.collectDiff?.().catch(() => undefined);
-    ledger.append({
-      type: "run.finished",
-      ...ids,
-      status: exit.status,
-      exitCode: exit.exitCode,
-      ...(existsSync(context.reportPath) ? { reportPath: context.reportPath } : {}),
-      ...(diffStat === undefined ? {} : { diffStat }),
-    });
+    /*
+     * The last event, and the only one recorded after the run is already over. That distinction is the whole
+     * reason it is handled separately from `record`: a ledger that closes while a run is *working* must stop it —
+     * work nobody can record is a subscription being spent into the void — but a ledger that closes between the
+     * agent exiting and this line has nothing left to stop. The daemon is shutting down and the run is finished.
+     *
+     * This used to be a bare `ledger.append`, which made the single most important event a run produces the only
+     * one with no handling at all. It threw out of this promise with nobody holding it. CI found it on macOS as
+     * two errors printed beside 695 passing tests — the shape of a bug a green suite hides.
+     */
+    if (ledger.isOpen) {
+      record({
+        type: "run.finished",
+        ...ids,
+        status: exit.status,
+        exitCode: exit.exitCode,
+        ...(existsSync(context.reportPath) ? { reportPath: context.reportPath } : {}),
+        ...(diffStat === undefined ? {} : { diffStat }),
+      });
+      /*
+       * Read through a call rather than the variable: `record` assigns it from inside a closure, and narrowing
+       * from the check at the top of this promise would otherwise make the line below dead code to the compiler
+       * and live code at runtime — which lint caught, correctly.
+       */
+      const broke = ledgerBroke();
+      if (broke !== undefined) throw broke;
+    }
     return exit;
   });
 
