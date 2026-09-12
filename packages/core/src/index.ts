@@ -3,6 +3,7 @@ export * from "./schema/scope.ts";
 export * from "./schema/plan.ts";
 export * from "./schema/events.ts";
 export * from "./schema/manifest.ts";
+export * from "./schema/policy.ts";
 export * from "./ledger/ledger.ts";
 export * from "./projections/state.ts";
 export * from "./format/run.ts";
