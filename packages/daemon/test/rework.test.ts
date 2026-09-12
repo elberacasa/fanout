@@ -72,6 +72,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
     status: "done",
     phase: "reporting",
     sessionId: "01a0-thread",
+    workdir: null,
     lastTool: null,
     files: [],
     diffStat: null,

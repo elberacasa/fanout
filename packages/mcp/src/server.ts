@@ -392,8 +392,13 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
     const mission = state.missions[missionId];
     const run = mission?.runs[runId];
     const line = mission?.plan?.lines.find((entry) => entry.id === run?.lineId);
-    const path = join(options.paths.workspaces, missionId, runId);
+    /*
+     * Where the run said it worked, falling back to the convention only for a run that never started. A reworked
+     * run continues in the worktree of the attempt before it, so deriving the path from the run id finds nothing
+     * for exactly the runs that most need finding.
+     */
     if (mission === undefined || run === undefined || line === undefined) return null;
+    const path = run.workdir ?? join(options.paths.workspaces, missionId, runId);
     return {
       run,
       line,

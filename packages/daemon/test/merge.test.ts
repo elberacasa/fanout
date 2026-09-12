@@ -42,6 +42,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
     status: "done",
     phase: "reporting",
     sessionId: null,
+    workdir: null,
     lastTool: null,
     files: [],
     diffStat: null,

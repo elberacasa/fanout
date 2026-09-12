@@ -42,6 +42,7 @@ function run(runId: string, lineId: string, overrides: Partial<RunView> = {}): R
     status: "done",
     phase: "reporting",
     sessionId: null,
+    workdir: null,
     lastTool: null,
     files: [],
     diffStat: null,

@@ -30,6 +30,14 @@ export interface RunView {
   phase: RunPhase | null;
   /** The agent's own name for this conversation, once it is known. Rework resumes it rather than starting over. */
   sessionId: string | null;
+  /**
+   * Where the run actually worked, as it reported when it started.
+   *
+   * Kept rather than derived from the run id, because a reworked run continues in the worktree of the attempt
+   * before it — so the convention `workspaces/<mission>/<runId>` is wrong for exactly the runs that most need
+   * finding. A recorded fact beats a naming rule the moment anything reuses anything.
+   */
+  workdir: string | null;
   lastTool: { tool: string; summary: string | null } | null;
   /** Files the run touched, sorted, without duplicates. */
   files: string[];
@@ -293,6 +301,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
           status: "queued",
           phase: null,
           sessionId: null,
+          workdir: null,
           lastTool: null,
           files: [],
           diffStat: null,
@@ -329,6 +338,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
         status: "running",
         startedSeq: event.seq,
         startedAt: event.ts,
+        workdir: event.workdir,
       }));
 
     case "run.session":
