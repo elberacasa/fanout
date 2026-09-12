@@ -251,6 +251,49 @@
         background: color-mix(in oklab, var(--bad) 7%, transparent);
       }
 
+      /*
+       * What is waiting on a person. It sits above the runs because it is the only thing on this page that asks
+       * something of whoever is reading it.
+       */
+      .waiting {
+        display: grid;
+        grid-template-columns: 16px minmax(120px, auto) 1fr;
+        gap: 4px 12px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line-soft);
+        align-items: baseline;
+      }
+      .waiting:last-child {
+        border-bottom: 0;
+      }
+      .waiting .mark {
+        font-weight: 600;
+      }
+      .waiting.ready .mark {
+        color: var(--ok);
+      }
+      .waiting.blocked .mark {
+        color: var(--warn);
+      }
+      .waiting .who {
+        font-family: var(--mono);
+      }
+      .waiting .what {
+        color: var(--fg-dim);
+      }
+      .waiting .blockers {
+        grid-column: 2 / -1;
+        color: var(--fg-dim);
+        font-size: 12px;
+      }
+      .waiting .blockers li {
+        margin: 2px 0 0;
+      }
+      .waiting ul {
+        margin: 0;
+        padding-left: 16px;
+      }
+
       .crew {
         display: flex;
         flex-wrap: wrap;
@@ -432,6 +475,46 @@
         return wrap;
       }
 
+      /*
+       * The blockers are the daemon's words, not ours. `mergeReadiness` is the gate's judgement and there is one
+       * of it; a page that worked out its own answer would eventually tell someone a run was ready while the
+       * merge tool refused it.
+       */
+      function waitingSection(waiting) {
+        const section = el("section");
+        const head = el("h2");
+        head.append(document.createTextNode("Waiting on you"));
+        const ready = waiting.filter((item) => item.ready).length;
+        if (waiting.length > 0) {
+          head.append(el("span", "note", ready > 0 ? `${ready} ready to merge` : "none ready yet"));
+        }
+        section.append(head);
+
+        if (waiting.length === 0) {
+          section.append(
+            el("div", "empty", "Nothing finished is waiting. Runs appear here when an agent stops."),
+          );
+          return section;
+        }
+
+        // Ready first: they are the ones a person can act on in a second.
+        for (const item of [...waiting].sort((a, b) => Number(b.ready) - Number(a.ready))) {
+          const row = el("div", `waiting ${item.ready ? "ready" : "blocked"}`);
+          row.append(el("span", "mark", item.ready ? "✓" : "…"));
+          row.append(el("span", "who", item.runId));
+          row.append(el("span", "what", item.ready ? "ready to merge" : `${item.seat} · needs work`));
+          if (!item.ready) {
+            const list = el("ul");
+            for (const blocker of item.blockers) list.append(el("li", null, blocker));
+            const wrap = el("div", "blockers");
+            wrap.append(list);
+            row.append(wrap);
+          }
+          section.append(row);
+        }
+        return section;
+      }
+
       function claimsSection(check, now) {
         const section = el("section");
         const head = el("h2");
@@ -506,6 +589,9 @@
         if (seats.length === 0) chips.append(el("span", "meta", "no agent CLIs found"));
         crew.append(chips);
         main.append(crew);
+
+        // Above the runs: it is the only thing on this page that asks something of whoever is reading it.
+        main.append(waitingSection(snapshot.waiting ?? []));
 
         const runs = el("section");
         const runsHead = el("h2");

@@ -1,6 +1,14 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
-import { project, type EventType, type Ledger, type SeatInfo, type StoredEvent } from "@fanout/core";
+import {
+  mergeReadiness,
+  project,
+  type EventType,
+  type Ledger,
+  type ProjectionState,
+  type SeatInfo,
+  type StoredEvent,
+} from "@fanout/core";
 import { WebSocketServer, type WebSocket } from "ws";
 import { originAllowed, tokenMatches } from "./token.ts";
 
@@ -176,7 +184,7 @@ async function handle(
   if (url.pathname === "/state") {
     const state = project(options.ledger.read());
     const seats = options.crew === undefined ? [] : await options.crew();
-    send(response, 200, { state, seats, now: new Date().toISOString() });
+    send(response, 200, { state, seats, waiting: waitingOnYou(state), now: new Date().toISOString() });
     return;
   }
 
@@ -200,6 +208,46 @@ async function handle(
   }
 
   send(response, 404, { error: `nothing lives at ${url.pathname}` });
+}
+
+/**
+ * What each finished run still needs before it can merge, computed here rather than in the page.
+ *
+ * `mergeReadiness` is the gate's judgement and there is exactly one of it. A page that worked out its own answer
+ * would eventually disagree with the tool that actually refuses, and the screen saying "ready" while the merge
+ * says "no" is worse than the screen saying nothing — this repository has spent a day proving that a rule with
+ * two implementations ends up with two behaviours.
+ */
+function waitingOnYou(state: ProjectionState): {
+  missionId: string;
+  runId: string;
+  seat: string;
+  ready: boolean;
+  blockers: string[];
+}[] {
+  const waiting = [];
+  for (const mission of Object.values(state.missions)) {
+    const lines = new Map((mission.plan?.lines ?? []).map((line) => [line.id, line]));
+    for (const runId of mission.runOrder) {
+      const run = mission.runs[runId];
+      if (run?.status !== "done") continue;
+      const line = lines.get(run.lineId);
+      if (line === undefined) continue;
+
+      // Judged against the revision the review saw: the page cannot read a worktree, and the merge tool
+      // re-collects the diff and refuses for itself if the work has moved since.
+      const judged = run.review?.revision ?? run.checks?.revision ?? "";
+      const readiness = mergeReadiness(run, line, judged);
+      waiting.push({
+        missionId: mission.missionId,
+        runId,
+        seat: run.seat.id,
+        ready: readiness.ready,
+        blockers: readiness.blockers.map((blocker) => blocker.message),
+      });
+    }
+  }
+  return waiting;
 }
 
 function wanted(subscriber: Subscriber, event: StoredEvent): boolean {

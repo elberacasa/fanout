@@ -10,17 +10,18 @@ account. Everything below is what stands between here and that.
 |---|---|---|---|
 | 1–6 | Foundations, seats, daemon, CLI, plugin | ✅ | tagged `v0.1.0`–`v0.6.0` |
 | 4b | Capability profiles | ✅ | resume, fork, review and plan recorded from real runs, not `--help` |
-| 7 | Merge gate | 🔨 | **rework** resumes the session that wrote the diff; everything else is done |
-| 8 | Mission view | 🔨 | the review queue is in it: what is waiting, and merging from there |
+| 7 | Merge gate | ✅ | review, rework, checks, proof, approval, `git apply -3` — run on real work through the gate itself |
+| 8 | Mission view | 🔨 | ✅ live, with the review queue and the gate's own reasons · left: merging from the page itself |
 | 9 | Routing on limits | ⬜ | a seat hits its limit mid-mission, work moves, the reason is on screen |
 | 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · a 30-second video · `npx fanout-cli` works on a clean machine |
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
-- [ ] `pre-push` does not check lockfile drift. CI caught one today that nothing local would have.
-- [ ] No test that every manifest field has a consumer. `stdin: "closed"` was declared by every manifest and read
-      by no new code for half a day.
+- [x] ~~`pre-push` does not check lockfile drift~~ — `e2540f6`, written by a Codex agent, reworked once, merged
+      through the gate.
+- [x] ~~No test that every manifest field has a consumer~~ — `66de242`, same route.
 - [ ] Grok's phase never advances (community seat, so it gates nothing).
+- [ ] The mission view shows the review queue but cannot merge from it; that is still a tool call.
 
 **What "robust" means here**, so it is not a feeling:
 
