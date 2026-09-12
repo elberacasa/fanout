@@ -75,6 +75,7 @@ Each is settled by the milestone that needs it, not before:
 | ~~`safety.report` isn't tied to a **plan revision**~~ — settled (DECISIONS 0016): a report carries its revision and a stale one is refused. Still open: `ok: true` with no checks is accepted, so the gate must require the checks it expects | Workspace + safety report (P0 · 3) |
 | `run.finished` can't distinguish **why** a run failed (spawn error, signal, no output) beyond a free-text `error` | Daemon API (P0 · 5) |
 | `run.usage.amount` is a **delta** (projections add it) and nothing records a quota window, reset time or headroom, so a limit survives only as an adapter signal | Routing v1 (P0 · 9) |
+| **`capabilities.plan.keep` is a declared allowlist that nothing enforces yet.** The manifest says which two fields of `claude auth status --json` may be kept, and the schema proves `planField` is one of them — but no code reads that probe, so the allowlist is a promise on paper, not a working control. The detector that runs the probe must filter against `keep` *before* anything reaches the ledger, a log or a projection, and be tested with a probe response carrying an email and an org id | Capability profiles (P0 · 4b) |
 | ~~Scope globs can't express spaces, parentheses or non-ASCII names~~ — settled (DECISIONS 0016): every character except `/` and control characters is literal, so `src/my file.ts` and `app/[id]/page.tsx` are scopes. `*` and `?` stay wildcards with no escape | done |
 
 Two limits we state rather than fix: the ledger's append-only guards stop ordinary SQL, not someone with raw file
@@ -119,6 +120,15 @@ The lead never sees raw logs, only summaries and the diffs it asks for. That kee
 
 ## UI
 
+- **One renderer, three surfaces.** The lead reads a mission in a chat, the owner in a terminal, and later in a
+  browser. The human-readable rendering lives once in `@fanout/core` (`src/format/`) as pure functions over the
+  projection, so the three can never disagree — a mission that looks stalled in one surface and healthy in another
+  is worse than either answer alone. `elapsedMs` and `silentMs` stay in the projection; the formatter only shapes
+  them, and the clock is always passed in so nothing is timing-dependent in a test.
+- **What the renderer may never do:** invent. A phase bar shows *which* named phase a run reported, never how
+  complete it is, because an agent can sit in one phase for a minute or twenty. Unknown prints as `—`, never as a
+  zero that reads like a fact. Only a run that is actually working can be "quiet": a queued run has not been
+  launched and a finished one is over.
 - **Mission view:** React, served by the daemon on localhost, with a live WebSocket feed. Lanes per run, phase bars,
   tool ticker, diff peek, review queue, keyboard actions. Never hosted and never published as an artifact: it shows
   your code.

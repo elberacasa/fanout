@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  missionReport,
   PlanGraph,
   PlanLine,
   project,
@@ -52,6 +53,8 @@ export interface FanoutMcpOptions {
     binary: string,
     args: readonly string[],
   ) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+  /** The clock elapsed and quiet times are measured against; injected so tests are not timing-dependent. */
+  now?: () => Date;
 }
 
 const MissionLimits = { maxParallel: z.int().min(1).max(16).default(3) };
@@ -224,7 +227,10 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
     "mission_status",
     {
       title: "How a mission is going",
-      description: "Every run of a mission: its phase, what it touched, what it cost and how it ended.",
+      description:
+        "Every run of a mission: how long it has been going, which phase it reported, what it touched and how " +
+        "it ended. A run still working that has said nothing for a while is marked quiet, which is the " +
+        "difference between an agent thinking and an agent that has stopped.",
       inputSchema: { missionId: z.string().min(1) },
     },
     ({ missionId }) => {
@@ -232,19 +238,7 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
       const mission = state.missions[missionId];
       if (mission === undefined) return text(`No mission called ${missionId}.`, { missionId });
 
-      const runs = Object.values(mission.runs);
-      return text(
-        `${missionId} is ${mission.status}. ${runs.length} run(s):\n` +
-          runs
-            .map(
-              (run) =>
-                `- ${run.runId} (${run.seat.id}): ${run.status}` +
-                (run.phase === null ? "" : `, ${run.phase}`) +
-                (run.diffStat === null ? "" : `, ${run.diffStat.files} file(s) changed`),
-            )
-            .join("\n"),
-        { mission },
-      );
+      return text(missionReport(mission, (options.now ?? (() => new Date()))()), { mission });
     },
   );
 

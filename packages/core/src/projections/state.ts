@@ -77,9 +77,12 @@ export function elapsedMs(run: RunView, now: Date): number | null {
  *
  * Elapsed time alone cannot tell a thinking agent from a dead one: both counters climb. The gap since the last
  * event can, which makes this the number worth putting in front of someone deciding whether to wait or to kill.
+ *
+ * Only a run that is actually working can be silent. A queued run has not been launched and a finished one is
+ * simply over; reporting either as "quiet for 30 minutes" would raise an alarm about the scheduler doing its job.
  */
 export function silentMs(run: RunView, now: Date): number | null {
-  if (run.endedAt !== null) return null;
+  if (run.startedAt === null || run.endedAt !== null) return null;
   return Math.max(0, now.getTime() - Date.parse(run.updatedAt));
 }
 

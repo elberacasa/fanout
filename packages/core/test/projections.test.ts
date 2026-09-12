@@ -466,6 +466,15 @@ describe("run timing", () => {
     expect(silentMs(run, new Date("2026-09-12T18:00:00.000Z"))).toBeNull();
   });
 
+  it("does not call a queued run silent, since it has not been launched yet", () => {
+    const state = project(timed(clock("2026-09-12T10:00:00.000Z", "2026-09-12T10:00:05.000Z"), upTo(2)));
+    const run = state.missions[M]?.runs["r1"];
+    if (run === undefined) throw new Error("no run");
+
+    // Half an hour in a queue is the scheduler working, not an agent that has stopped talking.
+    expect(silentMs(run, new Date("2026-09-12T10:30:00.000Z"))).toBeNull();
+  });
+
   it("says nothing rather than zero for a run that has not started", () => {
     const state = project(timed(clock("2026-09-12T10:00:00.000Z", "2026-09-12T10:00:05.000Z"), upTo(2)));
     const run = state.missions[M]?.runs["r1"];

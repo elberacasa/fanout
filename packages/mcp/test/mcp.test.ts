@@ -19,6 +19,8 @@ const FAKE = AdapterManifest.parse({
   displayName: "Fake seat",
   binary: "fake",
   supportedVersions: ">=0.1 <1",
+  tier: "reference",
+  capabilities: { resume: null, fork: null, review: null, plan: null },
   headless: { args: ["{prompt}"], stdin: "closed" },
   stream: { flag: null, format: "jsonl" },
   models: [],
@@ -179,7 +181,9 @@ describe("launching a mission", () => {
 
     const status = await call("mission_status", { missionId });
     expect(status.text).toContain("finished");
-    expect(status.text).toMatch(/api-1 \(fake\): done/);
+    // Run id, seat, status and a measured elapsed time on one row; a finished run is never marked quiet.
+    expect(status.text).toMatch(/api-1\s+fake\s+done\s+\S+\s+\w+\s+\d+s/);
+    expect(status.text).not.toContain("quiet");
 
     const diff = await call("run_diff", { missionId, runId: "api-1", patch: true });
     const result = diff.data as { stat: { files: number }; report: string | null; patch?: string };
