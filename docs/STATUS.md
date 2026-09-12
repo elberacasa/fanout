@@ -4,7 +4,7 @@
 
 ### Where we are
 
-P0 milestones **1–6 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **590 tests** (36 files).
+P0 milestones **1–7 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **650 tests** (40 files).
 Repository: https://github.com/elberacasa/fanout (**public**). CI green on macOS and Linux, Node 22 and 24.
 
 The repository is **public** since 2026-09-12, which is also how CI came back: Actions is free for public
@@ -104,16 +104,30 @@ the belief was wrong, not the guard. A refutation says a belief was false, not w
 4. ~~**Seat posture**~~ — done: `fanout seat <id> <preferred|normal|sparing|off> [why]`, honoured by every command
    that spends a subscription, and a policy file that cannot be read refuses the write rather than discarding it.
 
-### Then: milestone 7, the merge gate
+### Milestone 7, the merge gate — done
 
-The contract is **built and tested**; the mechanics are not. `mergeReadiness` judges correctly — including that
-every step must have judged the *same revision* — but nothing yet runs the project's checks, proves a fix, or
-applies a diff. What remains: the checks runner, proof (restore the old code, watch the new test fail), `git
-apply -3` with conflicts reported and never forced, and rework as a **resumed session** now that resume is
-verified on both seats.
+Five tools, in order, each recording the revision it judged:
 
-Before that, one thing matters more: **`fanout demo`**. Nobody without a Codex subscription and a checkout can try
-any of this, which is the difference between a good tool and one anyone adopts.
+```text
+run_diff  →  review_run  →  run_checks  →  prove_fix  →  ask the user  →  merge_run
+```
+
+`merge_run` refuses unless review, checks, proof and approval all named the **same** diff, which is why they are
+separate tools: one that reviewed and merged could skip its own gate. It applies with `git apply -3`, never
+forces, and rolls a conflict all the way back — a half-applied merge is worse than a refused one. Proof checks out
+the old code and copies **only** the run's tests onto it: they must fail there, or they do not test what broke.
+
+**What is left of it:** rework. `run.session` now records the conversation each run was, so resuming it is
+possible; nothing yet does. A `rework` verdict is recorded and then sits there.
+
+### Also done since: the demo and the view
+
+- **`fanout demo`** — a whole mission with no accounts: real worktrees, real safety gate, real ledger, real diffs,
+  simulated agents. The one thing it cannot do honestly (a second vendor's verdicts) is written rather than read
+  and labelled `simulated` through the event, the projection and the screen.
+- **The mission view** — one HTML file, no framework, no dependencies (ADR 0019), served on localhost. Ticking
+  clocks from real stamps, a quiet marker, refuted claims at the top, and a red bar when the daemon cannot be
+  reached, because a stale picture must never pass for a current one.
 
 **Good fan-out for teammates** once the gate's shapes are committed: the checks runner, and an adversarial audit of
 the gate itself (read-only) — it is the most dangerous code in the project. The two audits this session found real

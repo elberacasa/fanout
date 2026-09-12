@@ -17,6 +17,41 @@ Next: <the next step>
 
 ---
 
+### 2026-09-12 · The merge gate, the demo, the view · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: codex as the cold reader throughout
+
+Built: the merge gate's mechanics and its five MCP tools; `fanout demo` (offline, no accounts); the mission view
+(one HTML file, no framework, ADR 0019); `run.session` so rework has something to resume; the repository made
+public, which is also how CI came back.
+
+**What a second vendor, or a second platform, found in the lead's own work:**
+
+- `fanout demo` showed three runs that had each written real files reporting **+0 −0**. New files were counted
+  towards the file total and their lines never counted at all. The third instance today of the same shape: git
+  says nothing about files it does not track, and code that only asks `git diff` silently misses them.
+- The safety gate refused the demo's own plan — `src/api/**` swallowed another line's scope. The best argument for
+  that check there is.
+- CI on Linux caught a check that could hang the merge gate **forever**: a shell keeps `sleep` as a child, so
+  killing the shell leaves a grandchild holding the pipes open. macOS hid it because its shells `exec` the last
+  command. Every real check spawns children — that is what `npm test` is.
+- CI also caught a lockfile that `pnpm install` had declared up to date and was not, which nothing local checks.
+
+**Changed in review (the lead's own):** a mission view cached in memory so edits did nothing until a restart —
+which is how the first version was reviewed against a screen that had not changed; a claim checker that discarded
+the reason a run failed and reported a useless "not checked"; a guard for spawning that matched `regex.exec(` and
+missed `promisify(execFile)`, wrong in both directions at once.
+
+**Acted on rather than logged again:** four times in one day a rule already settled here was not read by new code
+written beside it — the deny-list, the seat policy, `stdin: "closed"`, the detached process group. The seven
+places in the daemon that start a process are now listed with a reason each and a test fails when an eighth
+appears. It does not make spawning safe; it makes adding one deliberate.
+
+**Corrected:** STATUS claimed "CI green on macOS and Linux" for a whole session during which no job had started —
+a billing hold refused every one before it began. Nobody checked. Written only from a run that was looked at.
+
+Next: rework as a resumed session, then routing (P0 · 9) and the video (P0 · 10).
+
 ### 2026-09-12 · The claim loop; milestone 7's contract · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: codex (gpt-6-astra, high) × 2, plus Codex as the reader for every claim

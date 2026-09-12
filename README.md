@@ -131,7 +131,7 @@ every surface that shows them says **simulated**.
 
 ## Status
 
-P0 · **Claude leads, the crew builds** — 590 tests, green on macOS and Linux, Node 22 and 24.
+P0 · **Claude leads, the crew builds** — 650 tests, green on macOS and Linux, Node 22 and 24.
 
 | Milestone | State |
 |---|---|
@@ -139,13 +139,13 @@ P0 · **Claude leads, the crew builds** — 590 tests, green on macOS and Linux,
 | 2 · Fake seat + supervisor | ✅ done |
 | 3 · Workspace + safety report | ✅ done |
 | 4 · Real seats — Codex, Claude (opt-in) and Grok, each built from a recorded run | ✅ done |
-| 4b · Capability profiles — what each supported CLI can be *told*, recorded not guessed | 🔨 in progress |
+| 4b · Capability profiles — what each supported CLI can be *told*, recorded not guessed | ✅ done |
 | 5 · Daemon API + CLI | ✅ done |
 | 6 · The Claude Code plugin | ✅ done |
-| 7 · Merge gate | ⬜ next |
-| 8 · Mission view | ⬜ |
+| 7 · Merge gate — review, checks, proof, approval, `git apply -3` | ✅ done |
+| 8 · Mission view — live on localhost; not yet wired to the review queue | 🔨 in progress |
 | 9 · Routing when a seat hits its limit | ⬜ |
-| 10 · Offline demo, video, README refresh | ⬜ |
+| 10 · Offline demo ✅, video and npm | 🔨 in progress |
 
 Full plan in [docs/ROADMAP.md](docs/ROADMAP.md); what changed and who built it in
 [docs/BUILD_LOG.md](docs/BUILD_LOG.md).
