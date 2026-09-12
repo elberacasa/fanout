@@ -123,12 +123,32 @@ describe("actually running a command", () => {
     expect(result.outcomes[0]?.tail).toContain("AssertionError");
   });
 
-  it("kills a command that will not stop, rather than waiting for it", async () => {
+  /*
+   * Found by CI on Linux while macOS passed. A shell that runs `sleep` keeps it as a child, so killing the shell
+   * leaves a grandchild alive holding the pipes open and nothing ever settles. Every real check spawns children —
+   * that is what `npm test` is — so this hangs the gate forever, not just a test.
+   *
+   * The subshell is deliberate: it stops a shell from `exec`ing the sleep and becoming it, which is what hid this
+   * on macOS in the first place.
+   */
+  it("kills a command's whole process tree, not just the shell at the top of it", async () => {
     const started = Date.now();
-    const result = await runChecks({ cwd: repo, commands: ["sleep 30"], timeoutMs: 300 });
+    const result = await runChecks({ cwd: repo, commands: ["( sleep 30 )"], timeoutMs: 300 });
 
     expect(result.ok).toBe(false);
     expect(result.summary).toContain("did not finish in time");
+    expect(Date.now() - started).toBeLessThan(10_000);
+  });
+
+  it("kills a command that spawns several children of its own", async () => {
+    const started = Date.now();
+    const result = await runChecks({
+      cwd: repo,
+      commands: ["sleep 30 & sleep 30 & wait"],
+      timeoutMs: 300,
+    });
+
+    expect(result.ok).toBe(false);
     expect(Date.now() - started).toBeLessThan(10_000);
   });
 

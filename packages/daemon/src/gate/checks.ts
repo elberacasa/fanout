@@ -103,6 +103,11 @@ export async function runChecks(options: ChecksOptions): Promise<ChecksResult> {
  * exact strings in the safety report before any of this started. The environment is the same allowlist agents
  * get, so a check cannot quietly depend on a secret in the developer's shell and then fail on someone else's
  * machine. Output is capped: a check that prints a hundred megabytes should not be able to exhaust the daemon.
+ *
+ * It runs in its own process group, and the deadline kills the group rather than the shell. Found by CI on Linux
+ * while macOS passed: `sh -c "sleep 30"` leaves `sleep` as a child of the shell, so killing the shell leaves a
+ * grandchild alive holding the pipes open and the promise never settles. A check that spawns anything — and every
+ * real one does, that is what `npm test` is — could have hung the gate forever.
  */
 async function runCommand(command: string, cwd: string, timeoutMs: number): Promise<CommandOutcome> {
   return new Promise<CommandOutcome>((resolve) => {
@@ -111,10 +116,22 @@ async function runCommand(command: string, cwd: string, timeoutMs: number): Prom
       shell: true,
       env: { ...baseEnv(), CI: "1" },
       stdio: ["ignore", "pipe", "pipe"],
+      // Its own process group, so the whole tree can be signalled and not just the shell at the top of it.
+      detached: true,
     });
 
     let output = "";
     let timedOut = false;
+
+    /** Signals every descendant. A check's children are the check. */
+    const signalGroup = (signal: NodeJS.Signals): void => {
+      if (child.pid === undefined) return;
+      try {
+        process.kill(-child.pid, signal);
+      } catch {
+        // Already gone: nothing to signal and nothing to report.
+      }
+    };
     const keep = (chunk: Buffer): void => {
       if (output.length < MAX_OUTPUT) output += chunk.toString().slice(0, MAX_OUTPUT - output.length);
     };
@@ -123,9 +140,12 @@ async function runCommand(command: string, cwd: string, timeoutMs: number): Prom
 
     const deadline = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGTERM");
+      signalGroup("SIGTERM");
       // A check that ignores SIGTERM is a check that has stopped being one.
-      setTimeout(() => child.kill("SIGKILL"), 5_000).unref();
+      const escalate = setTimeout(() => {
+        signalGroup("SIGKILL");
+      }, 5_000);
+      escalate.unref();
     }, timeoutMs);
     deadline.unref();
 
@@ -133,7 +153,11 @@ async function runCommand(command: string, cwd: string, timeoutMs: number): Prom
       clearTimeout(deadline);
       resolve({ exitCode: null, output: `${output}\n${error.message}`, timedOut });
     });
-    child.on("close", (code) => {
+    /*
+     * `exit` rather than `close`: close waits for every pipe to end, and an orphan holding stdout open would make
+     * a killed command look like a running one forever. The output we have when it exits is the output there is.
+     */
+    child.on("exit", (code) => {
       clearTimeout(deadline);
       resolve({ exitCode: code, output, timedOut });
     });
