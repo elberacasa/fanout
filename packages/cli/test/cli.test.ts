@@ -73,6 +73,24 @@ describe("fanout status", () => {
     expect(text).toMatch(/Grok Build\s+not installed/);
   });
 
+  it("shows the plan a CLI reports, and where the answer came from", async () => {
+    // Only Claude Code exposes a subscription tier, and only when signed in.
+    const signedInClaude = (binary: string, args: readonly string[]): Promise<CommandResult> => {
+      if (binary !== "claude") return Promise.reject(new Error(`spawn ${binary} ENOENT`));
+      if (args[0] === "--version") return Promise.resolve(ok("2.1.269"));
+      return Promise.resolve(ok(JSON.stringify({ loggedIn: true, subscriptionType: "max" })));
+    };
+
+    expect(await main(["status"], io({ execute: signedInClaude }))).toBe(0);
+    expect(printed()).toMatch(/Claude Code\s+2\.1\.269\s+signed in\s+max \(detected\)/);
+  });
+
+  it("leaves the plan column empty rather than guessing for a CLI that has none", async () => {
+    await main(["status"], io());
+    // Codex is signed in but reports no tier; the row must not invent one or borrow another seat's.
+    expect(printed()).toMatch(/OpenAI Codex\s+0\.154\.0\s+signed in\s*$/m);
+  });
+
   it("says there are no missions yet rather than showing an empty table", async () => {
     await main(["status"], io());
     expect(printed()).toContain("No missions yet");

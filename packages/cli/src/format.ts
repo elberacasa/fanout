@@ -19,15 +19,21 @@ export function crewTable(seats: readonly SeatInfo[]): string {
     version: seat.version ?? "not installed",
     state: seat.supported ? SIGN_IN[seat.signedIn] : seat.version === null ? "—" : "unsupported version",
     ready: seat.supported && seat.signedIn === "yes",
+    // Most CLIs do not report a tier. An empty column says that better than a word like "unknown" repeated
+    // down the table, and the source travels with the value so nobody has to wonder who said it.
+    plan: seat.plan === null ? "" : `${seat.plan.name} (${seat.plan.source})`,
   }));
   const width = {
     name: Math.max(...rows.map((row) => row.name.length)),
     version: Math.max(...rows.map((row) => row.version.length)),
+    state: Math.max(...rows.map((row) => row.state.length)),
   };
 
-  const lines = rows.map(
-    (row) =>
-      `  ${row.ready ? "•" : " "} ${row.name.padEnd(width.name)}  ${row.version.padEnd(width.version)}  ${row.state}`,
+  const lines = rows.map((row) =>
+    (
+      `  ${row.ready ? "•" : " "} ${row.name.padEnd(width.name)}  ${row.version.padEnd(width.version)}  ` +
+      `${row.state.padEnd(width.state)}  ${row.plan}`
+    ).trimEnd(),
   );
   const ready = rows.filter((row) => row.ready).length;
 
