@@ -77,11 +77,23 @@ export async function checkClaims(options: ClaimsOptions): Promise<ClaimsResult>
     by,
   };
 
+  /*
+   * Only uncommitted work, and the message has to say so. This reads what is in the tree right now because the
+   * point is to catch a belief before it lands — the reader gets the diff and nothing else, which is what makes
+   * it differently placed. Saying merely "no changes" reads as "nothing is wrong" to whoever asked, when the
+   * truth is that nothing was looked at: the two are opposite answers and the caller cannot tell them apart.
+   */
   if (snapshot.clean) {
     return {
       event: {
         ...base,
-        claims: options.claims.map((c) => unclear(c, "there are no changes to check")),
+        claims: options.claims.map((c) =>
+          unclear(
+            c,
+            "the working tree is clean, and this checks uncommitted work only — nothing was read, which is " +
+              "not the same as nothing being wrong. State your claims before you commit.",
+          ),
+        ),
         ran: false,
       },
       refuted: [],
