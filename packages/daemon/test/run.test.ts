@@ -309,3 +309,66 @@ describe("remembering which conversation a run was", () => {
     expect(project(ledger.read()).missions[context.missionId]?.runs[context.runId]?.sessionId).toBeNull();
   });
 });
+
+/*
+ * Rework is worth more than a second attempt because the agent still holds its own reasoning about the code: a
+ * note saying "escape the quotes in the header row too" lands on someone who knows which header row. A fresh run
+ * handed a summary of that reasoning is a stranger reading a description of a conversation it was not in.
+ */
+describe("resuming a conversation instead of starting one", () => {
+  it("asks the adapter to resume, and hands it the session", async () => {
+    const seen: string[] = [];
+    const adapter = scripted(["report: reworked"]);
+    const resuming: SeatAdapter = {
+      ...adapter,
+      resume: (context) => {
+        seen.push(context.sessionId);
+        return adapter.command(context);
+      },
+    };
+
+    const run = startRun({
+      ledger,
+      adapter: resuming,
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+      resumeSession: "01a0-thread",
+    });
+    await run.finished;
+
+    expect(seen).toEqual(["01a0-thread"]);
+  });
+
+  it("uses the ordinary command when there is nothing to resume", async () => {
+    const adapter = scripted(["report: fresh"]);
+    let resumed = false;
+    const run = startRun({
+      ledger,
+      adapter: { ...adapter, resume: () => ((resumed = true), adapter.command(context)) },
+      context,
+      logPath: join(dir, "run.log"),
+      limits: LIMITS,
+    });
+    await run.finished;
+
+    expect(resumed).toBe(false);
+  });
+
+  /*
+   * The refusal that matters. Starting over while charging for a resume is the worst of both: the subscription is
+   * spent and the context it was spent on is gone, with nothing on screen to say so.
+   */
+  it("refuses rather than silently starting over when the seat cannot resume", () => {
+    expect(() =>
+      startRun({
+        ledger,
+        adapter: scripted(["report: x"]),
+        context,
+        logPath: join(dir, "run.log"),
+        limits: LIMITS,
+        resumeSession: "01a0-thread",
+      }),
+    ).toThrow(/cannot resume/);
+  });
+});

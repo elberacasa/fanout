@@ -37,6 +37,29 @@ export interface StartRunOptions {
    * than what the agent said it changed. Failing to read it never fails the run.
    */
   collectDiff?: () => Promise<DiffStat | undefined>;
+  /**
+   * Continue an earlier conversation instead of starting one.
+   *
+   * The run keeps the same worktree, so the agent sees the code it wrote and the notes about it together. Set
+   * only when the seat can resume at all; `startRun` refuses rather than quietly starting over, because a rework
+   * that silently forgot everything would spend a subscription to lose the context it was spent on.
+   */
+  resumeSession?: string;
+}
+
+/**
+ * How this run is started: fresh, or as the next turn of a conversation that already exists.
+ *
+ * A seat asked to resume that cannot is an error rather than a fresh run. Rework's whole value is that the agent
+ * still holds its own reasoning about the code, and silently discarding that while still charging for it is the
+ * worst of both outcomes.
+ */
+function specFor(adapter: SeatAdapter, context: AdapterContext, sessionId?: string) {
+  if (sessionId === undefined) return adapter.command(context);
+  if (adapter.resume === undefined) {
+    throw new Error(`${adapter.id} cannot resume a session, so this work cannot be reworked in place`);
+  }
+  return adapter.resume({ ...context, sessionId });
 }
 
 export interface ActiveRun {
@@ -50,7 +73,7 @@ const ADAPTER_EVENT_TYPES: ReadonlySet<string> = new Set(["run.progress", "run.t
 export function startRun(options: StartRunOptions): ActiveRun {
   const { ledger, adapter, context } = options;
   const ids = { missionId: context.missionId, runId: context.runId };
-  const spec = adapter.command(context);
+  const spec = specFor(adapter, context, options.resumeSession);
 
   // The run's own directories are the daemon's to make: the supervisor opens the log before it spawns anything,
   // and an agent should never have to create the place its report goes. Private to the user, like the ledger.

@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, rmSync, symlinkSync, type Dirent } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { baseEnv } from "../env.ts";
 import { workSnapshot } from "./revision.ts";
 
@@ -18,9 +20,60 @@ export interface ChecksOptions {
   cwd: string;
   /** Exactly the commands the plan declared for this line, in order. */
   commands: readonly string[];
+  /**
+   * The repository the worktree came from. When given, its dependency directories are linked in for the length
+   * of the check and removed afterwards — see `withDependencies`.
+   */
+  repoRoot?: string;
   timeoutMs?: number;
   /** Injected in tests so nothing needs a real toolchain. */
   run?: (command: string, cwd: string, timeoutMs: number) => Promise<CommandOutcome>;
+}
+
+/**
+ * Directories a project keeps its installed dependencies in.
+ *
+ * A git worktree contains the tracked files and nothing else, so `npm run test` in one reports
+ * `vitest: command not found` — which the gate would otherwise record as the project's checks failing. Found by
+ * running the gate against a real agent's work rather than against a fixture.
+ *
+ * They are lent only while the check runs, never while the agent works. The agent's sandbox can write anywhere in
+ * its worktree, and a link to the real `node_modules` would put the developer's installed packages inside the one
+ * place an agent is allowed to write. An agent that cannot run the full suite is the expected case, and the
+ * reason this gate runs it afterwards.
+ */
+const DEPENDENCY_NAMES = new Set(["node_modules", ".venv", "vendor"]);
+
+/**
+ * Every dependency directory in the repository, not only the one at the top.
+ *
+ * A workspace puts a package's links inside that package: without `packages/daemon/node_modules`, a test there
+ * cannot resolve `@fanout/core` however complete the root is. Lending only the root ran 90 of 656 tests — a
+ * suite that looks like it ran and did not, which is the most expensive kind of green there is.
+ *
+ * The depth is generous rather than tight because the first attempt stopped at three and missed
+ * `packages/adapters/codex/node_modules` at four, leaving that package's tests unable to import anything. It
+ * costs a bounded directory walk that never descends into a dependency directory, and guessing how deeply
+ * someone nests their packages is not a guess worth making.
+ */
+function dependencyDirectories(root: string, depth = 6): string[] {
+  if (depth === 0) return [];
+  const found: string[] = [];
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return found;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith(".git")) continue;
+    if (DEPENDENCY_NAMES.has(entry.name)) {
+      found.push(join(root, entry.name));
+      continue; // Never descend into one: its own node_modules are its business.
+    }
+    found.push(...dependencyDirectories(join(root, entry.name), depth - 1));
+  }
+  return found;
 }
 
 export interface CommandOutcome {
@@ -66,33 +119,64 @@ export async function runChecks(options: ChecksOptions): Promise<ChecksResult> {
     };
   }
 
-  for (const command of commands) {
-    const outcome = await run(command, options.cwd, options.timeoutMs ?? 10 * 60_000);
-    outcomes.push({
-      command,
-      exitCode: outcome.exitCode,
-      timedOut: outcome.timedOut,
-      tail: lastLines(outcome.output),
-    });
-    if (outcome.timedOut || outcome.exitCode !== 0) {
-      return {
-        ok: false,
-        revision: snapshot.revision,
-        commands,
-        summary: outcome.timedOut
-          ? `\`${command}\` did not finish in time`
-          : `\`${command}\` exited ${String(outcome.exitCode)}`,
-        outcomes,
-      };
+  const unlink =
+    options.repoRoot === undefined ? () => undefined : lendDependencies(options.repoRoot, options.cwd);
+  try {
+    for (const command of commands) {
+      const outcome = await run(command, options.cwd, options.timeoutMs ?? 10 * 60_000);
+      outcomes.push({
+        command,
+        exitCode: outcome.exitCode,
+        timedOut: outcome.timedOut,
+        tail: lastLines(outcome.output),
+      });
+      if (outcome.timedOut || outcome.exitCode !== 0) {
+        return {
+          ok: false,
+          revision: snapshot.revision,
+          commands,
+          summary: outcome.timedOut
+            ? `\`${command}\` did not finish in time`
+            : `\`${command}\` exited ${String(outcome.exitCode)}`,
+          outcomes,
+        };
+      }
+    }
+
+    return {
+      ok: true,
+      revision: snapshot.revision,
+      commands,
+      summary: `${String(commands.length)} check${commands.length === 1 ? "" : "s"} passed`,
+      outcomes,
+    };
+  } finally {
+    unlink();
+  }
+}
+
+/**
+ * Links a repository's dependency directories into a worktree, and returns how to take them away again.
+ *
+ * A link rather than a copy, because `node_modules` is enormous and this happens on every check. Removed in a
+ * `finally` so a failing check does not leave the developer's installed packages reachable from a directory an
+ * agent may later be allowed to write to.
+ */
+function lendDependencies(repoRoot: string, worktree: string): () => void {
+  const lent: string[] = [];
+  for (const source of dependencyDirectories(repoRoot)) {
+    const destination = join(worktree, relative(repoRoot, source));
+    if (existsSync(destination)) continue;
+    try {
+      mkdirSync(dirname(destination), { recursive: true });
+      symlinkSync(source, destination, "dir");
+      lent.push(destination);
+    } catch {
+      // Nothing lent and nothing to clean up: the check will say what it could not find.
     }
   }
-
-  return {
-    ok: true,
-    revision: snapshot.revision,
-    commands,
-    summary: `${String(commands.length)} check${commands.length === 1 ? "" : "s"} passed`,
-    outcomes,
+  return () => {
+    for (const path of lent) rmSync(path, { force: true });
   };
 }
 

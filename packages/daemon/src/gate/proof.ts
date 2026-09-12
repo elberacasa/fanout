@@ -94,6 +94,7 @@ export async function proveFix(options: ProofOptions): Promise<ProofResult> {
     const run = options.runChecksImpl ?? runChecks;
     const result = await run({
       cwd: oldCode,
+      repoRoot: options.repoRoot,
       commands: options.commands,
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     });

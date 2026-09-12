@@ -27,6 +27,16 @@ export interface MergeOptions {
   patch: string;
   /** Files the run created, which a patch does not carry. */
   newFiles: readonly string[];
+  /**
+   * The commit's subject and body, written by the lead.
+   *
+   * Every project has its own convention and some enforce it with a hook; ours rejected the gate's own first
+   * attempt. Guessing a format is not possible and bypassing the hook is out of the question — a tool that
+   * merged past the rules a repository set for itself would be the least trustworthy thing here. So the lead,
+   * which can read the repository's standard, supplies this. The trailers below it are the gate's and are not
+   * the caller's to write.
+   */
+  message?: string;
   timeoutMs?: number;
 }
 
@@ -110,20 +120,35 @@ export async function mergeRun(options: MergeOptions): Promise<MergeOutcome> {
   }
 
   const files = [...new Set(applied)].sort();
-  await git(["add", "--", ...files], inRepo);
-  await git(
-    [
-      "commit",
-      "--quiet",
-      "-m",
-      commitMessage(options.line, options.run),
-      "--author",
-      `${options.run.seat.id} via fanout <noreply@fanout.invalid>`,
-      "--",
-      ...files,
-    ],
-    inRepo,
-  );
+  try {
+    await git(["add", "--", ...files], inRepo);
+    await git(
+      [
+        "commit",
+        "--quiet",
+        "-m",
+        commitMessage(options),
+        "--author",
+        `${options.run.seat.id} via fanout <noreply@fanout.invalid>`,
+        "--",
+        ...files,
+      ],
+      inRepo,
+    );
+  } catch (cause) {
+    /*
+     * A repository may refuse its own commit — ours does, through a commit-msg hook, and said so the first time
+     * the gate tried. Rolling back here is the difference between "not merged" and the thing this function
+     * promises never to leave behind: the work applied, staged, and uncommitted, with the report saying it
+     * failed. `--no-verify` is never the answer; a tool that merged past the rules a repository set for itself
+     * would be the least trustworthy thing in it.
+     */
+    await rollback(options.repoRoot, before, options.timeoutMs);
+    return {
+      kind: "refused",
+      why: [`The repository refused the commit, and nothing was changed: ${describe(cause)}`],
+    };
+  }
 
   const commit = (await git(["rev-parse", "HEAD"], inRepo)).trim();
   return { kind: "merged", files, commit };
@@ -136,7 +161,8 @@ export async function mergeRun(options: MergeOptions): Promise<MergeOutcome> {
  * because someone authorised it. A repository whose history cannot answer "who decided this" is a repository
  * where nobody decided.
  */
-function commitMessage(line: PlanLine, run: RunView): string {
+function commitMessage(options: MergeOptions): string {
+  const { line, run } = options;
   const approval = run.approval;
   const by =
     approval === null
@@ -145,9 +171,7 @@ function commitMessage(line: PlanLine, run: RunView): string {
         ? "the repository's owner"
         : `policy "${approval.by.name}"`;
   return [
-    `${line.title} (${line.id})`,
-    "",
-    line.prompt.split("\n")[0] ?? "",
+    options.message ?? `${line.title} (${line.id})\n\n${line.prompt.split("\n")[0] ?? ""}`,
     "",
     `Built-by: ${run.seat.id}${run.seat.model === undefined ? "" : ` (${run.seat.model})`} via fanout`,
     `Approved-by: ${by}`,

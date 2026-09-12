@@ -456,7 +456,13 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
       const found = locate(missionId, runId);
       if (found?.exists !== true) return text(`No workspace for ${runId} to check.`, { runId });
 
-      const result = await runChecks({ cwd: found.workspace.path, commands: found.line.checks });
+      // A worktree holds tracked files and nothing else, so the repository lends it node_modules for the length
+      // of the check and takes them back afterwards.
+      const result = await runChecks({
+        cwd: found.workspace.path,
+        repoRoot: options.repoRoot,
+        commands: found.line.checks,
+      });
       options.ledger.appendAll([
         {
           type: "checks.done",
@@ -529,9 +535,21 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
           .min(1)
           .max(2000)
           .describe("What the user actually said when they approved this merge, in their own words."),
+        message: z
+          .string()
+          .trim()
+          .min(1)
+          .max(4000)
+          .optional()
+          .describe(
+            "The commit subject and body, in this repository's own convention — read docs/COMMITS.md or the " +
+              "recent log before writing it. A project that enforces a format with a hook will refuse anything " +
+              "else, and the gate will not bypass that hook. Trailers naming the seat and the approver are " +
+              "added by the gate and are not yours to write.",
+          ),
       },
     },
-    async ({ missionId, runId, approvedBy }) => {
+    async ({ missionId, runId, approvedBy, message }) => {
       const found = locate(missionId, runId);
       if (found?.exists !== true) return text(`No workspace for ${runId} to merge.`, { runId });
 
@@ -557,6 +575,7 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
         revision,
         patch: diff.patch,
         newFiles: diff.newFiles,
+        ...(message === undefined ? {} : { message }),
       });
 
       if (outcome.kind === "refused") {

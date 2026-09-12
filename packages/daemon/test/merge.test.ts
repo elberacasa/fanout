@@ -241,3 +241,53 @@ describe("reading a patch", () => {
     expect(filesInPatch("--- a/gone.ts\n+++ /dev/null\n")).toEqual([]);
   });
 });
+
+/*
+ * Found the first time the gate merged real work: this repository refuses commits whose subject does not match
+ * its own standard, and the gate's generated message did not. The commit was outside the try, so the work was
+ * applied, staged and left there while the caller was told it had failed — exactly the half-applied merge this
+ * function promises never to leave.
+ */
+describe("a repository that refuses its own commit", () => {
+  const withHook = (): void => {
+    const hooks = join(repo, ".hooks");
+    mkdirSync(hooks, { recursive: true });
+    writeFileSync(
+      join(hooks, "commit-msg"),
+      '#!/bin/sh\ncase "$(head -1 "$1")" in feat*|fix*|docs*) exit 0 ;; *) echo "subject must name a type" >&2; exit 1 ;; esac\n',
+      { mode: 0o755 },
+    );
+    git(["config", "core.hooksPath", ".hooks"]);
+  };
+
+  it("changes nothing at all when the hook says no", async () => {
+    withHook();
+    const before = git(["rev-parse", "HEAD"]).trim();
+
+    const outcome = await merge({ message: "a subject this repository will not accept" });
+
+    expect(outcome.kind).toBe("refused");
+    if (outcome.kind === "refused") expect(outcome.why.join(" ")).toContain("refused the commit");
+    // Not applied, not staged, not committed. "Not merged" has to mean it.
+    expect(git(["rev-parse", "HEAD"]).trim()).toBe(before);
+    expect(git(["status", "--porcelain"])).toBe("");
+    expect(existsSync(join(repo, "src", "csv.ts"))).toBe(false);
+  });
+
+  it("merges when the lead writes a message the repository accepts", async () => {
+    withHook();
+    const outcome = await merge({ message: "feat(api): add the csv writer" });
+
+    expect(outcome.kind).toBe("merged");
+    expect(git(["log", "-1", "--format=%s"])).toContain("feat(api): add the csv writer");
+    // The trailers are the gate's evidence and are added regardless of what the lead wrote.
+    expect(git(["log", "-1", "--format=%B"])).toContain("Built-by: codex (astra) via fanout");
+  });
+
+  it("never bypasses the repository's own hooks", () => {
+    // The argument, not the word: the source says in a comment why it is never the answer.
+    const source = readFileSync(new URL("../src/gate/merge.ts", import.meta.url), "utf8");
+    expect(source).not.toMatch(/"--no-verify"/);
+    expect(source).not.toMatch(/'--no-verify'/);
+  });
+});

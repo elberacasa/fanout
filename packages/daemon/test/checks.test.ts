@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,12 +12,15 @@ import { runChecks, type CommandOutcome } from "../src/gate/checks.ts";
 
 let repo: string;
 
+const gitEnv = { PATH: process.env["PATH"] ?? "", HOME: process.env["HOME"] ?? "", LC_ALL: "C" };
+
 beforeEach(() => {
   repo = mkdtempSync(join(tmpdir(), "fanout-checks-"));
-  const env = { PATH: process.env["PATH"] ?? "", HOME: process.env["HOME"] ?? "", LC_ALL: "C" };
+  const env = gitEnv;
   execFileSync("git", ["init", "--quiet"], { cwd: repo, env });
   execFileSync("git", ["config", "user.email", "a@b.invalid"], { cwd: repo, env });
   execFileSync("git", ["config", "user.name", "t"], { cwd: repo, env });
+  mkdirSync(join(repo, "packages", "core"), { recursive: true });
   writeFileSync(join(repo, "a.txt"), "one\n");
   execFileSync("git", ["add", "-A"], { cwd: repo, env });
   execFileSync("git", ["commit", "--quiet", "-m", "seed"], { cwd: repo, env });
@@ -166,5 +169,126 @@ describe("actually running a command", () => {
     } finally {
       delete process.env["FANOUT_TEST_LEAK"];
     }
+  });
+});
+
+/*
+ * Found by running the gate against a real agent's work rather than a fixture: a git worktree holds the tracked
+ * files and nothing else, so `npm run test` in one answers `vitest: command not found` — which the gate would
+ * have recorded as the project's checks failing.
+ */
+describe("dependencies a worktree does not have", () => {
+  /** A real worktree of the repository, which is what the gate actually hands to `runChecks`. */
+  const worktreeOf = (name: string): string => {
+    const path = join(mkdtempSync(join(tmpdir(), "fanout-checks-wt-")), name);
+    execFileSync("git", ["worktree", "add", "--detach", "--quiet", path, "HEAD"], { cwd: repo, env: gitEnv });
+    return path;
+  };
+
+  it("lends them from the repository for the length of the check", async () => {
+    mkdirSync(join(repo, "node_modules", ".bin"), { recursive: true });
+    writeFileSync(join(repo, "node_modules", ".bin", "marker"), "here\n");
+    const worktree = worktreeOf("lend");
+
+    let sawMarker = false;
+    await runChecks({
+      cwd: worktree,
+      repoRoot: repo,
+      commands: ["true"],
+      run: (_command, cwd) => {
+        sawMarker = existsSync(join(cwd, "node_modules", ".bin", "marker"));
+        return Promise.resolve({ exitCode: 0, output: "", timedOut: false });
+      },
+    });
+
+    expect(sawMarker).toBe(true);
+    rmSync(worktree, { recursive: true, force: true });
+  });
+
+  /*
+   * Taken away again afterwards, and in a `finally`. An agent's sandbox may write anywhere in its worktree, and a
+   * surviving link would put the developer's installed packages inside the one place an agent is allowed to write.
+   */
+  it("takes them away again, even when the check fails", async () => {
+    mkdirSync(join(repo, "node_modules"), { recursive: true });
+    const worktree = worktreeOf("fail");
+
+    await runChecks({
+      cwd: worktree,
+      repoRoot: repo,
+      commands: ["false"],
+      run: () => Promise.resolve({ exitCode: 1, output: "nope", timedOut: false }),
+    });
+
+    expect(existsSync(join(worktree, "node_modules"))).toBe(false);
+    rmSync(worktree, { recursive: true, force: true });
+  });
+
+  /*
+   * A workspace puts a package's links inside that package. Lending only the root let 90 of 656 tests run — a
+   * suite that looks like it ran and did not, which is the most expensive kind of green there is.
+   */
+  it("lends the ones nested inside packages, not only the one at the top", async () => {
+    mkdirSync(join(repo, "node_modules"), { recursive: true });
+    mkdirSync(join(repo, "packages", "core", "node_modules"), { recursive: true });
+    writeFileSync(join(repo, "packages", "core", "node_modules", "linked"), "here\n");
+    execFileSync("git", ["add", "-A"], { cwd: repo, env: gitEnv });
+    execFileSync("git", ["commit", "--quiet", "-m", "packages"], { cwd: repo, env: gitEnv });
+    const worktree = worktreeOf("nested");
+
+    let saw = false;
+    await runChecks({
+      cwd: worktree,
+      repoRoot: repo,
+      commands: ["true"],
+      run: (_command, cwd) => {
+        saw = existsSync(join(cwd, "packages", "core", "node_modules", "linked"));
+        return Promise.resolve({ exitCode: 0, output: "", timedOut: false });
+      },
+    });
+
+    expect(saw).toBe(true);
+    rmSync(worktree, { recursive: true, force: true });
+  });
+
+  it("never descends into a dependency directory looking for more", async () => {
+    // `node_modules/foo/node_modules` is foo's business, and walking it would take all day.
+    mkdirSync(join(repo, "node_modules", "foo", "node_modules"), { recursive: true });
+    const worktree = worktreeOf("deep");
+
+    // Checked from inside the run: by the time runChecks returns the links are gone, which is the point of them.
+    const lent: string[] = [];
+    await runChecks({
+      cwd: worktree,
+      repoRoot: repo,
+      commands: ["true"],
+      run: (_command, cwd) => {
+        if (existsSync(join(cwd, "node_modules", "foo", "node_modules")))
+          lent.push("reachable through the one link");
+        if (lstatSync(join(cwd, "node_modules")).isSymbolicLink())
+          lent.push("the top one is a link, not a copy");
+        return Promise.resolve({ exitCode: 0, output: "", timedOut: false });
+      },
+    });
+
+    expect(lent).toEqual(["reachable through the one link", "the top one is a link, not a copy"]);
+    rmSync(worktree, { recursive: true, force: true });
+  });
+
+  it("leaves a worktree that already has its own alone", async () => {
+    mkdirSync(join(repo, "node_modules"), { recursive: true });
+    const worktree = worktreeOf("own");
+    mkdirSync(join(worktree, "node_modules"), { recursive: true });
+    writeFileSync(join(worktree, "node_modules", "its-own"), "mine\n");
+
+    await runChecks({
+      cwd: worktree,
+      repoRoot: repo,
+      commands: ["true"],
+      run: () => Promise.resolve({ exitCode: 0, output: "", timedOut: false }),
+    });
+
+    expect(existsSync(join(worktree, "node_modules", "its-own"))).toBe(true);
+    rmSync(worktree, { recursive: true, force: true });
   });
 });
