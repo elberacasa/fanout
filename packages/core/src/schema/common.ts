@@ -13,6 +13,16 @@ export const SeatId = Slug;
 /** A full commit id: 40 hex characters (SHA-1 repositories) or 64 (SHA-256 repositories). */
 export const GitSha = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/, "a full commit sha");
 
+/**
+ * The identity of one piece of work: a hash of exactly what a run changed, at the moment we looked.
+ *
+ * An agent never commits, so its work has no commit id to name it by, and "the diff in that worktree" is not an
+ * identity — it is a thing that can change between the moment it is reviewed and the moment it is merged. Every
+ * step of the gate records the revision it judged, and a merge applies only a revision that every step agreed on.
+ * Without that, "reviewed and checked" means "reviewed and checked something, once".
+ */
+export const WorkRevision = z.string().regex(/^[0-9a-f]{64}$/, "a work revision (sha-256 of the diff)");
+
 /** Which seat runs a line, and optionally with which model and effort. */
 export const SeatRef = z.strictObject({
   id: SeatId,

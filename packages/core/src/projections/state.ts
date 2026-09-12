@@ -34,9 +34,16 @@ export interface RunView {
   diffStat: DiffStat | null;
   exitCode: number | null;
   usage: UsageMeters;
-  review: { verdict: EventOf<"review.done">["verdict"]; notes: string; by: SeatRef } | null;
-  checks: { ok: boolean; summary: string } | null;
-  proof: { ok: boolean; failedOnOld: string[] } | null;
+  /*
+   * Each step of the gate remembers the revision it judged. A merge that applies a different one is applying work
+   * nobody in this list actually looked at, which is the single failure the gate exists to prevent.
+   */
+  review: { verdict: EventOf<"review.done">["verdict"]; notes: string; by: SeatRef; revision: string } | null;
+  checks: { ok: boolean; summary: string; commands: string[]; revision: string } | null;
+  proof: { ok: boolean; failedOnOld: string[]; revision: string } | null;
+  approval: { by: EventOf<"merge.approved">["by"]; revision: string; note: string | null } | null;
+  /** What was merged, and where it landed, so a dependent line can start from a fact. */
+  merged: { revision: string; commit: string } | null;
   mergedFiles: string[];
   conflictFiles: string[];
   dropReason: string | null;
@@ -227,6 +234,8 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
           review: null,
           checks: null,
           proof: null,
+          approval: null,
+          merged: null,
           mergedFiles: [],
           conflictFiles: [],
           dropReason: null,
@@ -290,20 +299,39 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
     case "review.done":
       return updateRun(state, event, (run) => ({
         ...run,
-        review: { verdict: event.verdict, notes: event.notes, by: event.by },
+        review: { verdict: event.verdict, notes: event.notes, by: event.by, revision: event.revision },
       }));
 
     case "checks.done":
-      return updateRun(state, event, (run) => ({ ...run, checks: { ok: event.ok, summary: event.summary } }));
+      return updateRun(state, event, (run) => ({
+        ...run,
+        checks: {
+          ok: event.ok,
+          summary: event.summary,
+          commands: event.commands,
+          revision: event.revision,
+        },
+      }));
 
     case "proof.done":
       return updateRun(state, event, (run) => ({
         ...run,
-        proof: { ok: event.ok, failedOnOld: event.failedOnOld },
+        proof: { ok: event.ok, failedOnOld: event.failedOnOld, revision: event.revision },
+      }));
+
+    case "merge.approved":
+      return updateRun(state, event, (run) => ({
+        ...run,
+        approval: { by: event.by, revision: event.revision, note: event.note ?? null },
       }));
 
     case "merge.applied":
-      return updateRun(state, event, (run) => ({ ...run, status: "merged", mergedFiles: event.files }));
+      return updateRun(state, event, (run) => ({
+        ...run,
+        status: "merged",
+        mergedFiles: event.files,
+        merged: { revision: event.revision, commit: event.commit },
+      }));
 
     case "merge.conflict":
       return updateRun(state, event, (run) => ({ ...run, status: "conflict", conflictFiles: event.files }));

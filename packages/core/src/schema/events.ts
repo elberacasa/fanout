@@ -10,6 +10,7 @@ import {
   SeatId,
   SeatInfo,
   SeatRef,
+  WorkRevision,
 } from "./common.ts";
 import { PlanGraph } from "./plan.ts";
 
@@ -120,9 +121,16 @@ export const RunFinished = z.strictObject({
   diffStat: DiffStat.optional(),
 });
 
+/*
+ * The merge gate, in events. Every one of them names the `revision` it judged, because each is a statement about a
+ * specific diff and not about a worktree that may since have moved. A merge applies a revision only when review,
+ * checks, proof and approval all named that same one; anything else is a claim about work nobody looked at.
+ */
+
 export const ReviewDone = z.strictObject({
   type: z.literal("review.done"),
   ...run,
+  revision: WorkRevision,
   verdict: z.enum(["accept", "rework", "reject"]),
   notes: z.string().max(20_000),
   by: SeatRef,
@@ -131,8 +139,11 @@ export const ReviewDone = z.strictObject({
 export const ChecksDone = z.strictObject({
   type: z.literal("checks.done"),
   ...run,
+  revision: WorkRevision,
   ok: z.boolean(),
   summary: z.string().max(4000),
+  /** What actually ran, so "checks pass" can be read as a claim about specific commands. */
+  commands: z.array(z.string().min(1).max(500)).max(50),
 });
 
 /** Proof of a fix: the new tests that fail on the old code (and pass on the new). */
@@ -140,6 +151,7 @@ export const ProofDone = z
   .strictObject({
     type: z.literal("proof.done"),
     ...run,
+    revision: WorkRevision,
     ok: z.boolean(),
     failedOnOld: z.array(z.string().min(1).max(500)).max(500),
   })
@@ -148,15 +160,38 @@ export const ProofDone = z
     path: ["failedOnOld"],
   });
 
+/**
+ * Someone said yes. Recorded separately from the merge itself so a replay can answer "who authorised this?" —
+ * a question a diff in the history cannot answer on its own.
+ */
+export const MergeApproved = z.strictObject({
+  type: z.literal("merge.approved"),
+  ...run,
+  revision: WorkRevision,
+  /**
+   * A person, or a policy the person wrote down in advance. A policy must name itself: "it was pre-approved" is
+   * not an answer anyone can audit, and "which rule, written when" is.
+   */
+  by: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("user") }),
+    z.strictObject({ kind: z.literal("policy"), name: z.string().trim().min(1).max(200) }),
+  ]),
+  note: z.string().max(2000).optional(),
+});
+
 export const MergeApplied = z.strictObject({
   type: z.literal("merge.applied"),
   ...run,
+  revision: WorkRevision,
   files: RepoPaths.min(1),
+  /** Where the work landed, so a dependent line can start from it rather than from a guess. */
+  commit: GitSha,
 });
 
 export const MergeConflict = z.strictObject({
   type: z.literal("merge.conflict"),
   ...run,
+  revision: WorkRevision,
   files: RepoPaths.min(1),
 });
 
@@ -204,6 +239,7 @@ export const FanoutEvent = z.discriminatedUnion("type", [
   ReviewDone,
   ChecksDone,
   ProofDone,
+  MergeApproved,
   MergeApplied,
   MergeConflict,
   RunDropped,

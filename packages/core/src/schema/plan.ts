@@ -16,6 +16,13 @@ export const PlanLine = z.strictObject({
   dependsOn: z.array(LineId).max(32).default([]),
   checks: z.array(z.string().min(1).max(500)).max(16).default([]),
   timeoutMinutes: z.int().min(1).max(240).optional(),
+  /**
+   * This line fixes a bug, so the gate will not merge it without a test proven to fail on the old code.
+   *
+   * Declared when the mission is planned rather than judged afterwards, because the moment to decide whether
+   * something is a fix is before an agent has written a persuasive explanation of why its change is fine.
+   */
+  fixesBug: z.boolean().default(false),
 });
 export type PlanLine = z.infer<typeof PlanLine>;
 

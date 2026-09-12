@@ -7,4 +7,5 @@ export * from "./schema/policy.ts";
 export * from "./ledger/ledger.ts";
 export * from "./projections/state.ts";
 export * from "./format/run.ts";
+export * from "./gate/readiness.ts";
 export type * from "./adapter.ts";

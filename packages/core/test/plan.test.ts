@@ -13,6 +13,7 @@ function line(id: string, overrides: Partial<LineInput> = {}): LineInput {
     scope: { write: [`src/${id}/**`] },
     dependsOn: [],
     checks: [],
+    fixesBug: false,
     ...overrides,
   };
 }
