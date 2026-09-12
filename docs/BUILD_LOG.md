@@ -17,6 +17,56 @@ Next: <the next step>
 
 ---
 
+### 2026-09-12 · Scope narrowed; honest progress; capability profiles · session 2
+
+Lead: Claude Code (Opus 5) · Teammates: codex (gpt-6-astra, high) × 1
+
+Built:
+- **Scope narrowed to two supported seats** (ADR 0017): Codex and Claude Code driven deep; Grok, Kimi and Cursor
+  become community seats whose fixtures keep passing but gate nothing. Propagated to the roadmap, README, vision,
+  product, adapters and status. Decided after probing the installed CLIs showed that everything worth having is
+  vendor-specific: `codex exec resume` (rework as real session continuation), `codex exec review` (second-vendor
+  review, previously P1), `codex exec fork` (best-of-N later), `claude auth status --json` → `subscriptionType`.
+  New standing rule in AGENTS.md: build this project on the owner's expensive seats only; never spend a cheap
+  subscription on our own tree.
+- **Run timing and the quiet signal** (`@fanout/core`): by the lead. `RunView` gained `queuedAt`, `startedAt`,
+  `endedAt` and `updatedAt`; `elapsedMs` and `silentMs` compute against the caller's clock so a finished run's
+  duration never changes while a running one grows. 7 tests, failing first.
+- **One renderer for every surface** (`core/src/format/`): by the lead. `mission_status` and the CLI now share it,
+  so the chat and the terminal can never disagree. The phase bar shows which named phase a run reported, never how
+  complete it is. 11 tests, failing first.
+- **Capability profiles in the manifest**: by codex (prompt `agent-capabilities.md`), reviewed by the lead.
+  `tier` plus four nullable `capabilities` (resume, fork, review, plan). The plan probe carries a `keep` allowlist
+  and the schema proves `planField` is one of it. 21 tests, the agent reported all failing first.
+
+Verified by the lead: `npm run check` green, **410 tests** (25 files), run 11 consecutive times across the session.
+The agent's diff read line by line before merging; it invented nothing and said so explicitly.
+
+Changed in review:
+- Removed the agent's `fake` manifest test row. My prompt claimed `packages/adapters/fake/manifest.json` exists; it
+  does not, and the agent correctly refused to invent one rather than guessing. `docs/ADAPTERS.md` now says the fake
+  seat is the one seat with no manifest.
+- Updated two inline manifest fixtures (`daemon/test/detector.test.ts`, `mcp/test/mcp.test.ts`) that my prompt had
+  fenced off as out of scope; the agent flagged the contradiction instead of working around it.
+- Fixed a real bug my own formatter tests caught: `silentMs` reported a **queued** run as quiet for as long as it
+  waited in the queue, which would have raised an alarm about the scheduler doing its job. Only a run that has
+  started and not ended can be silent.
+
+Could not verify: CI on GitHub (not pushed at the time of writing). The agent could not run `npm run typecheck` or
+`npm run test` in its sandbox (zod resolution and a Vite cache `EPERM`); the lead ran both.
+
+Honest note: one `npm run check` failed 2 fake-seat CLI tests mid-session and **never reproduced** in 11 subsequent
+runs. The leading hypothesis is stderr ordering — those tests assert stderr starts with `fake seat: `, and Node's
+SQLite `ExperimentalWarning` precedes it whenever `NODE_OPTIONS=--disable-warning=ExperimentalWarning` is missing,
+which is what happens if the suite is run with `npx vitest` instead of `npm run test`. Not proven, not fixed, and
+recorded here rather than dismissed.
+
+Not done: the `keep` allowlist is declared but **nothing enforces it yet** — no code runs the plan probe, so it is a
+promise on paper, not a working control. Recorded as a contract gap in `docs/ARCHITECTURE.md`.
+
+Next: run the plan probe behind the allowlist (with a test feeding it an email and an org id), seat posture, then
+milestone 7, the merge gate.
+
 ### 2026-09-11 · P0 milestone 6, The Claude Code plugin · session 1 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: none (the tool surface and what it refuses to do stay with the lead)

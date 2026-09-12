@@ -1,10 +1,10 @@
 # Status
 
-## Resume here (2026-09-12, session 1 ended at 98% context)
+## Resume here (2026-09-12, session 2)
 
 ### Where we are
 
-P0 milestones **1–6 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **371 tests** (24 files).
+P0 milestones **1–6 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **410 tests** (25 files).
 CI green on macOS and Linux, Node 22 and 24. Repository: https://github.com/elberacasa/fanout (**private**).
 
 | Package | What works |
@@ -28,15 +28,21 @@ worktrees, driven through the real MCP server exactly as Claude Code drives it.
 - Result at hand-off: `page-1` (codex) **done**, `copy-1` (codex) **done**, `styles-1` (grok) still running after
   ~11 minutes. The finished work is in `<scratch>/landing-home/workspaces/<runId>/`.
 
-**Two findings from it, both worth fixing:**
+**Two findings from it. The second is fixed; the first is now a community-seat bug.**
 
-1. **Grok's phase never advances.** Our adapter only moves the phase on a tool call, and Grok streams its thinking
-   as `text`/`thought` deltas that we ignore, so `mission_status` shows "reading" for minutes while it is working.
-   The display is dishonest by omission. Fix in `packages/adapters/grok/src/index.ts`: treat sustained text as
-   progress (a `detail` on `run.progress`), or map the first tool call to "coding" and text deltas to a phase the
-   person watching can believe.
-2. **Grok is slower than Codex** on the same task (minutes versus ~3), which is fine but should be visible: the
-   mission view and `mission_status` should show elapsed time per run.
+1. **Grok's phase never advances** — the adapter only moves the phase on a tool call, while Grok streams its
+   thinking as `text`/`thought` deltas we ignore. Still true, but Grok is a community seat now, so this is no longer
+   on the critical path. Fix in `packages/adapters/grok/src/index.ts` when someone wants it.
+2. ~~**No elapsed time, so slow looked identical to hung**~~ — **fixed** (`891c3ab`, `b7ed2c8`, `bdd2352`).
+   `mission_status` and the CLI now show elapsed time and mark a working run that has said nothing for a minute as
+   quiet. The landing mission would have rendered like this, which is the whole point:
+
+   ```text
+   a-landing-page-for-fanout-68cf · running · 2 running · 1 done
+     ✓ page-1    codex  done     ▪▪▫▫ coding    3m 19s  +57 −2
+     ● styles-1  grok   running  ▪▫▫▫ reading  11m 09s  quiet 7m 27s
+     ● copy-1    codex  running  ▪▪▪▫ testing  11m 07s  quiet 7m 32s
+   ```
 
 ### Scope narrowed (2026-09-12, ADR 0017)
 
@@ -50,7 +56,21 @@ Probing the CLIs for capability data found three things worth the narrowing, all
 `codex exec fork` (best-of-N later), plus `claude auth status --json` → `subscriptionType` and `grok usage`.
 ⚠️ That Claude probe also returns the owner's email and org id: read two fields, discard the rest, scrub the fixture.
 
-### Next: milestone 7, the merge gate
+### Next: finish 4b, then milestone 7
+
+**4b · capability profiles — half done.** Manifests now declare a `tier` and four `capabilities` (resume, fork,
+review, plan), each `null` when unverified. What remains, in order:
+
+1. **Run the plan probe behind its allowlist.** `capabilities.plan.keep` names the only fields the daemon may keep
+   from `claude auth status --json`; the schema proves `planField` is one of them, but **no code reads the probe
+   yet, so the allowlist protects nothing today**. The detector must filter against `keep` before anything reaches
+   the ledger, a log or a projection, with a test feeding it a response that carries an email and an org id.
+2. **Verify Claude's resume, fork and review** by recording real runs; they are `null` on purpose until then.
+3. **Seat posture** — `preferred · normal · sparing · off` per seat in `seats.json` under `FANOUT_HOME`, defaults
+   from what was detected, shown by `fanout status`, and asked in-session the first time a mission would spend a
+   sparing seat. Every value shows where it came from: detected, observed, or set by you.
+
+### Then: milestone 7, the merge gate
 
 The promise the whole product rests on. In order:
 
@@ -95,8 +115,10 @@ owner's word.
 
 ## History
 
+- 2026-09-12 · Session 2: scope narrowed to two supported seats (ADR 0017); run timing, the quiet signal and one
+  shared renderer for every surface; capability profiles in the manifest with a privacy allowlist. 410 tests.
 - 2026-09-12 · First real mission: three agents, three worktrees, a landing page. Two honesty bugs found in how
-  progress is shown.
+  progress is shown. The page itself was a test and is discarded; its lesson became the interface rule.
 - 2026-09-11 · Session 1: design reset to Claude-Code-native (0008–0016); milestones 1–6 built (371 tests); three
   Codex agents plus an adversarial audit; repository published privately with its history rewritten to standard;
   three agent CLIs driven for real; daemon, CLI, MCP server and plugin running on this machine.
