@@ -3,6 +3,18 @@
   "displayName": "Claude Code",
   "binary": "claude",
   "supportedVersions": ">=2.0 <3",
+  "tier": "supported",
+  "capabilities": {
+    "resume": null,
+    "fork": null,
+    "review": null,
+    "plan": {
+      "probe": ["auth", "status", "--json"],
+      "format": "json",
+      "keep": ["loggedIn", "subscriptionType"],
+      "planField": "subscriptionType"
+    }
+  },
   "headless": {
     "args": [
       "-p",

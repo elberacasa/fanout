@@ -10,7 +10,7 @@ import { SeatId } from "./common.ts";
  * rather than driven on a guess, because a stream we have not seen is a stream we cannot parse honestly.
  */
 
-/** A placeholder the supervisor fills in: {workdir}, {prompt}, {report}, {sandbox}, {model}, {effort}. */
+/** A placeholder the supervisor fills in: {workdir}, {prompt}, {report}, {sandbox}, {model}, {effort}, {session}. */
 const ArgTemplate = z.string().min(1).max(500);
 
 export const AdapterManifest = z.strictObject({
@@ -19,6 +19,31 @@ export const AdapterManifest = z.strictObject({
   binary: z.string().min(1).max(200),
   /** A semver range, e.g. ">=0.150 <1.0". Outside it, the seat is unsupported, never guessed at. */
   supportedVersions: z.string().min(1).max(100),
+  /** What we promise about this seat, never a judgment of the CLI's quality. */
+  tier: z.enum(["supported", "community", "reference"]),
+
+  /** Null means no such mode or none verified: the merge gate must never act on a guess. */
+  capabilities: z.strictObject({
+    resume: z.strictObject({ args: z.array(ArgTemplate).min(1).max(50) }).nullable(),
+    fork: z.strictObject({ args: z.array(ArgTemplate).min(1).max(50) }).nullable(),
+    review: z.strictObject({ args: z.array(ArgTemplate).min(1).max(50) }).nullable(),
+    /**
+     * An allowlist keeps account identity out of storage. A privacy promise that is data can be reviewed in a pull
+     * request; a promise in adapter code has to be re-read every time.
+     */
+    plan: z
+      .strictObject({
+        probe: z.array(z.string().min(1).max(100)).min(1).max(10),
+        format: z.literal("json"),
+        keep: z.array(z.string().min(1).max(100)).min(1).max(5),
+        planField: z.string().min(1).max(100),
+      })
+      .refine((plan) => plan.keep.includes(plan.planField), {
+        message: "planField must be one of keep",
+        path: ["planField"],
+      })
+      .nullable(),
+  }),
 
   headless: z.strictObject({
     args: z.array(ArgTemplate).min(1).max(50),

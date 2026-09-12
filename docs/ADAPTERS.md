@@ -11,7 +11,7 @@ Not every seat carries the same promise, and saying so is more honest than a lon
 |---|---|---|
 | **Supported** | `codex`, `claude` | Driven deep: capability profile recorded, resume and review used, re-verified against a real run on every version bump. Bugs here block a release. |
 | **Community** | `grok`, and `kimi`/`cursor` when contributed | The adapter lives here and its contract tests keep passing against recorded fixtures, which costs nothing. Nothing about it gates a release, and we do not spend a subscription on it. |
-| **Reference** | `fake` | Not a vendor. It exists to keep the contract honest and to power the offline demo. |
+| **Reference** | `fake` | Not a vendor, and the only seat with no `manifest.json`: it is driven directly by the tests and the demo rather than detected on a machine. It exists to keep the contract honest and to power the offline demo. |
 
 A community seat is promoted by recording its capability profile — not by being popular. Two supported seats is a
 deliberate choice: every capability worth having is vendor-specific, so breadth would force us to the lowest common

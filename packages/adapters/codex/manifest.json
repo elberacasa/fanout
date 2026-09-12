@@ -3,6 +3,17 @@
   "displayName": "OpenAI Codex",
   "binary": "codex",
   "supportedVersions": ">=0.150.0 <1.0.0",
+  "tier": "supported",
+  "capabilities": {
+    "resume": {
+      "args": ["exec", "resume", "{session}", "--json", "-C", "{workdir}", "-s", "{sandbox}", "{prompt}"]
+    },
+    "fork": {
+      "args": ["exec", "fork", "{session}", "--json", "-C", "{workdir}", "-s", "{sandbox}", "{prompt}"]
+    },
+    "review": { "args": ["exec", "review", "--json", "-C", "{workdir}"] },
+    "plan": null
+  },
   "headless": {
     "args": ["exec", "--json", "-C", "{workdir}", "-s", "{sandbox}", "-o", "{report}", "{prompt}"],
     "stdin": "closed"

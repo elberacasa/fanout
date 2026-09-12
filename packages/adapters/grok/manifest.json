@@ -3,6 +3,8 @@
   "displayName": "Grok Build",
   "binary": "grok",
   "supportedVersions": ">=1.0 <2",
+  "tier": "community",
+  "capabilities": { "resume": null, "fork": null, "review": null, "plan": null },
   "headless": {
     "args": [
       "-p",

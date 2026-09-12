@@ -13,6 +13,8 @@ const manifest = AdapterManifest.parse({
   displayName: "OpenAI Codex",
   binary: "codex",
   supportedVersions: ">=0.150.0 <1.0.0",
+  tier: "supported",
+  capabilities: { resume: null, fork: null, review: null, plan: null },
   headless: { args: ["exec", "{prompt}"], stdin: "closed" },
   stream: { flag: "--json", format: "jsonl" },
   models: ["gpt-5.6-luna"],
