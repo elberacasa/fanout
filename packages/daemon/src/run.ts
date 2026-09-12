@@ -4,6 +4,7 @@ import {
   InvalidEventError,
   type AdapterContext,
   type AdapterSignal,
+  type DiffStat,
   type FanoutEventInput,
   type Ledger,
   type SeatAdapter,
@@ -31,6 +32,11 @@ export interface StartRunOptions {
   limits: RunLimits;
   /** The adapter's hints (session id, limit reached, final report, unparsed lines), in order. */
   onSignal?: (signal: AdapterSignal) => void;
+  /**
+   * Read from the run's workspace once it has stopped, so `run.finished` carries what actually changed rather
+   * than what the agent said it changed. Failing to read it never fails the run.
+   */
+  collectDiff?: () => Promise<DiffStat | undefined>;
 }
 
 export interface ActiveRun {
@@ -101,14 +107,16 @@ export function startRun(options: StartRunOptions): ActiveRun {
 
   control.handle = handle;
 
-  const finished = handle.done.then((exit) => {
+  const finished = handle.done.then(async (exit) => {
     if (ledgerFailure !== undefined) throw ledgerFailure;
+    const diffStat = await options.collectDiff?.().catch(() => undefined);
     ledger.append({
       type: "run.finished",
       ...ids,
       status: exit.status,
       exitCode: exit.exitCode,
       ...(existsSync(context.reportPath) ? { reportPath: context.reportPath } : {}),
+      ...(diffStat === undefined ? {} : { diffStat }),
     });
     return exit;
   });
