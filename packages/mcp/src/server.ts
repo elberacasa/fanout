@@ -85,9 +85,9 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
     workspaceRoot: options.paths.workspaces,
   });
   /*
-   * The crew is read once, when the server starts, and the headroom is read from the ledger every time a line
-   * starts. Detection spawns processes and a line should not wait on four CLIs to answer before it can begin;
-   * a seat running out, though, is exactly the thing that changes between one line and the next.
+   * Detection spawns processes, so a line uses the crew last reported at startup or by the seats tool rather
+   * than waiting on four CLIs before it can begin. Headroom still comes from the ledger every time: a seat
+   * running out is exactly the thing that changes between one line and the next.
    */
   let crew: readonly SeatInfo[] = [];
   void detectSeats({
@@ -132,6 +132,7 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
         manifests: options.manifests,
         ...(options.execute === undefined ? {} : { execute: options.execute }),
       });
+      crew = seats;
       const ready = seats.filter((seat) => seat.supported && seat.signedIn === "yes");
       return text(
         `${ready.length} of ${seats.length} seats are ready.\n` +

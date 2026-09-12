@@ -177,6 +177,59 @@ describe("checking a plan", () => {
 });
 
 describe("launching a mission", () => {
+  it("routes to a seat signed in after the session started once seats reports it", async () => {
+    await client.close();
+    let signedIn = false;
+    let probes = 0;
+    const server = createFanoutServer({
+      ledger,
+      repoRoot: repo,
+      paths: { runs: join(dir, "runs"), workspaces: join(dir, "workspaces"), home: dir },
+      adapters: new Map([["fake", adapter]]),
+      manifests: [
+        {
+          ...FAKE,
+          signIn: { probe: ["auth", "status"], okPattern: "signed in", noPattern: "signed out" },
+        },
+      ],
+      limits: {
+        startTimeoutMs: 10_000,
+        timeoutMs: 30_000,
+        killGraceMs: 300,
+        maxLogBytes: 1_000_000,
+        maxLineBytes: 100_000,
+      },
+      execute: (_binary, args) => {
+        probes++;
+        return Promise.resolve({
+          stdout: args[0] === "--version" ? "0.1.0" : signedIn ? "signed in" : "signed out",
+          stderr: "",
+          exitCode: 0,
+        });
+      },
+    });
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    client = new Client({ name: "test-lead", version: "1.0.0" });
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+
+    expect((await call("seats")).data).toMatchObject({ seats: [{ id: "fake", signedIn: "no" }] });
+    signedIn = true;
+    expect((await call("seats")).data).toMatchObject({ seats: [{ id: "fake", signedIn: "yes" }] });
+    const beforeLaunch = probes;
+
+    const launched = await call("launch", { goal: "Use the refreshed crew", lines: [line("api")] });
+    const missionId = (launched.data as { missionId: string }).missionId;
+    await waitFor(() =>
+      ledger.read().some((event) => event.type === "mission.finished" && event.missionId === missionId),
+    );
+    expect(project(ledger.read()).missions[missionId]?.runs["api-1"]).toMatchObject({
+      seat: { id: "fake" },
+      status: "done",
+    });
+    // The safety gate probes once; routing must not put more CLI processes ahead of the line.
+    expect(probes - beforeLaunch).toBe(2);
+  });
+
   it("runs the plan and records the whole story", async () => {
     const launched = await call("launch", { goal: "Add CSV export", lines: [line("api"), line("ui")] });
     const missionId = (launched.data as { missionId: string }).missionId;
