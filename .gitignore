@@ -14,6 +14,8 @@ Screenshot*.png
 
 # Throwaway scripts for driving a real mission by hand. Never committed.
 *.dev.mjs
+*.dev.id
+*.dev.log
 
 # Copied into each package by scripts/prepack.mjs so every published tarball carries the licence.
 packages/**/LICENSE
