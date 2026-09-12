@@ -12,6 +12,7 @@ import {
   type SeatAdapter,
 } from "@fanout/core";
 import {
+  checkClaims,
   createSafetyDependencies,
   createMissionRunner,
   createWorkspaceManager,
@@ -308,7 +309,75 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
     },
   );
 
+  /*
+   * The tool this whole product exists for.
+   *
+   * Most of the code in a Claude Code session is written by the lead and reviewed by the lead, and the lead's own
+   * context — the plan, the reasoning, the justification — is exactly what hides its mistakes from it. A reader
+   * holding only the diff is not smarter, it is differently placed. This is here rather than only in the terminal
+   * because a check the lead has to remember to leave the session for is a check the lead will not run.
+   */
+  server.registerTool(
+    "check_claims",
+    {
+      title: "Have a second vendor try to disprove what you believe",
+      description:
+        "State what you believe about your own uncommitted changes; another vendor's CLI reads them cold, with " +
+        "no knowledge of why you wrote them, and tries to falsify each claim. Run this before telling anyone " +
+        'work is done. Write claims that could be proven false — "it works" cannot be checked, "no caller of ' +
+        'total() passes fewer than two arguments" can. A claim is only ever reported confirmed when the reader ' +
+        "said so explicitly: anything it skipped or garbled comes back unclear, never as a pass.",
+      inputSchema: {
+        claims: z.array(z.string().trim().min(1).max(500)).min(1).max(10),
+      },
+    },
+    async ({ claims }) => {
+      const manifest = options.manifests.find((seat) => seat.capabilities.review !== null);
+      if (manifest === undefined) {
+        return text("No seat on this machine can read code it did not write.", { ran: false });
+      }
+
+      const { event, refuted } = await checkClaims({
+        repoRoot: options.repoRoot,
+        claims,
+        manifest,
+        ...(options.execute === undefined ? {} : { execute: seatExecute(options.execute) }),
+      });
+      options.ledger.appendAll([event]);
+
+      if (!event.ran) {
+        // "We could not ask" must never read as "nothing was refuted".
+        return text(
+          `${manifest.displayName} did not check these claims: ${event.claims[0]?.evidence ?? "unknown"}`,
+          { ran: false, claims: event.claims },
+        );
+      }
+
+      const lines = event.claims.map(
+        (claim) =>
+          `${{ confirmed: "✓", refuted: "✗", unclear: "?" }[claim.verdict]} ${claim.claim}\n    ${claim.evidence}`,
+      );
+      const verdict =
+        refuted.length > 0
+          ? `\n${String(refuted.length)} refuted. Fix these before saying the work is done.`
+          : event.claims.some((claim) => claim.verdict === "unclear")
+            ? "\nNothing refuted, but some claims could not be checked — that is not the same as fine."
+            : "\nAll confirmed.";
+
+      return text(`${manifest.displayName} read your changes cold:\n\n${lines.join("\n")}\n${verdict}`, {
+        ran: true,
+        refuted: refuted.length,
+        claims: event.claims,
+      });
+    },
+  );
+
   return server;
+}
+
+/** The daemon's seat runner takes a working directory and a deadline; the injected test executor takes neither. */
+function seatExecute(execute: NonNullable<FanoutMcpOptions["execute"]>) {
+  return (binary: string, args: readonly string[]) => execute(binary, args);
 }
 
 /** Every tool answers twice: words for whoever is reading, and data for whatever is next. */

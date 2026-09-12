@@ -1,6 +1,6 @@
-import { PlanGraph, type MissionView, type RunView } from "@fanout/core";
+import { PlanGraph, type ClaimCheck, type MissionView, type RunView } from "@fanout/core";
 import { describe, expect, it } from "vitest";
-import { unfinishedReport, whatIsOwed } from "../src/unfinished.ts";
+import { ownWorkOwed, unfinishedReport, whatIsOwed } from "../src/unfinished.ts";
 
 /*
  * The Stop hook's question: is the lead about to walk away from work that nobody has reviewed?
@@ -137,5 +137,69 @@ describe("what the hook prints", () => {
 
   it("counts one run in the singular, because small things signal care", () => {
     expect(unfinishedReport(whatIsOwed([mission(run("api-1", "api"))]))).toContain("1 run still waiting");
+  });
+});
+
+/*
+ * The lead's own changes, which are where most of a session's code comes from and where it gets exactly one
+ * reader. A check nobody is reminded of is a check nobody runs.
+ */
+describe("what the lead's own work owes", () => {
+  const REV = "a1".repeat(32);
+  const OLD = "b2".repeat(32);
+
+  const checked = (over: Partial<ClaimCheck> = {}): ClaimCheck => ({
+    revision: REV,
+    by: { id: "codex" },
+    claims: [{ claim: "no behaviour change", verdict: "confirmed", evidence: "checked" }],
+    ran: true,
+    at: "2026-09-12T12:00:00.000Z",
+    ...over,
+  });
+
+  it("says nothing at all when the tree is clean", () => {
+    expect(ownWorkOwed({ revision: REV, files: 0, checked: undefined })).toBe("");
+  });
+
+  it("says nothing when the current work has been checked and nothing was refuted", () => {
+    expect(ownWorkOwed({ revision: REV, files: 3, checked: checked() })).toBe("");
+  });
+
+  it("points out changes nobody but the author has read", () => {
+    const said = ownWorkOwed({ revision: REV, files: 3, checked: undefined });
+    expect(said).toContain("3 changed files");
+    expect(said).toContain("nobody but you has read them");
+    expect(said).toContain("fanout check");
+  });
+
+  it("does not let a check of older bytes stand for these ones", () => {
+    const said = ownWorkOwed({ revision: REV, files: 2, checked: checked({ revision: OLD }) });
+    expect(said).toContain("moved since the last check");
+  });
+
+  it("does not let a check that failed to run stand for a clean one", () => {
+    expect(ownWorkOwed({ revision: REV, files: 1, checked: checked({ ran: false }) })).toContain(
+      "could not run",
+    );
+  });
+
+  it("repeats a refuted claim, with the reason, until it is dealt with", () => {
+    const said = ownWorkOwed({
+      revision: REV,
+      files: 1,
+      checked: checked({
+        claims: [
+          { claim: "no secrets reach the reviewer", verdict: "refuted", evidence: "a symlink escapes" },
+          { claim: "tests cover it", verdict: "confirmed", evidence: "they do" },
+        ],
+      }),
+    });
+    expect(said).toContain("no secrets reach the reviewer");
+    expect(said).toContain("a symlink escapes");
+    expect(said).not.toContain("tests cover it");
+  });
+
+  it("counts one file in the singular", () => {
+    expect(ownWorkOwed({ revision: REV, files: 1, checked: undefined })).toContain("1 changed file,");
   });
 });

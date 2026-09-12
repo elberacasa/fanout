@@ -24,6 +24,7 @@ import {
   readSeatPolicy,
   setPosture,
   startApi,
+  workSnapshot,
   writeSeatPolicy,
   type CommandResult,
   type RunLimits,
@@ -32,7 +33,7 @@ import { createFanoutServer } from "@fanout/mcp";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { fanoutHome, type FanoutHome } from "./home.ts";
 import { crewTable, missionLines } from "./format.ts";
-import { unfinishedReport, whatIsOwed } from "./unfinished.ts";
+import { ownWorkOwed, unfinishedReport, whatIsOwed } from "./unfinished.ts";
 
 /*
  * `fanout` is the terminal half of the product: the daemon the lead talks to, and a straight answer about the crew
@@ -332,13 +333,41 @@ function reviewWith(
  * believes the work is already finished. Prints nothing and exits 0 when there is nothing owed, so a quiet session
  * stays quiet, and it never blocks — walking away from unfinished work is allowed, doing it unknowingly is not.
  */
-function owed(home: FanoutHome, io: Io): number {
-  if (!existsSync(home.ledger)) return 0;
+async function owed(home: FanoutHome, io: Io): Promise<number> {
+  const repoRoot = io.cwd ?? process.cwd();
+
+  // The working tree is asked about first, because that is where the lead's own unread code lives.
+  let own = "";
+  try {
+    const snapshot = await workSnapshot({ cwd: repoRoot });
+    if (!existsSync(home.ledger)) {
+      own = ownWorkOwed({ revision: snapshot.revision, files: snapshot.files.length, checked: undefined });
+    } else {
+      const ledger = Ledger.open(home.ledger);
+      try {
+        const state = project(ledger.read());
+        own = ownWorkOwed({
+          revision: snapshot.revision,
+          files: snapshot.files.length,
+          checked: state.claims[snapshot.repoRoot],
+        });
+      } finally {
+        ledger.close();
+      }
+    }
+  } catch {
+    // Not a repository, or git is unhappy. A hook that runs every turn must never be the reason a turn fails.
+  }
+
+  if (!existsSync(home.ledger)) {
+    if (own !== "") io.out(unfinishedReport([], own));
+    return 0;
+  }
 
   const ledger = Ledger.open(home.ledger);
   try {
     const state = project(ledger.read());
-    const report = unfinishedReport(whatIsOwed(Object.values(state.missions)));
+    const report = unfinishedReport(whatIsOwed(Object.values(state.missions)), own);
     if (report !== "") io.out(report);
   } finally {
     ledger.close();

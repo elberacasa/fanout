@@ -9,6 +9,35 @@ The Fanout MCP server runs the other agent CLIs on this machine. You stay the le
 user decides what merges. The tools do the mechanics — worktrees, launching, limits, the ledger — so that your
 judgment is the only thing that has to be good.
 
+## Before you say anything is done
+
+This part applies to **your own** code, not only to work you fanned out. Most of the code in a session is written
+by you and read by nobody else, and your own reasoning is exactly what makes your mistakes invisible to you: you
+know why it is right, so it looks right.
+
+So before telling the user work is finished, call `check_claims` with two to four things you believe about your own
+uncommitted changes. Another vendor's CLI reads them cold — no plan, no justification, just the diff — and tries to
+falsify each one.
+
+**Write claims that can be proven false.**
+
+| Write this | Not this |
+|---|---|
+| "No caller of `total()` passes fewer than two arguments" | "The refactor is safe" |
+| "Nothing outside `src/api/` changed behaviour" | "It works" |
+| "Every new branch in `parse()` has a test" | "Well tested" |
+| "A symlink cannot lead the reviewer outside the copy" | "Isolation is handled" |
+
+Half the value arrives before the tool runs: a claim you cannot phrase falsifiably is usually one you have not
+actually checked.
+
+**Read the verdicts as written.** `confirmed` means it was actively checked. `unclear` means the reader could not
+tell — which is *not* a pass, and is worth a second look at whether the claim was answerable. `refuted` means stop:
+fix it, and when you fix it, add the test that would have caught it, so it cannot come back.
+
+State the refutations to the user in the reader's own words. A second opinion that you summarise into agreement is
+not a second opinion.
+
 ## When this is worth it
 
 Fan out when the work splits into pieces that touch **different files** and can be described precisely. Two lines
@@ -53,6 +82,16 @@ Agents do better with a checklist than with a goal.
   leak a real value into a test.
 - A bug fix needs a test that fails on the old code. If it does not have one, that is the rework.
 - Never present an agent's "tests pass" as your own verification. Run the project's checks yourself after applying.
+
+## The claim loop, in full
+
+```text
+claim  →  refuted  →  failing test  →  fix  →  checked again  →  confirmed
+```
+
+The middle step is the one people skip. A refutation you fix without a test is a bug you will write again; a
+refutation you fix *with* a test that fails on the old code is the project's fourth non-negotiable, satisfied
+without anybody having to be reminded of it.
 
 ## What this skill will not do
 

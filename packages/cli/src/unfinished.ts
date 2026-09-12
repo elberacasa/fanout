@@ -1,4 +1,4 @@
-import { mergeReadiness, type MissionView, type PlanLine, type RunView } from "@fanout/core";
+import { mergeReadiness, type ClaimCheck, type MissionView, type PlanLine, type RunView } from "@fanout/core";
 
 /*
  * What is still owed, for the Stop hook.
@@ -11,6 +11,47 @@ import { mergeReadiness, type MissionView, type PlanLine, type RunView } from "@
  * someone legitimately wanted to stop — and a person who wants to walk away from unfinished work is allowed to.
  * The point is that they do it knowingly.
  */
+
+/** What the lead's own uncommitted work still owes, if anything. */
+export interface OwnWork {
+  /** The revision the working tree is at now. */
+  revision: string;
+  files: number;
+  /** The most recent claim check, if any, whatever revision it was about. */
+  checked: ClaimCheck | undefined;
+}
+
+/**
+ * What to say about the lead's own changes.
+ *
+ * The runs a crew produced are the obvious thing to guard, and they are not where most of a session's code comes
+ * from: the lead writes it, and the lead is its only reader. A check nobody is reminded of is a check nobody runs,
+ * which is why this asks about the working tree and not only about the mission.
+ */
+export function ownWorkOwed(work: OwnWork): string {
+  if (work.files === 0) return "";
+
+  const changed = `${String(work.files)} changed file${work.files === 1 ? "" : "s"}`;
+  if (work.checked === undefined) {
+    return `  ${changed}, and nobody but you has read them. Try: fanout check "<something you believe>"`;
+  }
+  if (work.checked.revision !== work.revision) {
+    // A check of older bytes is not a check of these ones, and saying "checked" here would be the lie.
+    return `  ${changed}, and they have moved since the last check. Run it again.`;
+  }
+  if (!work.checked.ran) {
+    return `  ${changed}, and the last check could not run at all.`;
+  }
+
+  const refuted = work.checked.claims.filter((claim) => claim.verdict === "refuted");
+  if (refuted.length > 0) {
+    return [
+      `  ${String(refuted.length)} of your own claims was refuted and is not fixed:`,
+      ...refuted.map((claim) => `    ✗ ${claim.claim}\n      ${claim.evidence}`),
+    ].join("\n");
+  }
+  return "";
+}
 
 export interface Owed {
   missionId: string;
@@ -64,13 +105,18 @@ function waitingOnTheLead(run: RunView): boolean {
 }
 
 /** The hook's whole output. Empty string when nothing is owed, so a quiet session stays quiet. */
-export function unfinishedReport(owed: readonly Owed[]): string {
-  if (owed.length === 0) return "";
+export function unfinishedReport(owed: readonly Owed[], own = ""): string {
+  const parts: string[] = [];
 
-  const lines = owed.map((item) => `  ${item.missionId} · ${item.runId}: ${item.what}`);
-  const count = `${String(owed.length)} run${owed.length === 1 ? "" : "s"}`;
-  return (
-    `Fanout: ${count} still waiting on you before anything can merge.\n${lines.join("\n")}\n` +
-    `Nothing has been merged. Review them, or drop them on purpose.\n`
-  );
+  if (owed.length > 0) {
+    const lines = owed.map((item) => `  ${item.missionId} · ${item.runId}: ${item.what}`);
+    const count = `${String(owed.length)} run${owed.length === 1 ? "" : "s"}`;
+    parts.push(
+      `${count} still waiting on you before anything can merge.\n${lines.join("\n")}\n` +
+        `Nothing has been merged. Review them, or drop them on purpose.`,
+    );
+  }
+  if (own !== "") parts.push(`Your own changes:\n${own}`);
+
+  return parts.length === 0 ? "" : `Fanout: ${parts.join("\n\n")}\n`;
 }

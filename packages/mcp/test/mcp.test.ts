@@ -130,6 +130,7 @@ describe("the tools the lead gets", () => {
     const names = tools.map((tool) => tool.name).sort();
     expect(names).toEqual([
       "cancel_mission",
+      "check_claims",
       "launch",
       "mission_status",
       "plan_check",
