@@ -1,5 +1,37 @@
 # Status
 
+## The road to P0 done
+
+The one table to read first. P0 is done when a developer can install Fanout, run a real mission on their own
+repository, and merge it through the gate — and when a stranger can see that happen in sixty seconds without an
+account. Everything below is what stands between here and that.
+
+| # | What | State | Done when |
+|---|---|---|---|
+| 1–6 | Foundations, seats, daemon, CLI, plugin | ✅ | tagged `v0.1.0`–`v0.6.0` |
+| 4b | Capability profiles | ✅ | resume, fork, review and plan recorded from real runs, not `--help` |
+| 7 | Merge gate | 🔨 | **rework** resumes the session that wrote the diff; everything else is done |
+| 8 | Mission view | 🔨 | the review queue is in it: what is waiting, and merging from there |
+| 9 | Routing on limits | ⬜ | a seat hits its limit mid-mission, work moves, the reason is on screen |
+| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · a 30-second video · `npx fanout-cli` works on a clean machine |
+
+**Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
+
+- [ ] `pre-push` does not check lockfile drift. CI caught one today that nothing local would have.
+- [ ] No test that every manifest field has a consumer. `stdin: "closed"` was declared by every manifest and read
+      by no new code for half a day.
+- [ ] Grok's phase never advances (community seat, so it gates nothing).
+
+**What "robust" means here**, so it is not a feeling:
+
+1. Every promise in `AGENTS.md` has a test that fails when the promise is broken — not a test that passes when it
+   is kept. Mutation-test anything that guards money, secrets or the repository.
+2. Nothing claims to be verified that was not. "CI green" is written from a run someone looked at; a check that
+   did not run is never a pass; an unknown is never a yes.
+3. The failure paths are the product. A refusal explains itself in the words of someone who has to act on it.
+4. Anything that can be enforced structurally is, rather than remembered — one spawn list, one git helper, one
+   renderer. Four rules were re-implemented wrongly in a single day; that is the cost of remembering.
+
 ## Resume here (2026-09-12, session 2)
 
 ### Where we are
