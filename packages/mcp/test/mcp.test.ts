@@ -132,13 +132,16 @@ describe("the tools the lead gets", () => {
       "cancel_mission",
       "check_claims",
       "launch",
+      "merge_run",
       "mission_status",
       "plan_check",
+      "prove_fix",
       "repo_overview",
+      "review_run",
+      "run_checks",
       "run_diff",
       "seats",
     ]);
-    expect(names).not.toContain("merge");
   });
 
   it("reports the crew", async () => {
@@ -217,3 +220,94 @@ async function waitFor(condition: () => boolean, timeoutMs = 20_000): Promise<vo
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
+
+/*
+ * The merge gate, driven end to end the way a session drives it: review, checks, proof, approve, merge. This is
+ * the promise the whole product rests on, so most of what is asserted here is what it refuses.
+ */
+describe("the merge gate", () => {
+  const line = (id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id,
+    title: id,
+    role: "builder",
+    prompt: `Do ${id}.`,
+    seat: { id: "fake" },
+    scope: { write: [`src/${id}/**`] },
+    checks: ["true"],
+    ...overrides,
+  });
+
+  const launchOne = async (input: Record<string, unknown>): Promise<string> => {
+    const launched = await call("launch", { goal: "Gate", lines: [input] });
+    const missionId = (launched.data as { missionId: string }).missionId;
+    await waitFor(() => project(ledger.read()).missions[missionId]?.status === "finished");
+    return missionId;
+  };
+
+  it("merges only after review, checks and the user's approval", async () => {
+    const missionId = await launchOne(line("api"));
+
+    // Refused at every stage until each one has actually happened.
+    expect((await call("merge_run", { missionId, runId: "api-1", approvedBy: "go" })).text).toContain(
+      "Nobody has reviewed",
+    );
+
+    await call("review_run", { missionId, runId: "api-1", verdict: "accept", notes: "reads correctly" });
+    expect((await call("merge_run", { missionId, runId: "api-1", approvedBy: "go" })).text).toContain(
+      "checks have not been run",
+    );
+
+    expect((await call("run_checks", { missionId, runId: "api-1" })).text).toContain("✓");
+
+    const merged = await call("merge_run", { missionId, runId: "api-1", approvedBy: "yes, merge it" });
+    expect(merged.text).toContain("Merged api-1");
+    expect(git(["log", "-1", "--format=%B"])).toContain("Approved-by: the repository's owner");
+    expect(git(["status", "--porcelain"])).toBe("");
+  });
+
+  it("will not merge a fix without a test proven to fail on the old code", async () => {
+    const missionId = await launchOne(line("api", { fixesBug: true }));
+    await call("review_run", { missionId, runId: "api-1", verdict: "accept", notes: "looks right" });
+    await call("run_checks", { missionId, runId: "api-1" });
+
+    const refused = await call("merge_run", { missionId, runId: "api-1", approvedBy: "go on" });
+    expect(refused.text).toContain("fail on the old code");
+    expect((refused.data as { merged: boolean }).merged).toBe(false);
+  });
+
+  it("records a rework verdict without merging anything", async () => {
+    const missionId = await launchOne(line("api"));
+    await call("review_run", { missionId, runId: "api-1", verdict: "rework", notes: "escape the quotes" });
+
+    const refused = await call("merge_run", { missionId, runId: "api-1", approvedBy: "go" });
+    expect(refused.text).toContain("asked for changes");
+  });
+
+  /*
+   * A line with no checks declared must not slip through as "nothing failed". The gate wants evidence, and an
+   * empty list of commands is the absence of it.
+   */
+  it("treats a line that declared no checks as unverified, not as passing", async () => {
+    const missionId = await launchOne(line("api", { checks: [] }));
+    await call("review_run", { missionId, runId: "api-1", verdict: "accept", notes: "fine" });
+
+    const checks = await call("run_checks", { missionId, runId: "api-1" });
+    expect(checks.text).toContain("no checks were declared");
+    expect((await call("merge_run", { missionId, runId: "api-1", approvedBy: "go" })).text).toContain(
+      "checks failed",
+    );
+  });
+
+  it("keeps the user's own words about why they approved it", async () => {
+    const missionId = await launchOne(line("api"));
+    await call("review_run", { missionId, runId: "api-1", verdict: "accept", notes: "ok" });
+    await call("run_checks", { missionId, runId: "api-1" });
+    await call("merge_run", { missionId, runId: "api-1", approvedBy: "ship it, I read the diff" });
+
+    const approvals = ledger
+      .read()
+      .filter((event) => event.type === "merge.approved")
+      .map((event) => (event as { note?: string }).note);
+    expect(approvals).toContain("ship it, I read the diff");
+  });
+});

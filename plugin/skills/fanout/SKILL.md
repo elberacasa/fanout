@@ -83,6 +83,27 @@ Agents do better with a checklist than with a goal.
 - A bug fix needs a test that fails on the old code. If it does not have one, that is the rework.
 - Never present an agent's "tests pass" as your own verification. Run the project's checks yourself after applying.
 
+## Bringing a run home
+
+When an agent finishes, the gate is four tools in order, and each one records the revision it judged. If the work
+changes between any two of them, the later ones refuse — which is the point.
+
+1. **`run_diff`** — read it yourself, line by line, before anything else. An agent's report is what it believes it
+   did.
+2. **`review_run`** — your verdict, and *what you actually checked*. "Looks fine" is not a review. `rework` sends
+   it back to the same session; `reject` ends the line.
+3. **`run_checks`** — the project's own commands, run by the gate rather than reported by the agent. A line that
+   declared no checks comes back **unverified**, which is not the same as passing.
+4. **`prove_fix`** — only for a line the plan marked `fixesBug`. The test goes onto the *old* code and must fail
+   there. If it passes, it would have passed before the fix.
+5. **Ask the user**, in the chat, in their own words. Then **`merge_run`** with what they said.
+
+You cannot merge your own way past any of this: `merge_run` asks a pure function over recorded facts, and reports
+the refusals rather than working around them. Read them out to the user as written.
+
+**Never call `merge_run` without having asked.** The tool records the user as the authority, and a replay months
+from now will show that. Putting words in their mouth there is the worst thing you can do with these tools.
+
 ## The claim loop, in full
 
 ```text

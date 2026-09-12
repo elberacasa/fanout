@@ -14,6 +14,11 @@ import {
 import {
   checkClaims,
   createSafetyDependencies,
+  filesInPatch,
+  mergeRun,
+  proveFix,
+  runChecks,
+  workSnapshot,
   createMissionRunner,
   createWorkspaceManager,
   detectSeats,
@@ -368,6 +373,212 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
         ran: true,
         refuted: refuted.length,
         claims: event.claims,
+      });
+    },
+  );
+
+  /*
+   * The merge gate, as four tools the lead drives in order.
+   *
+   * They are deliberately separate. Each records the revision it judged, and `merge_run` refuses unless review,
+   * checks, proof and approval all named the same one — so a single tool that "reviewed and merged" would be a
+   * tool that could skip its own gate. Splitting them is what makes the refusal possible.
+   */
+
+  /** Finds a run and its worktree, or explains which part is missing. */
+  const locate = (missionId: string, runId: string) => {
+    const state = project(options.ledger.read({ missionId }));
+    const mission = state.missions[missionId];
+    const run = mission?.runs[runId];
+    const line = mission?.plan?.lines.find((entry) => entry.id === run?.lineId);
+    const path = join(options.paths.workspaces, missionId, runId);
+    if (mission === undefined || run === undefined || line === undefined) return null;
+    return {
+      run,
+      line,
+      workspace: {
+        missionId,
+        runId,
+        kind: "worktree" as const,
+        path,
+        branch: `fanout/${missionId}/${runId}`,
+        baseCommit: mission.repo.baseCommit,
+      },
+      exists: existsSync(path),
+    };
+  };
+
+  const RUN = { missionId: z.string().min(1), runId: z.string().min(1) };
+
+  server.registerTool(
+    "review_run",
+    {
+      title: "Record your verdict on a run's diff",
+      description:
+        "Records what you decided after reading the diff yourself with `run_diff`. Say what you actually " +
+        "checked, not that it looks fine. `rework` sends it back; `reject` ends it. The verdict is tied to the " +
+        "diff as it is right now, so if the work changes afterwards this review no longer counts for it.",
+      inputSchema: {
+        ...RUN,
+        verdict: z.enum(["accept", "rework", "reject"]),
+        notes: z.string().trim().min(1).max(20_000),
+      },
+    },
+    async ({ missionId, runId, verdict, notes }) => {
+      const found = locate(missionId, runId);
+      if (found?.exists !== true) return text(`No workspace for ${runId} to review.`, { runId });
+
+      const diff = await workspaces.collect(found.workspace, found.line);
+      const revision = (await workSnapshot({ cwd: found.workspace.path })).revision;
+      options.ledger.appendAll([
+        { type: "review.done", missionId, runId, revision, verdict, notes, by: { id: "claude" } },
+      ]);
+      return text(
+        `Recorded: ${verdict} for ${runId} (${String(diff.stat.files)} file(s) changed).` +
+          (verdict === "accept" ? " Next: run_checks." : ""),
+        { revision, verdict },
+      );
+    },
+  );
+
+  server.registerTool(
+    "run_checks",
+    {
+      title: "Run the project's own checks against a run's work",
+      description:
+        "Runs the commands the plan declared for this line, in the run's worktree, and believes the exit codes. " +
+        "The agent's own claim that its tests pass is not evidence: it was made by the only party with an " +
+        "interest in the answer, inside a sandbox that could not run them properly. A line that declared no " +
+        "checks is reported as unverified, never as passing.",
+      inputSchema: RUN,
+    },
+    async ({ missionId, runId }) => {
+      const found = locate(missionId, runId);
+      if (found?.exists !== true) return text(`No workspace for ${runId} to check.`, { runId });
+
+      const result = await runChecks({ cwd: found.workspace.path, commands: found.line.checks });
+      options.ledger.appendAll([
+        {
+          type: "checks.done",
+          missionId,
+          runId,
+          revision: result.revision,
+          ok: result.ok,
+          summary: result.summary,
+          commands: result.commands,
+        },
+      ]);
+      const failing = result.outcomes.find((outcome) => outcome.exitCode !== 0);
+      return text(
+        `${result.ok ? "✓" : "✗"} ${result.summary}` +
+          (failing === undefined ? "" : `\n\n${failing.command}:\n${failing.tail}`),
+        { ok: result.ok, revision: result.revision, outcomes: result.outcomes },
+      );
+    },
+  );
+
+  server.registerTool(
+    "prove_fix",
+    {
+      title: "Prove a bug fix by failing its test on the old code",
+      description:
+        "For a line the plan marked as a bug fix. Checks out the code as it was, copies only this run's tests " +
+        "on top of it, and runs them: they must fail. A test that passes on the old code would have passed " +
+        "before the fix, so it does not test what was broken. Required before such a line can merge.",
+      inputSchema: RUN,
+    },
+    async ({ missionId, runId }) => {
+      const found = locate(missionId, runId);
+      if (found?.exists !== true) return text(`No workspace for ${runId} to prove.`, { runId });
+
+      const diff = await workspaces.collect(found.workspace, found.line);
+      const revision = (await workSnapshot({ cwd: found.workspace.path })).revision;
+      const result = await proveFix({
+        repoRoot: options.repoRoot,
+        workspacePath: found.workspace.path,
+        baseCommit: found.workspace.baseCommit,
+        touched: [...diff.newFiles, ...filesInPatch(diff.patch)],
+        commands: found.line.checks,
+      });
+
+      options.ledger.appendAll([
+        { type: "proof.done", missionId, runId, revision, ok: result.ok, failedOnOld: result.failedOnOld },
+      ]);
+      return text(`${result.ok ? "✓ proven" : "✗ not proven"}: ${result.why}`, {
+        ok: result.ok,
+        revision,
+        tests: result.tests,
+      });
+    },
+  );
+
+  server.registerTool(
+    "merge_run",
+    {
+      title: "Merge a run's work into the repository",
+      description:
+        "The only tool that changes the user's repository, and it refuses unless review, checks, proof and the " +
+        "user's approval all judged this exact diff. **Ask the user first, in the chat, and quote their answer " +
+        "in `approvedBy`.** Applies with a three-way merge; a conflict is reported and rolled back, never " +
+        "forced. Nothing is merged into a tree with uncommitted changes it would touch.",
+      inputSchema: {
+        ...RUN,
+        approvedBy: z
+          .string()
+          .trim()
+          .min(1)
+          .max(2000)
+          .describe("What the user actually said when they approved this merge, in their own words."),
+      },
+    },
+    async ({ missionId, runId, approvedBy }) => {
+      const found = locate(missionId, runId);
+      if (found?.exists !== true) return text(`No workspace for ${runId} to merge.`, { runId });
+
+      const diff = await workspaces.collect(found.workspace, found.line);
+      const revision = (await workSnapshot({ cwd: found.workspace.path })).revision;
+
+      /*
+       * The approval is recorded before the attempt, so a replay shows the authority even when the merge then
+       * hits a conflict. It is recorded as the user's because the user is who this tool asks the lead to ask.
+       */
+      options.ledger.appendAll([
+        { type: "merge.approved", missionId, runId, revision, by: { kind: "user" }, note: approvedBy },
+      ]);
+
+      const fresh = project(options.ledger.read({ missionId })).missions[missionId]?.runs[runId];
+      if (fresh === undefined) return text(`${runId} vanished between reading and merging.`, { runId });
+
+      const outcome = await mergeRun({
+        repoRoot: options.repoRoot,
+        workspacePath: found.workspace.path,
+        run: fresh,
+        line: found.line,
+        revision,
+        patch: diff.patch,
+        newFiles: diff.newFiles,
+      });
+
+      if (outcome.kind === "refused") {
+        return text(`Not merged:\n${outcome.why.map((why) => `- ${why}`).join("\n")}`, { merged: false });
+      }
+      if (outcome.kind === "conflict") {
+        options.ledger.appendAll([
+          { type: "merge.conflict", missionId, runId, revision, files: outcome.files },
+        ]);
+        return text(
+          `Conflict in ${outcome.files.join(", ")}: ${outcome.why}. Your repository is untouched.`,
+          { merged: false, files: outcome.files },
+        );
+      }
+
+      options.ledger.appendAll([
+        { type: "merge.applied", missionId, runId, revision, files: outcome.files, commit: outcome.commit },
+      ]);
+      return text(`Merged ${runId} as ${outcome.commit.slice(0, 7)}: ${outcome.files.join(", ")}`, {
+        merged: true,
+        commit: outcome.commit,
+        files: outcome.files,
       });
     },
   );
