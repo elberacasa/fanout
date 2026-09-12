@@ -17,8 +17,8 @@ account. Everything below is what stands between here and that.
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
-- [ ] The mission view is blank for up to a second after loading, before the first poll answers — no "connecting",
-      nothing. Honest UI (non-negotiable 6) asks for better than a screen that cannot tell loading from empty.
+- [x] ~~The mission view is blank before its first answer~~ — it now says it is asking, and a page that never
+      gets an answer says that instead of showing nothing.
 - [ ] `fanout owed` runs as a Stop hook after every turn and reports any finished-but-unreviewed run forever, so
       one abandoned mission nags indefinitely. A cold reader refuted a claim of mine about this; the claim was
       wrong, and the nagging is still a real question.
@@ -48,7 +48,7 @@ account. Everything below is what stands between here and that.
 
 ### Where we are
 
-P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **730 tests**
+P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **731 tests**
 (45 files). **P0's acceptance run is done**: a real mission on this repository, through the MCP tools, went plan →
 safety → parallel launch → rework as resumed sessions → review → checks → proof → merge (`2d8f9fa`, `f1fcb44`),
 and exposed two real gate defects that are now fixed (`7c19f4a`, `c9052a4`). Repository: https://github.com/elberacasa/fanout (**public**).
