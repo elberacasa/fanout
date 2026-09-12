@@ -13,7 +13,7 @@ account. Everything below is what stands between here and that.
 | 7 | Merge gate | ✅ | review, rework, checks, proof, approval, `git apply -3` — run on real work through the gate itself |
 | 8 | Mission view | ✅ | live, with the review queue, the gate's own reasons, reroutes, and a person's own approval — `f9263b1` |
 | 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
-| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · a 30-second video · `npx fanout-cli` works on a clean machine |
+| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · packages build, install from empty and run (`pnpm verify:pack`, in CI) ✅ · left: **the owner's word to publish**, then a 30-second video |
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
@@ -42,7 +42,15 @@ account. Everything below is what stands between here and that.
 P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green locally: **715 tests**
 (42 files). Repository: https://github.com/elberacasa/fanout (**public**).
 
-**Only #10 is left**: the 30-second video, and `npx fanout-cli` working on a clean machine.
+**Only #10 is left**, and most of it is done. Every package builds, installs into an empty directory and runs the
+demo end to end — `pnpm verify:pack`, now a CI job. What remains is not engineering:
+
+1. **Publishing needs the owner's explicit word.** Nothing has been pushed to npm. `fanout-cli` and the `@fanout`
+   scope are both free; the bare name `fanout` is taken by someone else (0.3.3). One `pnpm -r publish` ships it.
+2. **The 30-second video**, which wants a real mission rather than the demo.
+
+> Publishing raw TypeScript was never possible: Node throws `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` for any
+> `.ts` file under `node_modules`. See ADR 0021 — the repository still has no build step; only `prepack` compiles.
 
 The repository is **public** since 2026-09-12, which is also how CI came back: Actions is free for public
 repositories, and every job before that was refused before it started by a billing hold on the private one.

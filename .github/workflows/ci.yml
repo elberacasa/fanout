@@ -31,6 +31,22 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
 
+  # The source suite cannot see a broken tarball: a missing runtime asset, a path the compiler could not rewrite,
+  # a version that no longer matches. Every one of those passed `pnpm check` while it was broken. Node 22 because
+  # it is the oldest we claim to support and therefore the one most likely to be the problem.
+  pack:
+    name: installs from empty
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify:pack
+
   commits:
     name: commit standard
     runs-on: ubuntu-latest
