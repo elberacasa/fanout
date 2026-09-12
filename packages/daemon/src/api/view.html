@@ -445,7 +445,13 @@
       <span class="goal" id="goal"></span>
       <span class="clock num" id="clock"></span>
     </header>
-    <main id="main"></main>
+    <!--
+      What the page says before its first answer arrives.
+      Replaced by `draw` the moment there is a snapshot, and left alone if the daemon never answers — at which
+      point #offline says so. A screen that renders nothing cannot tell "still asking" from "nothing here", and
+      honest UI is the sixth non-negotiable rather than a nicety.
+    -->
+    <main id="main"><div class="empty">Asking the daemon what is happening…</div></main>
 
     <script>
       // Stamped into the page by the daemon: a browser cannot put an Authorization header on a navigation.
@@ -705,6 +711,7 @@
 
         // Say it is stale rather than letting an old picture pass for a current one.
         document.body.classList.toggle("stale", lastOk !== 0 && now - lastOk > 4000);
+        // Before the first answer the page keeps its opening line; only a snapshot may replace it.
         if (!snapshot) return;
 
         const { state, seats } = snapshot;

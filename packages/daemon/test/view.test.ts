@@ -53,6 +53,18 @@ describe("the mission view's classes", () => {
     expect(unstyled).toEqual([]);
   });
 
+  /*
+   * Non-negotiable 6: a failed load never looks like "nothing to do". The page used to render an empty body
+   * until its first poll answered, and if the daemon never answered it stayed that way — a screen that cannot
+   * tell "still asking" from "nothing here". Found by opening it, not by reading it.
+   */
+  it("says something before its first answer arrives", () => {
+    const main = /<main id="main">([\s\S]*?)<\/main>/.exec(html)?.[1] ?? "";
+
+    expect(main.trim()).not.toBe("");
+    expect(main).toContain("daemon");
+  });
+
   it("keeps the token a placeholder in the file on disk, never a baked-in secret", () => {
     expect(html).toContain("{{TOKEN}}");
     // The daemon stamps its own token in as it serves. A real one committed here would be a credential in git.
