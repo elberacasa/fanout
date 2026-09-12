@@ -634,7 +634,15 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
        * hits a conflict. It is recorded as the user's because the user is who this tool asks the lead to ask.
        */
       options.ledger.appendAll([
-        { type: "merge.approved", missionId, runId, revision, by: { kind: "user" }, note: approvedBy },
+        {
+          type: "merge.approved",
+          missionId,
+          runId,
+          revision,
+          // Relayed, not direct: this is the lead's account of what the user said, and the ledger should say so.
+          by: { kind: "user", via: "relayed" },
+          note: approvedBy,
+        },
       ]);
 
       const fresh = project(options.ledger.read({ missionId })).missions[missionId]?.runs[runId];

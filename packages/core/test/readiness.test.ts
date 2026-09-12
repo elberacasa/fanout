@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { firstBlocker, mergeReadiness, PlanGraph, type PlanLine, type RunView } from "../src/index.ts";
+import {
+  blocksApproval,
+  firstBlocker,
+  mergeReadiness,
+  PlanGraph,
+  type PlanLine,
+  type RunView,
+} from "../src/index.ts";
 
 /*
  * The gate's whole judgement. These tests are the specification of the fourth non-negotiable: nothing merges that
@@ -174,5 +181,32 @@ describe("telling someone what to do", () => {
 
   it("has nothing to say when the work is ready", () => {
     expect(firstBlocker(mergeReadiness(run(), feature, REV))).toBeNull();
+  });
+});
+
+/*
+ * Approval is the one blocker a person clears by deciding, which makes "may this be approved?" a question
+ * `mergeReadiness` answers "no" to forever. The approve button in the mission view stands on this distinction.
+ */
+describe("whether someone can approve yet", () => {
+  it("finds nothing in the way of work that has been reviewed and checked", () => {
+    expect(blocksApproval(mergeReadiness(run({ approval: null }), feature, REV))).toEqual([]);
+  });
+
+  it("still stands in the way when nobody has reviewed the diff", () => {
+    const standing = blocksApproval(mergeReadiness(run({ review: null, approval: null }), feature, REV));
+    expect(standing.map((blocker) => blocker.code)).toEqual(["no-review"]);
+  });
+
+  /*
+   * A stale approval is a yes about a different diff, and the person has to give a new one. Removing only the
+   * approval codes is what lets the button come back rather than the row claiming to be ready.
+   */
+  it("removes a stale approval too, so the button can ask again", () => {
+    const stale = run({ approval: { by: { kind: "user" }, revision: "b".repeat(64), note: null } });
+    const readiness = mergeReadiness(stale, feature, REV);
+
+    expect(readiness.blockers.map((blocker) => blocker.code)).toEqual(["approval-stale"]);
+    expect(blocksApproval(readiness)).toEqual([]);
   });
 });

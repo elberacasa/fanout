@@ -278,7 +278,7 @@
        */
       .waiting {
         display: grid;
-        grid-template-columns: 16px minmax(120px, auto) 1fr;
+        grid-template-columns: 16px minmax(120px, auto) 1fr auto;
         gap: 4px 12px;
         padding: 10px 14px;
         border-bottom: 1px solid var(--line-soft);
@@ -301,6 +301,43 @@
       }
       .waiting .what {
         color: var(--fg-dim);
+      }
+      /*
+       * The page's only control, and it is meant to look like one: a real button, not a link pretending. It sits
+       * at the end of the row it belongs to, so nobody can approve one run while reading another's name.
+       */
+      .approve {
+        font: inherit;
+        font-size: 12px;
+        color: var(--fg);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 4px 11px;
+        cursor: pointer;
+      }
+      .approve:hover:not(:disabled) {
+        border-color: var(--fg-faint);
+      }
+      /* Armed: the next click writes to the ledger, and the ledger cannot be edited afterwards. */
+      .approve.armed {
+        color: var(--bg);
+        background: var(--ok);
+        border-color: var(--ok);
+        font-weight: 600;
+      }
+      .approve.failed {
+        color: var(--bad);
+        border-color: var(--bad);
+        background: transparent;
+      }
+      .approve:disabled {
+        cursor: default;
+        color: var(--fg-faint);
+      }
+      .approve:focus-visible {
+        outline: 2px solid var(--run);
+        outline-offset: 2px;
       }
       .waiting .blockers {
         grid-column: 2 / -1;
@@ -413,6 +450,15 @@
     <script>
       // Stamped into the page by the daemon: a browser cannot put an Authorization header on a navigation.
       const TOKEN = "{{TOKEN}}";
+
+      /*
+       * What the approve button is in the middle of, per run.
+       *
+       * It lives out here because the page redraws itself four times a second from a whole snapshot, which throws
+       * away every element on it. A button that kept "are you sure?" in its own closure disarmed itself within
+       * 250ms and the second click landed on a fresh button — found by clicking it, not by reading it.
+       */
+      const pending = new Map();
 
       const el = (tag, cls, text) => {
         const node = document.createElement(tag);
@@ -527,8 +573,19 @@
           const row = el("div", `waiting ${item.ready ? "ready" : "blocked"}`);
           row.append(el("span", "mark", item.ready ? "✓" : "…"));
           row.append(el("span", "who", item.runId));
-          row.append(el("span", "what", item.ready ? "ready to merge" : `${item.seat} · needs work`));
-          if (!item.ready) {
+          row.append(
+            el(
+              "span",
+              "what",
+              item.ready
+                ? "approved · ask Claude to merge"
+                : item.approvable
+                  ? `${item.seat} · reviewed and checked`
+                  : `${item.seat} · needs work`,
+            ),
+          );
+          if (item.approvable) row.append(approveButton(item));
+          if (!item.ready && !item.approvable) {
             const list = el("ul");
             for (const blocker of item.blockers) list.append(el("li", null, blocker));
             const wrap = el("div", "blockers");
@@ -538,6 +595,67 @@
           section.append(row);
         }
         return section;
+      }
+
+      /*
+       * The one control on this page, and the only place a person acts on the ledger without an agent in between.
+       *
+       * Two clicks rather than one. A single stray click would record the strongest evidence the gate accepts —
+       * and undoing it is not possible, because the ledger is append-only. The second click is not a dialog: a
+       * modal here would block every other update on the page while it waited.
+       *
+       * It approves and says so. It does not merge: the commit message has to follow the repository's own
+       * convention, which the lead writes, and a page that claimed to merge and then did not would be worse than
+       * a page that never offered.
+       */
+      function approveButton(item) {
+        const button = el("button", "approve");
+        const state = pending.get(item.runId);
+
+        if (state?.failed) {
+          button.classList.add("failed");
+          button.textContent = state.failed;
+        } else if (state?.sending) {
+          button.disabled = true;
+          button.textContent = "Approving…";
+        } else if (state?.armedUntil > Date.now()) {
+          button.classList.add("armed");
+          button.textContent = "Approve — sure?";
+        } else {
+          button.textContent = "Approve";
+        }
+
+        button.addEventListener("click", async () => {
+          const now = Date.now();
+          if (!(pending.get(item.runId)?.armedUntil > now)) {
+            // Arms for five seconds and then falls back on its own, so a page left open holds no live yes.
+            pending.set(item.runId, { armedUntil: now + 5000 });
+            draw();
+            return;
+          }
+
+          pending.set(item.runId, { sending: true });
+          draw();
+          try {
+            const response = await fetch("/approve", {
+              method: "POST",
+              headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+              body: JSON.stringify({ missionId: item.missionId, runId: item.runId }),
+            });
+            if (!response.ok) {
+              // The daemon's own words. A page that invented a friendlier message would be inventing a reason.
+              const body = await response.json().catch(() => ({}));
+              throw new Error(body.error ?? `the daemon answered ${response.status}`);
+            }
+            pending.delete(item.runId);
+            // Straight back to the daemon rather than waiting for the next tick: the row must change now.
+            await poll();
+          } catch (error) {
+            pending.set(item.runId, { failed: String(error.message ?? error) });
+          }
+          draw();
+        });
+        return button;
       }
 
       function claimsSection(check, now) {

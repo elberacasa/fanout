@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import {
+  blocksApproval,
   mergeReadiness,
   project,
   type EventType,
@@ -172,6 +173,21 @@ async function handle(
     send(response, 401, { error: "this daemon needs its token; it is in ~/.fanout/token" });
     return;
   }
+  /*
+   * The one thing this daemon lets a person do rather than read, and the reason it is worth the write route.
+   *
+   * An approval recorded through the lead's tool is a language model's account of a conversation: `via: relayed`,
+   * and an agent that never asked writes a byte-identical event. This one is `via: direct` — the daemon received
+   * the click itself, over loopback, with its own token, from the page it served. Nothing in between could have
+   * invented it, and the ledger can finally tell the two apart.
+   *
+   * It approves and stops there. Merging needs a commit message in the repository's own convention, which the
+   * lead writes; and leaving the apply to the gate means this route can never touch the user's tree.
+   */
+  if (request.method === "POST" && url.pathname === "/approve") {
+    await approve(request, response, options);
+    return;
+  }
   if (request.method !== "GET") {
     send(response, 405, { error: `${request.method ?? "that"} is not something this daemon does yet` });
     return;
@@ -211,6 +227,83 @@ async function handle(
 }
 
 /**
+ * Records a person's yes, or explains why it cannot be given yet.
+ *
+ * The revision is the one review judged, never one the caller chose: an approval is consent to a specific diff,
+ * and letting the page name it would let a stale page approve work it had not seen. If the worktree has moved
+ * since, `mergeRun` collects the diff again, finds a revision the approval does not match, and refuses — which is
+ * the same protection the lead's tool has, arrived at the same way.
+ */
+async function approve(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: ApiOptions,
+): Promise<void> {
+  let body: { missionId?: unknown; runId?: unknown; note?: unknown };
+  try {
+    body = JSON.parse(await readBody(request)) as typeof body;
+  } catch {
+    send(response, 400, { error: "that was not JSON this daemon could read" });
+    return;
+  }
+  const missionId = typeof body.missionId === "string" ? body.missionId : "";
+  const runId = typeof body.runId === "string" ? body.runId : "";
+  const note = typeof body.note === "string" ? body.note.slice(0, 2000) : "approved in the mission view";
+  if (missionId === "" || runId === "") {
+    send(response, 400, { error: "an approval needs a missionId and a runId" });
+    return;
+  }
+
+  const state = project(options.ledger.read({ missionId }));
+  const mission = state.missions[missionId];
+  const run = mission?.runs[runId];
+  const line = (mission?.plan?.lines ?? []).find((candidate) => candidate.id === run?.lineId);
+  if (mission === undefined || run === undefined || line === undefined) {
+    send(response, 404, { error: `no run ${runId} in ${missionId}` });
+    return;
+  }
+
+  const revision = run.review?.revision ?? run.checks?.revision ?? "";
+  if (revision === "") {
+    send(response, 409, { error: "nothing has judged this diff yet, so there is no revision to approve" });
+    return;
+  }
+
+  /*
+   * Everything except the approval itself must already be satisfied. Recording a yes for work nobody reviewed
+   * would put the strongest evidence in the ledger behind a diff that had earned none of it.
+   */
+  const standing = blocksApproval(mergeReadiness(run, line, revision));
+  if (standing.length > 0) {
+    send(response, 409, {
+      error: "this is not ready for your approval yet",
+      blockers: standing.map((blocker) => blocker.message),
+    });
+    return;
+  }
+
+  options.ledger.append({
+    type: "merge.approved",
+    missionId,
+    runId,
+    revision,
+    by: { kind: "user", via: "direct" },
+    note,
+  });
+  send(response, 200, { ok: true, runId, revision });
+}
+
+/** The request's body, refusing anything large enough to be an attempt at exhausting the daemon. */
+async function readBody(request: IncomingMessage, limit = 8 * 1024): Promise<string> {
+  let body = "";
+  for await (const chunk of request) {
+    body += (chunk as Buffer).toString("utf8");
+    if (body.length > limit) throw new Error("body too large");
+  }
+  return body;
+}
+
+/**
  * What each finished run still needs before it can merge, computed here rather than in the page.
  *
  * `mergeReadiness` is the gate's judgement and there is exactly one of it. A page that worked out its own answer
@@ -223,6 +316,14 @@ function waitingOnYou(state: ProjectionState): {
   runId: string;
   seat: string;
   ready: boolean;
+  /**
+   * Your yes is the only thing missing.
+   *
+   * Distinct from `ready`, which means the gate would merge this now — and which can only become true *after*
+   * someone approves, since a missing approval is itself a blocker. Without this flag the page could never tell
+   * the one state where a person actually has something to do.
+   */
+  approvable: boolean;
   blockers: string[];
 }[] {
   const waiting = [];
@@ -243,6 +344,7 @@ function waitingOnYou(state: ProjectionState): {
         runId,
         seat: run.seat.id,
         ready: readiness.ready,
+        approvable: !readiness.ready && blocksApproval(readiness).length === 0,
         blockers: readiness.blockers.map((blocker) => blocker.message),
       });
     }

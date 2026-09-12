@@ -12,7 +12,7 @@ account. Everything below is what stands between here and that.
 | 4b | Capability profiles | ✅ | resume, fork, review and plan recorded from real runs, not `--help` |
 | 7 | Merge gate | ✅ | review, rework, checks, proof, approval, `git apply -3` — run on real work through the gate itself |
 | 8 | Mission view | 🔨 | ✅ live, with the review queue and the gate's own reasons · left: merging from the page itself |
-| 9 | Routing on limits | ⬜ | a seat hits its limit mid-mission, work moves, the reason is on screen |
+| 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
 | 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · a 30-second video · `npx fanout-cli` works on a clean machine |
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
@@ -51,7 +51,7 @@ repositories, and every job before that was refused before it started by a billi
 | `@fanout/core` | Event, plan, scope and manifest schemas; plan validation; append-only ledger (with an on-append listener); projections; the `SeatAdapter` contract |
 | `@fanout/daemon` | Supervisor, environment allowlist, run glue, workspaces, safety gate (8 checks), detector, mission runner, localhost API (HTTP + WebSocket, token, Origin check) |
 | `@fanout/adapters/*` | `fake`, `codex`, `grok`, `claude` (opt-in) — each parser built from a recorded real run |
-| `@fanout/mcp` | Eight tools, including **`check_claims`**. No merge tool, and a test asserts its absence |
+| `@fanout/mcp` | Thirteen tools, including `check_claims` and the gate's `merge_run`, which refuses anything `mergeReadiness` has not cleared |
 | `@fanout/cli` | `fanout status \| seat \| check \| review \| owed \| daemon \| clean \| mcp \| version \| help` |
 | `plugin/` | `/fanout`, `/fanout:crew`, `/fanout:watch`, the lead's skill, hooks. **Zero install** — runs the CLI out of the checkout via `${CLAUDE_PLUGIN_ROOT}`. Passes `claude plugin validate` |
 

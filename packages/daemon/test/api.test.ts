@@ -187,3 +187,146 @@ describe("subscribing to what happens next", () => {
     await expect(subscribe("", 0)).rejects.toThrow(/refused/);
   });
 });
+
+/*
+ * The daemon's only write route, and the only place in the product where a human acts on the ledger directly
+ * rather than through an agent. Most of what follows is about what it refuses.
+ */
+describe("approving a merge from the mission view", () => {
+  const REV = "a".repeat(64);
+  const line = {
+    id: "api",
+    title: "CSV export",
+    role: "builder" as const,
+    prompt: "Add it.",
+    seat: { id: "codex" },
+    scope: { write: ["src/api/csv.ts"] },
+    dependsOn: [],
+    checks: ["npm test"],
+    fixesBug: false,
+  };
+
+  /** A run that has been reviewed and checked at the same revision: everything but the person's yes. */
+  function reviewedAndChecked(): void {
+    ledger.appendAll([
+      { type: "plan.proposed", missionId: "demo", plan: { lines: [line] }, by: "lead" },
+      {
+        type: "run.queued",
+        missionId: "demo",
+        runId: "api-1",
+        lineId: "api",
+        seat: { id: "codex" },
+        attempt: 1,
+      },
+      { type: "run.started", missionId: "demo", runId: "api-1", workdir: "/w", argv: ["codex"] },
+      { type: "run.finished", missionId: "demo", runId: "api-1", status: "done", exitCode: 0 },
+      {
+        type: "review.done",
+        missionId: "demo",
+        runId: "api-1",
+        revision: REV,
+        by: { id: "codex" },
+        verdict: "accept",
+        notes: "fine",
+      },
+      {
+        type: "checks.done",
+        missionId: "demo",
+        runId: "api-1",
+        revision: REV,
+        ok: true,
+        summary: "1 check passed",
+        commands: ["npm test"],
+      },
+    ]);
+  }
+
+  function approve(body: unknown, headers: Record<string, string> = {}): Promise<Response> {
+    return fetch(`${api.url}/approve`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json", ...headers },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("records the yes as direct, because the daemon saw the click itself", async () => {
+    reviewedAndChecked();
+
+    const response = await approve({ missionId: "demo", runId: "api-1" });
+    expect(response.status).toBe(200);
+
+    const approval = ledger.read().find((event) => event.type === "merge.approved");
+    // `via: direct` is the whole point: an agent's account of a conversation cannot produce this event.
+    expect(approval).toMatchObject({ revision: REV, by: { kind: "user", via: "direct" } });
+  });
+
+  /*
+   * The revision is the one review judged, never one the caller sends. An approval is consent to a specific diff,
+   * and a page that could name the revision could approve work it had never seen.
+   */
+  it("approves the revision that was judged, whatever the caller says", async () => {
+    reviewedAndChecked();
+
+    await approve({ missionId: "demo", runId: "api-1", revision: "b".repeat(64) });
+
+    const approval = ledger.read().find((event) => event.type === "merge.approved");
+    expect(approval).toMatchObject({ revision: REV });
+  });
+
+  it("refuses work nobody has reviewed, and says what is missing", async () => {
+    ledger.appendAll([
+      { type: "plan.proposed", missionId: "demo", plan: { lines: [line] }, by: "lead" },
+      {
+        type: "run.queued",
+        missionId: "demo",
+        runId: "api-1",
+        lineId: "api",
+        seat: { id: "codex" },
+        attempt: 1,
+      },
+      { type: "run.started", missionId: "demo", runId: "api-1", workdir: "/w", argv: ["codex"] },
+      { type: "run.finished", missionId: "demo", runId: "api-1", status: "done", exitCode: 0 },
+      {
+        type: "checks.done",
+        missionId: "demo",
+        runId: "api-1",
+        revision: REV,
+        ok: true,
+        summary: "1 check passed",
+        commands: ["npm test"],
+      },
+    ]);
+
+    const response = await approve({ missionId: "demo", runId: "api-1" });
+    expect(response.status).toBe(409);
+    expect(JSON.stringify(await response.json())).toContain("Nobody has reviewed this diff");
+    expect(ledger.read().some((event) => event.type === "merge.approved")).toBe(false);
+  });
+
+  it("refuses a page on another site, which is the attack this route invites", async () => {
+    reviewedAndChecked();
+
+    const response = await approve(
+      { missionId: "demo", runId: "api-1" },
+      { origin: "https://example.invalid" },
+    );
+    expect(response.status).toBe(403);
+    expect(ledger.read().some((event) => event.type === "merge.approved")).toBe(false);
+  });
+
+  it("refuses without the daemon's token", async () => {
+    reviewedAndChecked();
+
+    const response = await fetch(`${api.url}/approve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ missionId: "demo", runId: "api-1" }),
+    });
+    expect(response.status).toBe(401);
+    expect(ledger.read().some((event) => event.type === "merge.approved")).toBe(false);
+  });
+
+  it("refuses a run it has never heard of", async () => {
+    expect((await approve({ missionId: "demo", runId: "ghost-1" })).status).toBe(404);
+  });
+});

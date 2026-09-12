@@ -113,6 +113,23 @@ function staleMessage(step: string): string {
   return `The work changed after ${step}, so ${step} was about a different diff. Run it again.`;
 }
 
+/** The two blockers that are the person's own yes, rather than something they are waiting on. */
+const APPROVAL_CODES: ReadonlySet<BlockerCode> = new Set(["not-approved", "approval-stale"]);
+
+/**
+ * What stands between this work and someone being *able* to approve it.
+ *
+ * Approval is the one blocker a person clears by deciding, so asking `mergeReadiness` whether work may be approved
+ * answers "no" forever: the missing approval is itself a blocker. This removes that circle and nothing else.
+ *
+ * It exists so an approve button can refuse honestly. A button that recorded a yes for work nobody had reviewed
+ * would put a real approval — the strongest evidence in the ledger — behind a diff that had earned none of it, and
+ * the merge would then refuse for reasons the person had already been told did not apply.
+ */
+export function blocksApproval(readiness: Readiness): Blocker[] {
+  return readiness.blockers.filter((blocker) => !APPROVAL_CODES.has(blocker.code));
+}
+
 /** One line a person can read, for when the whole list is too much: the first thing standing in the way. */
 export function firstBlocker(readiness: Readiness): string | null {
   return readiness.blockers[0]?.message ?? null;

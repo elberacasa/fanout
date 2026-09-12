@@ -187,7 +187,22 @@ export const MergeApproved = z.strictObject({
    * not an answer anyone can audit, and "which rule, written when" is.
    */
   by: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("user") }),
+    z.strictObject({
+      kind: z.literal("user"),
+      /**
+       * How we know. This is the difference between a fact and an agent's account of one.
+       *
+       * `direct` — the daemon received the click itself, from the mission view, on this machine. Nothing in
+       * between could have invented it.
+       *
+       * `relayed` — the lead says it asked and quoted the answer in `note`. That is a claim by a language model
+       * about a conversation, and an agent that skipped the asking writes a byte-identical event. It is worth
+       * recording and it is not worth confusing with the first one.
+       *
+       * Absent on events written before Fanout drew the distinction; read those as `relayed`.
+       */
+      via: z.enum(["direct", "relayed"]).optional(),
+    }),
     z.strictObject({ kind: z.literal("policy"), name: z.string().trim().min(1).max(200) }),
   ]),
   note: z.string().max(2000).optional(),
