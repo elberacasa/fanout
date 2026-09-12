@@ -44,6 +44,29 @@ export interface RunView {
   queuedSeq: number;
   startedSeq: number | null;
   updatedSeq: number;
+  /* The three moments a watcher asks about. Stamped by the ledger, never computed here: see `elapsedMs`. */
+  queuedAt: string;
+  startedAt: string | null;
+  /** When the agent's own work stopped. Review, merge and drop happen after this and do not move it. */
+  endedAt: string | null;
+}
+
+/**
+ * How long a run has been working, in milliseconds, or `null` if it has not started — never `0`, because
+ * "not started" and "started a moment ago" are different facts and a watcher deserves to know which.
+ *
+ * A finished run is measured between its own two stamps, so its duration never changes after the fact. A running
+ * one is measured against `now`, so a slow run is visibly slow rather than indistinguishable from a stuck one.
+ * That is why the projection stores stamps and not a duration: a stored elapsed time is stale the moment it is read.
+ *
+ * A clock that has moved backwards (an NTP correction, a laptop waking) clamps to 0 rather than showing a negative
+ * age, since a run cannot have started in the future.
+ */
+export function elapsedMs(run: RunView, now: Date): number | null {
+  if (run.startedAt === null) return null;
+  const from = Date.parse(run.startedAt);
+  const to = run.endedAt === null ? now.getTime() : Date.parse(run.endedAt);
+  return Math.max(0, to - from);
 }
 
 export interface RouteChange {
@@ -194,6 +217,9 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
           queuedSeq: event.seq,
           startedSeq: null,
           updatedSeq: event.seq,
+          queuedAt: event.ts,
+          startedAt: null,
+          endedAt: null,
         };
         return {
           ...mission,
@@ -204,7 +230,12 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
       });
 
     case "run.started":
-      return updateRun(state, event, (run) => ({ ...run, status: "running", startedSeq: event.seq }));
+      return updateRun(state, event, (run) => ({
+        ...run,
+        status: "running",
+        startedSeq: event.seq,
+        startedAt: event.ts,
+      }));
 
     case "run.progress":
       return updateRun(state, event, (run) => ({ ...run, phase: event.phase }));
@@ -235,6 +266,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
         status: event.status,
         exitCode: event.exitCode,
         diffStat: event.diffStat ?? run.diffStat,
+        endedAt: event.ts,
       }));
 
     case "review.done":

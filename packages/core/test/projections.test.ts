@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyEvent,
+  elapsedMs,
   initialState,
   Ledger,
   project,
@@ -329,6 +330,109 @@ describe("project", () => {
     expect(after.anomalies).toEqual([
       { seq: 3, type: "mission.created", message: "sequence 3 arrived after 5; ignored" },
     ]);
+  });
+});
+
+/*
+ * A run that is slow must not look like a run that is stuck. The ledger already stamps every event, so the
+ * projection keeps the three moments that matter and the reader does the arithmetic against its own clock —
+ * a stored "6m 38s" would be a lie the instant it was read.
+ */
+describe("run timing", () => {
+  const clock = (...isoTimes: string[]): (() => Date) => {
+    let i = 0;
+    return () => new Date(isoTimes[Math.min(i++, isoTimes.length - 1)] ?? "");
+  };
+
+  const timed = (now: () => Date, inputs: FanoutEventInput[]): StoredEvent[] => {
+    const ledger = Ledger.open(":memory:", { now });
+    const stored = ledger.appendAll(inputs);
+    ledger.close();
+    return stored;
+  };
+
+  const upTo = (index: number): FanoutEventInput[] =>
+    [
+      samples["mission.created"],
+      { type: "run.queued", missionId: M, runId: "r1", lineId: "l1", seat: { id: "codex" }, attempt: 1 },
+      { type: "run.started", missionId: M, runId: "r1", workdir: "/tmp/f/r1", argv: ["codex", "exec"] },
+      { type: "run.finished", missionId: M, runId: "r1", status: "done", exitCode: 0 },
+    ].slice(0, index) as FanoutEventInput[];
+
+  it("records when a run was queued, started and ended", () => {
+    const state = project(
+      timed(
+        clock(
+          "2026-09-12T10:00:00.000Z",
+          "2026-09-12T10:00:05.000Z",
+          "2026-09-12T10:00:11.000Z",
+          "2026-09-12T10:06:49.000Z",
+        ),
+        upTo(4),
+      ),
+    );
+
+    expect(state.missions[M]?.runs["r1"]).toMatchObject({
+      queuedAt: "2026-09-12T10:00:05.000Z",
+      startedAt: "2026-09-12T10:00:11.000Z",
+      endedAt: "2026-09-12T10:06:49.000Z",
+    });
+  });
+
+  it("measures a finished run between its own two stamps, not against the clock", () => {
+    const state = project(
+      timed(
+        clock(
+          "2026-09-12T10:00:00.000Z",
+          "2026-09-12T10:00:05.000Z",
+          "2026-09-12T10:00:11.000Z",
+          "2026-09-12T10:06:49.000Z",
+        ),
+        upTo(4),
+      ),
+    );
+    const run = state.missions[M]?.runs["r1"];
+    if (run === undefined) throw new Error("no run");
+
+    // An hour later the answer is the same: the run took 6m 38s and always will have.
+    expect(elapsedMs(run, new Date("2026-09-12T11:00:00.000Z"))).toBe(398_000);
+  });
+
+  it("measures a running run against now, so a slow run visibly grows", () => {
+    const state = project(
+      timed(
+        clock("2026-09-12T10:00:00.000Z", "2026-09-12T10:00:05.000Z", "2026-09-12T10:00:11.000Z"),
+        upTo(3),
+      ),
+    );
+    const run = state.missions[M]?.runs["r1"];
+    if (run === undefined) throw new Error("no run");
+
+    expect(run.endedAt).toBeNull();
+    expect(elapsedMs(run, new Date("2026-09-12T10:02:11.000Z"))).toBe(120_000);
+    expect(elapsedMs(run, new Date("2026-09-12T10:15:11.000Z"))).toBe(900_000);
+  });
+
+  it("says nothing rather than zero for a run that has not started", () => {
+    const state = project(timed(clock("2026-09-12T10:00:00.000Z", "2026-09-12T10:00:05.000Z"), upTo(2)));
+    const run = state.missions[M]?.runs["r1"];
+    if (run === undefined) throw new Error("no run");
+
+    expect(run.startedAt).toBeNull();
+    expect(elapsedMs(run, new Date("2026-09-12T10:30:00.000Z"))).toBeNull();
+  });
+
+  it("never reports negative time when the clock moves backwards", () => {
+    const state = project(
+      timed(
+        clock("2026-09-12T10:00:00.000Z", "2026-09-12T10:00:05.000Z", "2026-09-12T10:00:11.000Z"),
+        upTo(3),
+      ),
+    );
+    const run = state.missions[M]?.runs["r1"];
+    if (run === undefined) throw new Error("no run");
+
+    expect(elapsedMs(run, new Date("2026-09-12T09:00:00.000Z"))).toBe(0);
   });
 });
 
