@@ -156,3 +156,27 @@ a safety report cannot protect files it cannot name.
 **Consequences:** the event schema version stays 1 because no ledger exists outside development; after the first
 public release, a change of this shape needs a new version and an upgrade path. `*` and `?` are always wildcards,
 with no escape: a file whose name truly contains one is covered by a scope ending in `**`.
+
+## 0017 · P0 supports two seats deeply; the rest are community seats (2026-09-12; narrows ROADMAP P0)
+
+**Choice:** P0 ships **Codex and Claude Code** as *supported* seats — driven deep, verified against real runs on
+every version bump, and covered by the definition of done. Grok, Kimi and Cursor become **community** seats: their
+adapters live in the tree and their contract tests keep running against recorded fixtures, but nothing about them
+gates a release and we do not spend the owner's quota on them. The `fake` seat stays the **reference**
+implementation. P0's done-criteria changes from "at least three vendors' CLIs as workers" to Claude Code leading
+Codex, both deep, with the fake seat carrying the offline demo.
+
+**Why:** every capability worth having is vendor-specific, so breadth forces the lowest common denominator.
+Supporting two lets the merge gate use `codex exec resume` for real session continuation on rework instead of
+re-pasting context, `codex exec review` for genuine second-vendor review (which was P1), and Claude Code's
+`claude auth status --json` and real quota windows for routing on facts rather than estimates. The abstraction
+already paid for this: a seat is one folder and nothing else in the daemon changes, so adopting another CLI later is
+an addition, never a refactor.
+
+**Consequences:** the multi-vendor claim must be stated as it is — two supported seats plus a kit — in the README,
+`AGENTS.md` and `docs/ADAPTERS.md`. Two risks are accepted and mitigated. First, with only two real adapters the
+`SeatAdapter` contract could quietly become "whatever Codex and Claude do"; the `fake` seat is deliberately unlike
+either, and Grok's fixtures keep a third and fourth implementation honest at no cost. Second, Claude Code is already
+the lead, so a Claude *worker* spends the same subscription window the lead is running in: Claude-as-worker stays
+opt-in, and the safety report says whose quota a line will draw from. Lead-versus-worker contention becomes the
+interesting case for milestone 9 rather than a smaller one.

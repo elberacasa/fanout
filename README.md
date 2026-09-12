@@ -31,6 +31,11 @@ Fanout is a **Claude Code plugin plus a local daemon**. You stay in the session 
 mission, fans the work out to the other CLIs on your machine — each in its own git worktree — watches them live,
 reviews every diff, runs your real checks, proves the fixes, and asks you before anything merges.
 
+**Two seats, driven deeply: Codex, and Claude itself when you opt in.** Not a logo wall — every capability worth
+having is vendor-specific, so we use what each CLI actually offers: session resume so a rework request replies into
+the run that wrote the diff, Codex's own `review` so a second vendor checks the work, Claude's real quota windows so
+routing runs on facts. Anything else joins through the [seat kit](docs/ADAPTERS.md), and Grok already has.
+
 > [!NOTE]
 > **Pre-alpha.** The engine is real and tested: isolated runs, an append-only ledger, the review contract. The
 > plugin, the mission view and the demo are being built in the open — see [Status](#status) and
@@ -43,8 +48,8 @@ flowchart TB
     U([You]) <--> L["Claude Code + Fanout plugin<br/>plans · reviews · asks you"]
     L -- "MCP tools" --> D{{"fanoutd<br/>worktrees · supervisor · safety · merge gate · ledger"}}
     D -- "events" --> L
-    D --> S1["codex exec"] & S2["kimi -p"] & S3["grok -p"] & S4["claude -p<br/>(opt-in)"]
-    S1 & S2 & S3 & S4 -- "structured streams" --> D
+    D --> S1["codex exec"] & S4["claude -p<br/>(opt-in)"] & S3["grok -p<br/>(community)"]
+    S1 & S3 & S4 -- "structured streams" --> D
     D --> V["Mission view<br/>localhost"]
     D --> R[("Your repo<br/>after review + checks + proof + your approval")]
 ```
@@ -108,10 +113,11 @@ P0 · **Claude leads, the crew builds** — 371 tests, green on macOS and Linux,
 | 1 · Foundations — schemas, ledger, projections | ✅ done |
 | 2 · Fake seat + supervisor | ✅ done |
 | 3 · Workspace + safety report | ✅ done |
-| 4 · Real seats — Codex, Grok, Claude (opt-in) built from recorded runs; Kimi waiting on its own quota | ✅ done |
+| 4 · Real seats — Codex, Claude (opt-in) and Grok, each built from a recorded run | ✅ done |
+| 4b · Capability profiles — what each supported CLI can be *told*, recorded not guessed | 🔨 in progress |
 | 5 · Daemon API + CLI | ✅ done |
 | 6 · The Claude Code plugin | ✅ done |
-| 7 · Merge gate | 🔨 next |
+| 7 · Merge gate | ⬜ next |
 | 8 · Mission view | ⬜ |
 | 9 · Routing when a seat hits its limit | ⬜ |
 | 10 · Offline demo, video, README refresh | ⬜ |
@@ -162,8 +168,10 @@ run escape its declared scope. Each was fixed with a test that failed on the old
 
 ## Contributing
 
-**Add a seat.** A seat is one folder and nothing else in the daemon changes, so the crew grows by addition. Two are
-open right now, each with the CLI's flags already verified so you start from facts:
+**Add a seat.** A seat is one folder and nothing else in the daemon changes, so the crew grows by addition. A
+contributed seat starts in the [community tier](docs/ADAPTERS.md#support-tiers-adr-0017) — its tests run in CI like
+everyone else's; the only difference is the promise we make about it. Two are open right now, each with the CLI's
+flags already verified so you start from facts:
 
 - [#4 Kimi Code](https://github.com/elberacasa/fanout/issues/4) — its usage limit arrives on stderr, which is why
   adapters can read stderr

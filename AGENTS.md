@@ -8,10 +8,11 @@ fact is not in this repo, it is not known.
 ## What we are building (one paragraph)
 
 A Claude Code plugin plus a local daemon that let Claude Code lead a crew of the other coding-agent CLIs a developer
-already has installed and signed in (Codex, Kimi, Grok, Cursor, and Claude itself when opted in), using their
-subscriptions through each CLI's official non-interactive mode. Claude plans the mission; agents work in parallel in
-isolated git worktrees; a local mission view shows them live; every diff is reviewed, checked and proven before the
-developer approves the merge. Details: `docs/PRODUCT.md`.
+already has installed and signed in, using their subscriptions through each CLI's official non-interactive mode.
+Claude plans the mission; agents work in parallel in isolated git worktrees; a local mission view shows them live;
+every diff is reviewed, checked and proven before the developer approves the merge. **P0 supports two seats deeply**
+— Codex, and Claude itself when opted in — plus a seat kit that anything else joins through; Grok, Kimi and Cursor
+are community seats (ADR 0017). Details: `docs/PRODUCT.md`.
 
 ## Product non-negotiables (never trade these for speed)
 
@@ -50,6 +51,9 @@ developer approves the merge. Details: `docs/PRODUCT.md`.
 - **Codex agents are teammates:** parallel builders, auditors and test writers, each in its own worktree, launched
   with the `codex-fanout` skill in `.claude/skills/codex-fanout/`. Follow its procedure exactly (stdin closed, the
   sandbox limits, review, `git apply -3`, proof of fixes).
+- **Build this project on the owner's expensive seats only** — Codex and Claude. Community-seat CLIs are supported
+  *by* Fanout, not spent *on* Fanout: their adapters are exercised by recorded fixtures, which cost nothing. Never
+  burn a subscription the owner pays little for on our own source tree.
 - **Credit every contribution.**
   - Commits end with trailers naming who built it: `Co-Authored-By: Claude …` for the lead, and
     `Built-by: codex (<model>) via codex-fanout · reviewed by Claude` for merged agent work.

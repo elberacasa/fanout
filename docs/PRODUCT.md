@@ -20,12 +20,14 @@
 ① Crew check → ② Ask → ③ Plan → ④ Safety report → ⑤ Launch → ⑥ Watch → ⑦ Review → ⑧ Merge gate → ⑨ Summary
 ```
 
-1. **Crew check** (session start, by a hook): "Crew: Codex (ChatGPT) · Kimi · Grok · Claude (opt-in) · Cursor (not
-   signed in)". Open missions and unmerged diffs are listed too.
+1. **Crew check** (session start, by a hook): "Crew: Codex (ChatGPT) · Claude (Max, opt-in) · Grok (community)".
+   Each seat shows where its state came from — detected from the CLI, observed from your own past runs, or set by
+   you. Open missions and unmerged diffs are listed too.
 2. **Ask:** `/fanout add CSV export and fix the flaky date test`, or just ask Claude in plain words.
 3. **Plan:** Claude reads the repo and proposes the plan through the plugin's tools. You see it in the chat and in the
-   mission view: each line's role, scope, seat, effort, estimated usage and a one-line rationale. Change it in plain
-   words ("use Kimi for the tests", "split the UI line").
+   mission view: each line's role, scope, seat, effort, estimated usage and a one-line rationale. When two lines must
+   interlock, the plan names the identifiers they share, and review checks both sides used them. Change it in plain
+   words ("put the tests on Codex", "split the UI line").
 4. **Safety report** (must be green to launch, or explicitly overridden): no overlapping write scopes between parallel
    lines; secrets and gitignored files excluded; every seat on its safest workable permission and sandbox mode;
    network off where the CLI allows it; per-seat concurrency caps; the exact commands that will run.
@@ -35,8 +37,9 @@
    call, files touched, tests, a growing diff, elapsed time and usage. Claude is woken only by events that need the
    lead (finished, stuck, hit a limit, wrote outside its scope). The status line shows the crew at a glance.
 7. **Review:** Claude reads the report and the risky hunks, checks the invariants, and records a verdict: accept,
-   rework (notes go back to the same worktree, max 2) or reject. Writes outside the scope are flagged automatically.
-   Optionally a second vendor reviews too.
+   rework or reject. Rework (max 2) **resumes the session that wrote the diff** and replies into it, so the agent
+   still has its own reasoning rather than a stranger's summary of it. Writes outside the scope are flagged
+   automatically, and a second vendor reviews through its own CLI's review command.
 8. **Merge gate:** the project's checks run (including those the agent's sandbox could not run); a bug fix must come
    with a test proven to fail on the old code; then you approve in the chat or the view. Merge is a 3-way apply plus
    new files. Conflicts are reported, never forced.
@@ -50,11 +53,12 @@ A local web page served by the daemon on `127.0.0.1`. Never hosted, never publis
 ```text
 Mission: add CSV export          3 running · 1 ready for review · 12 min · Codex ~18% (estimated)
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ ① auditor  codex·high  map export code        ██████████ done     report ▸   │
-│ ② builder  codex·med   src/api/export/**      ███████░░░ testing  +84 −3  ▸  │
+│ ① auditor  codex·high  map export code        ██████████ done    4:11  ▸     │
+│ ② builder  codex·med   src/api/export/**      ███████░░░ testing 6:38  +84−3 │
 │      now: running `pnpm test export`           files: route.ts, csv.ts        │
-│ ③ builder  kimi        src/ui/export/**       ████░░░░░░ coding   +40     ▸  │
-│ ④ tests    grok        tests/export/**        waits for ② (dependency)       │
+│ ③ builder  claude·med  src/ui/export/**       ████░░░░░░ coding  2:02  +40   │
+│      ⚠ draws on the same Max window this session is running in                │
+│ ④ tests    codex·low   tests/export/**        waits for ② (dependency)       │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ Review queue:  ① accepted by Claude  ·  checks ✓  ·  [Merge] [Rework] [Drop]  │
 │ Safety: scopes disjoint ✓  .env excluded ✓  network off ✓                     │
@@ -70,10 +74,10 @@ chat or in `.fanout/plan.json`.
 | Time | What you see |
 |---|---|
 | 0–4 s | In Claude Code: `/fanout add dark mode, CSV export, and fix the flaky date test` |
-| 4–9 s | Claude's plan lands; the mission view opens: five lines on Codex, Kimi, Grok and Claude; the safety report turns green |
-| 9–20 s | Five lanes come alive: phases move, tool calls tick, diffs grow. One seat hits its limit and its pending line moves, with the reason shown. One write outside scope is flagged |
-| 20–27 s | Reviews land; a proof test goes red on the old code, green on the new; checks pass; `m` `m` `m` |
-| 27–30 s | Summary: 4 merged · 1 dropped · 3 vendors · all checks green |
+| 4–9 s | Claude's plan lands; the mission view opens: four lines across Codex and an opt-in Claude worker; the safety report turns green |
+| 9–20 s | Four lanes come alive: phases move, tool calls tick, diffs grow, clocks run. A seat hits its limit and its pending line moves, with the reason shown. One write outside scope is flagged |
+| 20–27 s | Reviews land — Codex reviews Codex's own diff, Claude reviews the reviewer; one line goes back for rework and the agent picks up its own session; a proof test goes red on the old code, green on the new; `m` `m` `m` |
+| 27–30 s | Summary: 3 merged · 1 dropped · all checks green |
 
 Real runs take minutes; the video is sped up and says so. `fanout demo` reproduces the same story offline with
 simulated seats, so anyone can see it without accounts.

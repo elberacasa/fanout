@@ -16,9 +16,12 @@ Claude session following a long skill by hand.
 **Claude Code leads. Your other agents build.**
 
 You stay in the Claude Code session you already use. Claude plans the mission, fans the work out to the other agent
-CLIs on your machine (Codex, Kimi, Grok, Cursor, and Claude itself when you opt in), each in an isolated worktree,
-watches them live, reviews every diff across vendors, runs your real checks, proves the fixes, and asks you before
-anything merges. A local mission view shows the whole crew at work.
+CLIs on your machine, each in an isolated worktree, watches them live, reviews every diff across vendors, runs your
+real checks, proves the fixes, and asks you before anything merges. A local mission view shows the whole crew at work.
+
+We support **two seats deeply — Codex, and Claude itself when you opt in** — rather than many shallowly, because
+everything that makes the gate good is vendor-specific: resuming the session that wrote a diff, asking a vendor's own
+reviewer to check it, reading real quota windows. Others join through the seat kit, which is one folder (ADR 0017).
 
 ## Who it is for
 
@@ -48,8 +51,9 @@ anything merges. A local mission view shows the whole crew at work.
 
 ## What success looks like
 
-- **Launch:** a 30-second video (Claude plans, four vendors build in parallel, reviews land, proof turns green,
-  merged) makes a Claude Code user think "I need to try that", and the plugin installs first try.
+- **Launch:** a 30-second video (Claude plans, the crew builds in parallel, a rework lands back in its own session,
+  reviews land, proof turns green, merged) makes a Claude Code user think "I need to try that", and the plugin
+  installs first try.
 - **Month 3:** daily use by developers with two or more subscriptions; missions end in merged, green diffs more often
   than not; contributors add adapters.
 - **Year 1:** the default way to run many coding agents on your own machine.

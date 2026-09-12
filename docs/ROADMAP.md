@@ -9,6 +9,11 @@ the other agent CLIs on the machine in isolated worktrees, the developer watches
 every diff passes review, checks and proof before the developer approves the merge. Plus an offline demo anyone can
 try with no accounts, and a 30-second video that makes people want it.
 
+**Two seats, deeply** (ADR 0017). P0 supports **Codex** and **Claude Code**, driven far enough to use what each CLI
+actually offers: session resume for rework, Codex's own `review` for second-vendor review, Claude's real quota
+windows for routing. Grok, Kimi and Cursor are community seats — their adapters and fixtures stay in the tree and
+keep passing, but they gate nothing. A seat is one folder, so adopting another CLI later is an addition.
+
 Milestones, in order, each with tests green:
 
 1. **Foundations:** pnpm monorepo, TypeScript strict, `npm run check`, CI; the event and plan schemas (zod); the
@@ -17,31 +22,38 @@ Milestones, in order, each with tests green:
    limits). The supervisor handles launch with stdin closed, start detection, timeouts, kill and log capture.
 3. **Workspace + safety report:** worktrees and archives, the deny-list, scope-overlap validation, the dry-run
    command preview.
-4. **Real seats:** the adapter kit plus Codex (default worker) and Claude (opt-in worker); then Kimi, Grok and Cursor
-   (manifest, `detect`, `command`, `parse`, recorded fixtures, contract tests, terms reviewed).
+4. **Real seats:** the adapter kit plus Codex (default worker) and Claude (opt-in worker) — manifest, `detect`,
+   `command`, `parse`, recorded fixtures, contract tests, terms reviewed. Grok shipped alongside them and is kept as
+   a community seat; Kimi and Cursor stay open for contributors.
+   **4b · Capability profiles:** what each supported CLI can be *told*, as data the lead can reason over — plan
+   detection where the CLI reports it, session resume, its own review command, usage probes, model tiers and
+   observed throughput. Recorded from real runs, never from `--help` alone.
 5. **Daemon API + CLI:** HTTP, WebSocket (with the lead feed), the localhost token, and `fanout` (`daemon`, `demo`,
    `status`, `clean`).
 6. **The Claude Code plugin:** the MCP server and tools, the skill, `/fanout` commands, hooks, the status line, the
    Monitor event feed, approvals and notifications.
-7. **Merge gate:** review → checks → proof of fix → approval → `git apply -3` plus new files; rework (max 2) and drop;
-   dependent lines start from the new commit; the mission summary.
+7. **Merge gate:** review → checks → proof of fix → approval → `git apply -3` plus new files; rework (max 2, as a
+   resumed session, not a re-pasted prompt) and drop; dependent lines start from the new commit; the mission summary.
+   Second-vendor review via the worker CLI's own review command. The interface check: when two lines must interlock,
+   the plan names the shared identifiers and review verifies both sides used them.
 8. **Mission view:** live lanes, phase bars, tool ticker, diff peek, review queue, approve and kill, keyboard-first.
    It must look excellent.
 9. **Routing v1:** per-seat concurrency caps, route-on-limit with the reason shown, usage real where a CLI reports
-   it, otherwise estimated and labelled.
+   it, otherwise estimated and labelled. Including lead-versus-worker contention: a Claude worker draws on the same
+   window the lead is running in, and the plan says so before it launches.
 10. **Demo + video + README:** `fanout demo` (offline, simulated seats, under 60 s, replayable), the 30-second video
     (see PRODUCT.md), and a README that sells it in 10 seconds.
 
-**P0 is done when:** the offline demo runs on a clean machine; a real mission on a sample repo, with Claude Code
-leading and at least three vendors' CLIs as workers, goes plan → safety → launch → watch → review → proof → merge →
-verify, with a limit reroute visible; the video is recorded; every milestone is tested; and the build log shows the
-crew's work.
+**P0 is done when:** the offline demo runs on a clean machine with no accounts; a real mission on a sample repo, with
+Claude Code leading **Codex and an opt-in Claude worker**, goes plan → safety → launch → watch → review → proof →
+merge → verify, with a rework round done as a resumed session and a limit reroute visible; the video is recorded;
+every milestone is tested; and the build log shows the crew's work.
 
 ## P1 · Smarter crew
 
 Plan editing in the mission view (the canvas: + New line, prompt cards, dependency arrows), steering and pause,
-second-vendor review by default, scorecards per seat and repo, full replay, Gemini, Qwen and OpenCode adapters as
-they are installed and verified.
+scorecards per seat and repo, full replay, and promoting community seats to supported as their capability profiles
+are recorded: Grok and Kimi first, then Gemini, Qwen and OpenCode as they are installed and verified.
 
 ## P2 · Best of N
 

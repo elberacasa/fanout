@@ -38,6 +38,18 @@ worktrees, driven through the real MCP server exactly as Claude Code drives it.
 2. **Grok is slower than Codex** on the same task (minutes versus ~3), which is fine but should be visible: the
    mission view and `mission_status` should show elapsed time per run.
 
+### Scope narrowed (2026-09-12, ADR 0017)
+
+P0 supports **Codex and Claude Code** deeply; Grok, Kimi and Cursor are **community** seats — adapters and fixtures
+stay and keep passing, nothing about them gates a release, and **we never spend the owner's cheap subscriptions on
+our own source tree**. The landing-page mission was the last Grok use and its output is discarded: it was a test, not
+a design. The finding it produced survives as a review rule (below).
+
+Probing the CLIs for capability data found three things worth the narrowing, all verified from `--help`:
+`codex exec resume` (rework as real session continuation), `codex exec review` (second-vendor review, was P1),
+`codex exec fork` (best-of-N later), plus `claude auth status --json` → `subscriptionType` and `grok usage`.
+⚠️ That Claude probe also returns the owner's email and org id: read two fields, discard the rest, scrub the fixture.
+
 ### Next: milestone 7, the merge gate
 
 The promise the whole product rests on. In order:
@@ -56,10 +68,12 @@ The promise the whole product rests on. In order:
 - **Presentation.** The owner wants the live output to look good (screenshot 2026-09-12): `mission_status` and the
   CLI should render a crew/mission view worth watching — elapsed time, phase, files, a progress bar per line. That
   is P0 · 8 (mission view), and the CLI can get a decent version sooner.
-- **Landing page.** If the mission's output is good, it can move into the repo as `site/` and later become the
-  public page. Judge it by eye first.
+- **The interface rule** (from the landing mission). Codex wrote `.feature-card`/`.hero-actions`; Grok styled
+  `.feature`/`.wrap`. Where the prompt named a class both agents used it and the page is good; everywhere else it is
+  unstyled. **When two lines must interlock, the shared identifiers are the contract**: the plan enumerates them and
+  review verifies both sides. Belongs in milestone 7, not in a stylesheet.
 - **Open for contributors:** Kimi ([#4](https://github.com/elberacasa/fanout/issues/4)) and Cursor
-  ([#5](https://github.com/elberacasa/fanout/issues/5)).
+  ([#5](https://github.com/elberacasa/fanout/issues/5)) — community tier, not a waiting room.
 
 ### Owner's machine (verified 2026-09-11/12)
 

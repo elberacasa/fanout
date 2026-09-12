@@ -3,6 +3,20 @@
 A **seat** is an agent CLI the user has installed and signed in. An **adapter** teaches the daemon to drive that CLI
 through its **official non-interactive mode** and to read its output as our events.
 
+## Support tiers (ADR 0017)
+
+Not every seat carries the same promise, and saying so is more honest than a long list of logos.
+
+| Tier | Seats | What it means |
+|---|---|---|
+| **Supported** | `codex`, `claude` | Driven deep: capability profile recorded, resume and review used, re-verified against a real run on every version bump. Bugs here block a release. |
+| **Community** | `grok`, and `kimi`/`cursor` when contributed | The adapter lives here and its contract tests keep passing against recorded fixtures, which costs nothing. Nothing about it gates a release, and we do not spend a subscription on it. |
+| **Reference** | `fake` | Not a vendor. It exists to keep the contract honest and to power the offline demo. |
+
+A community seat is promoted by recording its capability profile — not by being popular. Two supported seats is a
+deliberate choice: every capability worth having is vendor-specific, so breadth would force us to the lowest common
+denominator. The tier is a statement about our verification, never about the CLI's quality.
+
 ## Rules (from AGENTS.md, restated because they matter most here)
 
 - Only the vendor's own CLI, the way its documentation describes non-interactive use.
@@ -60,10 +74,10 @@ still need recorded fixtures.
 | Seat | CLI (verified 2026-09-11) | Headless mode | Structured stream | Permissions / sandbox | Sign-in probe | Role · Status |
 |---|---|---|---|---|---|---|
 | **Fake** | built in (`packages/adapters/fake`) | `node src/cli.ts --scenario-json '<json>' --report <path> -- <prompt>` | JSONL, one object per line (`protocol.ts`) | writes confined to its working directory | n/a | demo + tests · **built** |
-| **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · **built** (alpha) |
-| **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` **with `--verbose`** (verified) | `--permission-mode plan \| acceptEdits` with `--permission-prompts none` (deny, never bypass) | `claude auth status` ✓ signed in (Max) | opt-in worker · **built** (alpha) |
+| **OpenAI Codex** | `codex` 0.154.0 | `codex exec [prompt]` (stdin must be closed) | `--json` (JSONL) | `-s read-only \| workspace-write`; `-C <dir>`; `-o <file>` last message; `--ephemeral` | `codex login status` ✓ signed in (ChatGPT) | default worker · **supported** |
+| **Claude Code** | `claude` 2.1.269 | `claude -p` | `--output-format stream-json` **with `--verbose`** (verified) | `--permission-mode plan \| acceptEdits` with `--permission-prompts none` (deny, never bypass) | `claude auth status --json` ✓ signed in, `subscriptionType` | opt-in worker · **supported** |
 | **Kimi Code** (Moonshot) | `kimi` 0.36.1 | `kimi -p <prompt>` — **`--prompt` cannot be combined with `--auto`** (verified) | `--output-format stream-json`; first line is `{"role":"meta","type":"system.version"}` | `--plan` (read-only), `-y` (auto-approve); sandbox: to verify | no status command → reported unknown | **help wanted** ([#4](https://github.com/elberacasa/fanout/issues/4)) |
-| **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt> --cwd <dir>` | `--output-format streaming-json` (session updates) | `--permission-mode plan \| acceptEdits`; `--cwd`; `--max-turns` | no status command → reported unknown | worker · **built** (alpha) |
+| **Grok Build** (xAI) | `grok` 1.0.13 | `grok -p <prompt> --cwd <dir>` | `--output-format streaming-json` (session updates) | `--permission-mode plan \| acceptEdits`; `--cwd`; `--max-turns` | no status command → reported unknown; `grok usage` reports a session's tokens and cost | **community** (built, fixture-tested) |
 | **Cursor Agent** | `cursor-agent` 2026.01.23 | `cursor-agent -p` | `--output-format stream-json` | `--mode plan\|ask`, `--sandbox enabled`, `--workspace <dir>` | `cursor-agent status` ✗ not signed in | **help wanted** ([#5](https://github.com/elberacasa/fanout/issues/5)) |
 | **Gemini** | not installed | `gemini -p` (to verify) | to verify | to verify | to verify | P1 |
 | **Qwen Code** | not installed | to verify | to verify | to verify | to verify | P1 |
@@ -73,6 +87,29 @@ Notes from the check:
 - Never pass a flag that skips the vendor's sandbox or approvals (`--dangerously-*`, `bypassPermissions`,
   `--always-approve` outside a worktree). The safest workable mode per seat is decided in the adapter and shown in the
   safety report.
+
+## What a supported CLI can be told (verified 2026-09-12)
+
+A manifest records the flags to *launch* a run. A **capability profile** records what else the CLI can be asked to do,
+because the merge gate and routing are only as good as this table. Verified from `--help` on the owner's machine;
+each one needs a recorded run before the daemon relies on it.
+
+| Capability | Codex | Claude Code | Why it matters |
+|---|---|---|---|
+| Resume a session headlessly | `codex exec resume <id>` / `--last` | to verify | **Rework** replies into the session that wrote the diff instead of re-pasting context into a stranger |
+| Fork a session | `codex exec fork <id>` | to verify | Best-of-N from one shared setup (P2) |
+| Its own code review | `codex exec review` | to verify | **Second-vendor review** in P0 instead of P1: the worker's vendor reviews, and the lead reviews the reviewer |
+| Plan / subscription tier | not exposed — `codex login status` says only "Logged in using ChatGPT" | ✅ `claude auth status --json` → `subscriptionType` | Routing knows which seat is expensive without asking |
+| Usage and cost | no probe; a limit arrives inside a mid-run `error` item | real quota windows mid-run (5-hour and 7-day, with resets) | Routing on facts, not estimates |
+| Model tiers | `models` list, no cost ordering | to verify | "cheap for boilerplate, top model for foundations" |
+
+> [!IMPORTANT]
+> `claude auth status --json` also returns the user's **email, organisation id and organisation name**. The detector
+> reads `loggedIn` and `subscriptionType` and discards the rest before anything is stored or logged; the fixture is
+> scrubbed and a test greps it. A probe that returns more than we need is normal — keeping more than we need is not.
+
+**Grok's `usage` subcommand** (`grok usage` — persisted token and cost usage for a session) is noted here because it
+is the only community seat that reports real cost, which will make it the easiest promotion later.
 ## Add a seat in an afternoon
 
 A seat is one folder. Nothing else in the daemon changes, which is the point: the crew grows by addition. Take an
@@ -99,7 +136,8 @@ touches no credentials; an auditor runs read-only; no flag hands over the machin
 what it cannot verify it says it cannot verify; and its parser matches a recording anyone can replay.
 
 `packages/adapters/fake` is the reference implementation, and `codex`, `grok` and `claude` are three real ones that
-differ enough to show the range.
+differ enough to show the range. A contributed seat starts in the **community** tier, which is not a waiting room:
+its tests run in CI like everyone else's, and nothing about it is second-class except the promise we make about it.
 
 ### Recording a fixture
 
