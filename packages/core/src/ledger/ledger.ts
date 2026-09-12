@@ -70,6 +70,11 @@ export interface LedgerOptions {
   now?: () => Date;
   /** Event id generator; must return UUIDs. */
   newId?: () => string;
+  /**
+   * Called once per event, after it is committed, so a live feed never shows something the ledger might roll back.
+   * Whatever it throws is ignored: a listener must not be able to break the record.
+   */
+  onAppend?: (event: StoredEvent) => void;
 }
 
 export interface ReadOptions {
@@ -96,6 +101,7 @@ export class Ledger {
   readonly #db: DatabaseSync;
   readonly #now: () => Date;
   readonly #newId: () => string;
+  readonly #onAppend: ((event: StoredEvent) => void) | undefined;
   readonly #insert: StatementSync;
   readonly #readAll: StatementSync;
   readonly #readMission: StatementSync;
@@ -105,6 +111,7 @@ export class Ledger {
     this.#db = db;
     this.#now = options.now ?? (() => new Date());
     this.#newId = options.newId ?? randomUUID;
+    this.#onAppend = options.onAppend;
     this.#insert = db.prepare(
       "INSERT INTO events (id, ts, v, type, mission_id, run_id, body) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
@@ -177,6 +184,13 @@ export class Ledger {
         return { ...event, ...stamp, seq: Number(result.lastInsertRowid) };
       });
       this.#db.exec("COMMIT");
+      for (const event of stored) {
+        try {
+          this.#onAppend?.(event);
+        } catch {
+          // A listener that throws has a problem of its own; the record is already safe.
+        }
+      }
       return stored;
     } catch (error) {
       this.#db.exec("ROLLBACK");

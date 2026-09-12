@@ -191,6 +191,34 @@ describe("Ledger", () => {
     ledger.close();
   });
 
+  it("tells a listener about each event, once it is committed", () => {
+    const seen: number[] = [];
+    const ledger = Ledger.open(":memory:", { onAppend: (event) => seen.push(event.seq) });
+    ledger.appendAll([samples["mission.created"], samples["run.queued"]]);
+    expect(seen).toEqual([1, 2]);
+    ledger.close();
+  });
+
+  it("tells nobody about an event it refused", () => {
+    const seen: string[] = [];
+    const ledger = Ledger.open(":memory:", { onAppend: (event) => seen.push(event.type) });
+    const bad = { ...samples["run.progress"], phase: "dreaming" } as unknown as FanoutEventInput;
+    expect(() => ledger.appendAll([samples["mission.created"], bad])).toThrow(InvalidEventError);
+    expect(seen).toEqual([]);
+    ledger.close();
+  });
+
+  it("keeps recording even when a listener throws", () => {
+    const ledger = Ledger.open(":memory:", {
+      onAppend: () => {
+        throw new Error("a listener with a problem of its own");
+      },
+    });
+    expect(() => ledger.append(samples["mission.created"])).not.toThrow();
+    expect(ledger.lastSeq()).toBe(1);
+    ledger.close();
+  });
+
   it("gives unique, increasing sequence numbers to two writers on one file", () => {
     const a = Ledger.open(path);
     const b = Ledger.open(path);
