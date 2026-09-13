@@ -496,7 +496,18 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
       return updateRun(state, event, (run) => ({ ...run, status: "conflict", conflictFiles: event.files }));
 
     case "run.dropped":
-      return updateRun(state, event, (run) => ({ ...run, status: "dropped", dropReason: event.reason }));
+      /*
+       * `endedAt` matters as much as the status. Without it `silentMs` never stops counting, so a run that was
+       * dropped an hour ago reports as quiet — a run nobody is waiting on, described as one that has gone
+       * ominously silent — and its elapsed time climbs for ever. Seen on a real mission reading
+       * `aborted · 1h 24m · 1 quiet`, where every part after "aborted" was untrue.
+       */
+      return updateRun(state, event, (run) => ({
+        ...run,
+        status: "dropped",
+        dropReason: event.reason,
+        endedAt: run.endedAt ?? event.ts,
+      }));
 
     case "policy.breach":
       return updateRun(state, event, (run) => ({

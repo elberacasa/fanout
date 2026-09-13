@@ -3,6 +3,7 @@ import {
   applyEvent,
   elapsedMs,
   silentMs,
+  type RunView,
   initialState,
   Ledger,
   project,
@@ -521,3 +522,50 @@ function deepFreeze(state: ProjectionState): ProjectionState {
   freeze(state);
   return state;
 }
+
+/*
+ * A run dropped without ever finishing — which is what reconciliation writes for a run whose supervisor died.
+ * Kept separate from the main story because there the run is finished first, so its end stamp comes from the
+ * finish and this would prove nothing.
+ */
+describe("a run dropped without finishing", () => {
+  const stamped = (): RunView => {
+    const ledger = Ledger.open(":memory:");
+    ledger.appendAll([
+      samples["mission.created"],
+      {
+        type: "run.queued",
+        missionId: M,
+        runId: "api-1",
+        lineId: "api-export",
+        seat: { id: "codex" },
+        attempt: 1,
+      },
+      { type: "run.started", missionId: M, runId: "api-1", workdir: "/tmp/f", argv: ["codex"] },
+      { type: "run.dropped", missionId: M, runId: "api-1", reason: "the session supervising it is gone" },
+    ]);
+    const run = project(ledger.read()).missions[M]?.runs["api-1"];
+    ledger.close();
+    if (run === undefined) throw new Error("fixture");
+    return run;
+  };
+
+  it("is recorded as over, so nothing goes on counting its silence", () => {
+    const run = stamped();
+
+    expect(run.status).toBe("dropped");
+    /*
+     * Without an end stamp `silentMs` never returns null, so a run dropped an hour ago is reported as having
+     * gone quiet — a run nobody is waiting on, described as one that has stopped responding. Seen on a real
+     * mission reading `aborted · 1h 24m · 1 quiet`, where every part after "aborted" was untrue.
+     */
+    expect(run.endedAt).not.toBeNull();
+    expect(silentMs(run, new Date())).toBeNull();
+  });
+
+  it("stops its clock rather than letting it climb for ever", () => {
+    const run = stamped();
+
+    expect(elapsedMs(run, new Date("2030-01-01T00:00:00.000Z"))).toBeLessThan(60_000);
+  });
+});
