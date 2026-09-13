@@ -356,3 +356,15 @@ the tools that call them — and it needs its own milestone rather than being sm
 
 **Consequences until then:** do not close the terminal during a mission, and expect print-mode (`claude -p`) to
 be unable to complete one. Both are now stated in the docs rather than discovered.
+
+**Resolved the same day.** `fanout daemon` runs missions now, keeping one runner per repository, and the MCP
+server hands it the work over `POST /launch` when it is reachable — falling back to running the mission itself
+when it is not, because a session without a daemon still has to work. Proven by launching through the plugin from
+a `claude -p` session that then exited: the agent kept working and the diff finished with no session alive at any
+point.
+
+Two things found while building it were worse than the problem it fixed. `fanout mcp` was writing `daemon.json`,
+so every session overwrote the machine's one answer to "where is the daemon" with a server of its own — and the
+first thing the new code did was read that file, find itself, and hand its mission to an API with no runner.
+And `fanout daemon` had never written that file at all, so discovery had only ever pointed at whatever ran the
+demo last. An address that outlives the process it names is worse than none, because the caller believes it.

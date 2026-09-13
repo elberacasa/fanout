@@ -51,11 +51,13 @@ every milestone is tested; and the build log shows the crew's work.
 
 ## P1 · Smarter crew
 
-**First: a mission that outlives its session.** The runner lives inside the session's MCP server today, so
+**Done (2026-09-13): a mission that outlives its session.** The runner lives inside the session's MCP server today, so
 closing a terminal kills the crew mid-flight and loses the work — see ADR 0024 for why that was a defensible
 default and why it stops being one. Move the runner into `fanout daemon`, which is already long-lived, and have
-the MCP server drive it over the local API. Done when a mission survives the session that started it, a second
-terminal can watch it, and the lead that comes back finds its diffs waiting.
+the MCP server drive it over the local API. Done: a mission survives the session that
+started it, a second terminal can watch it, and the lead that comes back finds its diffs waiting. What is left
+of it is the lead's own convenience — nothing yet tells a returning session "you have work waiting" beyond the
+`owed` hook, and `fanout status` is the only way to find a mission started somewhere else.
 
 Then: plan editing in the mission view (the canvas: + New line, prompt cards, dependency arrows), steering and pause,
 scorecards per seat and repo, full replay, and promoting community seats to supported as their capability profiles
