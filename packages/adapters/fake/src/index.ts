@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AdapterContext, ParseResult, SeatAdapter } from "fanout-core";
 import { OutputLine } from "./protocol.ts";
@@ -8,17 +9,26 @@ import { Scenario, type ScenarioInput } from "./scenario.ts";
  * an account. It is a seat like any other: `command()` starts its CLI, `parse()` reads its stream.
  */
 
-/*
- * Its own extension, not a written-down one.
+/**
+ * The simulated agent's own executable, wherever this module happens to be running from.
  *
- * A path built as a string is the one import the compiler cannot rewrite: `./cli.ts` stayed `./cli.ts` in the
- * published `dist`, where the file beside it is `cli.js`, and all three demo agents died on the first spawn with
- * `Cannot find module …/dist/cli.ts`. A checkout never sees it, because there the string is right. Found by
- * installing the tarball into an empty directory and running the demo the way a stranger would.
+ * Three places, and each one is a lesson rather than a configuration:
+ *
+ * 1. `fake-agent.js` beside us means we are inside the published bundle, where every workspace package has been
+ *    compiled into one file. `./cli.js` there is the *lead's* CLI — spawning it would make the demo run itself.
+ * 2. `./cli.ts` is a checkout, where Node runs our TypeScript directly.
+ * 3. `./cli.js` is the unbundled compiled layout.
+ *
+ * A path built as a string is the one import a compiler cannot rewrite, which is why this is worked out at
+ * runtime: an earlier version wrote `./cli.ts` into `dist`, and all three demo agents died on the first spawn.
  */
-export const FAKE_CLI_PATH = fileURLToPath(
-  new URL(import.meta.url.endsWith(".ts") ? "./cli.ts" : "./cli.js", import.meta.url),
-);
+export const FAKE_CLI_PATH = resolveFakeCli();
+
+function resolveFakeCli(): string {
+  const bundled = fileURLToPath(new URL("./fake-agent.js", import.meta.url));
+  if (existsSync(bundled)) return bundled;
+  return fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "./cli.ts" : "./cli.js", import.meta.url));
+}
 
 export interface FakeAdapterOptions {
   /** The scenario a plan line plays. */

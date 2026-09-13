@@ -300,3 +300,29 @@ round, which is the right price for the lead getting it wrong.
 
 `AGENTS.md` now tells teammates to stay inside their scope including docs, and tells the lead to put a doc in a
 line's scope when it wants that doc written — by one line only.
+
+## 0023 · Fanout is published as one package (2026-09-13; amends 0021)
+
+**Choice:** only `fanout-cli` goes to npm. The seven workspace packages are private again, bundled into the CLI by
+esbuild at publish time. `zod`, `ws` and the MCP SDK stay external and remain real dependencies.
+
+**Why:** the eight-package shape was the repository's internal structure leaking onto the registry. Nobody ever
+wanted `fanout-core` — those seven existed only because `fanout-cli` imported them.
+
+The cost was not untidiness, it was the release. Eight uploads means eight passkey confirmations, one fingerprint
+at a time, for every version. The owner tried it once and said no, which was the right answer: a release process
+that tiring is a release process that gets skipped, and a product that ships rarely is worse than a package layout
+that is slightly wrong.
+
+**Consequences:** the tarball is 248 kB with three dependencies, and a release is one `npm publish`. Internal
+structure is now free to change without deprecating anything public, which for a pre-1.0 product is the more
+valuable freedom. Sourcemaps ship with sources embedded — MIT, public repository, and a user reporting a stack
+trace we can actually read is worth the bytes.
+
+Two entry points rather than one, because the simulated agent is spawned as a separate process: bundled into the
+CLI it would be unreachable, and `FAKE_CLI_PATH` would resolve to the lead's own CLI and spawn the demo inside
+itself. `verify:pack` now also refuses a tarball that still names a workspace package as a dependency — that
+mistake would only surface on a stranger's machine.
+
+`fanout-core`, `fanout-daemon`, `fanout-mcp` and the four adapters remain on npm at `0.7.0` and always will. They
+should be deprecated with a pointer to `fanout-cli`.

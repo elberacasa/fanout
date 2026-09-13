@@ -12,12 +12,13 @@
     "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning vitest run",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "format": "prettier --write .",
-    "build": "pnpm -r --filter \"./packages/**\" build",
+    "build": "node scripts/bundle-cli.mjs",
     "verify:pack": "node scripts/verify-pack.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "22.20.2",
+    "esbuild": "^0.28.2",
     "eslint": "10.10.0",
     "prettier": "3.9.6",
     "typescript": "6.0.3",

@@ -15,23 +15,8 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      }
-    }
-  },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "build": "tsc -p tsconfig.build.json",
-    "prepack": "node ../../scripts/prepack.mjs"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "fanout-core": "workspace:*",
@@ -40,5 +25,6 @@
   "devDependencies": {
     "fanout-adapter-fake": "workspace:*",
     "@types/ws": "^8.18.1"
-  }
+  },
+  "private": true
 }

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,28 +39,18 @@ const run = (command, args, options = {}) =>
   String(execFileSync(command, args, { encoding: "utf8", ...options }));
 
 try {
-  say("packing every package…");
-  run("pnpm", ["-r", "--filter", "./packages/**", "pack", "--pack-destination", tarballs], {
+  say("packing the package…");
+  run("pnpm", ["--filter", "fanout-cli", "pack", "--pack-destination", tarballs], {
     cwd: repo,
     stdio: ["ignore", "ignore", "inherit"],
   });
 
-  const packed = readdirSync(tarballs).filter((name) => name.endsWith(".tgz"));
   const version = JSON.parse(readFileSync(join(repo, "packages/cli/package.json"), "utf8")).version;
 
   /*
-   * `overrides` so the install resolves to these tarballs rather than to whatever the registry happens to hold —
-   * which, the first time this runs for a version, is nothing at all.
-   *
-   * A tarball is named `<package>-<version>.tgz`, so stripping the version suffix gives the package name back.
+   * One package. The workspace is bundled into it, so there is nothing to override and nothing that has to reach
+   * the registry first — which is the whole reason it is one package.
    */
-  /** @type {Record<string, string>} */
-  const overrides = {};
-  for (const name of packed) {
-    if (name === `fanout-cli-${version}.tgz`) continue;
-    overrides[name.replace(`-${version}.tgz`, "")] = `file:${join(tarballs, name)}`;
-  }
-
   run("mkdir", ["-p", project]);
   writeFileSync(
     join(project, "package.json"),
@@ -70,12 +60,25 @@ try {
         private: true,
         type: "module",
         dependencies: { "fanout-cli": `file:${join(tarballs, `fanout-cli-${version}.tgz`)}` },
-        overrides,
       },
       null,
       2,
     ),
   );
+
+  /*
+   * Nothing published may claim a workspace package as a dependency: those are never going to npm again, so an
+   * install would fail on a name that does not exist at this version. Checked from the tarball's own manifest,
+   * which is the thing that actually ships.
+   */
+  const shipped = JSON.parse(
+    run("tar", ["xzOf", join(tarballs, `fanout-cli-${version}.tgz`), "package/package.json"]),
+  );
+  const workspace = Object.keys(shipped.dependencies ?? {}).filter((name) => name.startsWith("fanout-"));
+  if (workspace.length > 0) {
+    say(`  ✗ the tarball still depends on ${workspace.join(", ")}, which is not published`);
+    failed = true;
+  }
 
   say("installing into an empty directory…");
   run("npm", ["install", "--silent", "--no-audit", "--no-fund"], {

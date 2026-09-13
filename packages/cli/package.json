@@ -27,8 +27,7 @@
   "publishConfig": {
     "exports": {
       ".": {
-        "types": "./dist/main.d.ts",
-        "default": "./dist/main.js"
+        "default": "./dist/cli.js"
       }
     },
     "bin": {
@@ -37,17 +36,21 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "build": "tsc -p tsconfig.build.json",
-    "prepack": "node ../../scripts/prepack.mjs"
+    "build": "node ../../scripts/bundle-cli.mjs",
+    "prepack": "node ../../scripts/bundle-cli.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "ws": "8.21.3",
+    "zod": "4.6.2"
+  },
+  "devDependencies": {
     "fanout-adapter-claude": "workspace:*",
     "fanout-adapter-codex": "workspace:*",
+    "fanout-adapter-fake": "workspace:*",
     "fanout-adapter-grok": "workspace:*",
     "fanout-core": "workspace:*",
     "fanout-daemon": "workspace:*",
-    "fanout-mcp": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.30.0",
-    "fanout-adapter-fake": "workspace:*"
+    "fanout-mcp": "workspace:*"
   }
 }
