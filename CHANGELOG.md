@@ -180,3 +180,25 @@ The demo shows the agents working.
   mission that reads one way in a terminal and another in a browser is two products.
 - **Honest again in two places.** A finished run whose diff was never measured said "no changes" — its worktree
   had changed. It says "—". And the page no longer renders an empty body before its first answer arrives.
+
+## 0.9.0 — 2026-09-13
+
+The plugin ships, and a mission outlives the session that started it.
+
+- **Fanout is installable as a Claude Code plugin.** `/plugin marketplace add elberacasa/fanout` then
+  `/plugin install fanout@fanout`. Until now the published package contained no plugin at all, while the README's
+  first sentence called Fanout one — anyone installing from npm got half of what was advertised.
+- **A mission survives its session.** `fanout daemon` runs missions, and the plugin hands them to it when it is
+  running — so closing the terminal no longer kills the crew mid-flight. Without a daemon a mission still runs in
+  the session, and the tool says which of the two it did.
+- **Nothing is reported as running once nobody is watching it.** A run records the process supervising it, and
+  every daemon writes off on startup the runs whose supervisor is gone. Before this, an interrupted session left
+  a run recorded as running for ever.
+- **Cancel reaches the mission it names**, including one running on the daemon. It previously looked only in the
+  calling session and answered "not running here" while the agents carried on spending.
+- **`fanout status` answers about this repository**, with a count of what is elsewhere. The ledger is one file
+  per machine, and it had been listing every mission ever run on it.
+- **Two things stopped lying.** A dropped run no longer reports itself as an agent gone quiet, with a clock that
+  climbs for ever. And the CLI no longer opens every command with Node's warning about SQLite being experimental.
+- **Checks run against your real dependencies.** An agent's half-finished `pnpm install` used to shadow them, and
+  four agents who had written four good files were all reported as having written code that does not build.

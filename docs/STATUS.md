@@ -53,8 +53,8 @@ account. Everything below is what stands between here and that.
 
 ### Where we are
 
-P0 milestones **1–9 are done** and **10 is all but the video**, tagged `v0.1.0` … `v0.8.0`. `npm run check` is
-green: **743 tests** (47 files). **P0's acceptance run is done**: a real mission on this repository, through the MCP tools, went plan →
+P0 milestones **1–9 are done** and **10 is all but the video**, tagged `v0.1.0` … `v0.9.0`. `npm run check` is
+green: **762 tests** (50 files). **P0's acceptance run is done**: a real mission on this repository, through the MCP tools, went plan →
 safety → parallel launch → rework as resumed sessions → review → checks → proof → merge (`2d8f9fa`, `f1fcb44`),
 and exposed two real gate defects that are now fixed (`7c19f4a`, `c9052a4`). Repository: https://github.com/elberacasa/fanout (**public**).
 
