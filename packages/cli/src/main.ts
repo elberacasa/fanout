@@ -148,6 +148,17 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
 }
 
 /**
+ * A path with the home directory written as `~`.
+ *
+ * The demo is the thing people record and paste into issues, and an absolute path puts their account name in
+ * every frame of it. `~` is also simply how a person would say it.
+ */
+function tilde(path: string, io: Io): string {
+  const home = (io.env ?? process.env)["HOME"] ?? "";
+  return home !== "" && path.startsWith(home) ? `~${path.slice(home.length)}` : path;
+}
+
+/**
  * One agent, described the way someone watching would describe it.
  *
  * `doing` is the agent's own last words — the file it opened, the edit it made, the command it ran — because a
@@ -286,7 +297,7 @@ async function demo(home: FanoutHome, io: Io, argv: readonly string[] = []): Pro
   io.out(`\n  \u001B[1mFanout\u001B[0m \u001B[2m· a crew of coding agents, led by Claude Code\u001B[0m\n\n`);
   io.out(`  \u001B[2mGoal\u001B[0m   ${DEMO_GOAL}\n`);
   io.out(`  \u001B[2mCrew\u001B[0m   3 simulated agents — nothing to sign into, nothing to pay for\n`);
-  io.out(`  \u001B[2mRepo\u001B[0m   ${repo} \u001B[2m(throwaway)\u001B[0m\n\n`);
+  io.out(`  \u001B[2mRepo\u001B[0m   ${tilde(repo, io)} \u001B[2m(throwaway)\u001B[0m\n\n`);
 
   const handle = runner.launch({ missionId, plan, baseCommit: head, maxParallel: 3 });
 
