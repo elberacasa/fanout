@@ -1,8 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { chmodSync, closeSync, mkdirSync, openSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname } from "node:path";
-import { DatabaseSync, type StatementSync } from "node:sqlite";
+import type * as Sqlite from "node:sqlite";
+type Database = Sqlite.DatabaseSync;
+type StatementSync = Sqlite.StatementSync;
 import { z } from "zod";
+/*
+ * Required at runtime rather than imported, for one reason: Node prints `ExperimentalWarning: SQLite is an
+ * experimental feature` the moment this module is loaded, and ESM resolves every static import before any module
+ * body runs. A static import here fires that warning before the CLI has executed a single line, so nothing the
+ * CLI does could ever suppress it — and every `fanout` command opened with two lines of noise about a decision
+ * the user did not make and cannot act on.
+ *
+ * A runtime require happens during evaluation instead, by which time `cli.ts` has installed its filter. The
+ * types are the real ones; only the moment of loading changes. `packages/cli/test/quiet.test.ts` fails if this
+ * becomes a static import again.
+ */
+const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as typeof Sqlite;
+
 import {
   EVENT_VERSION,
   EventStamp,
@@ -98,7 +114,7 @@ const Row = z.object({
 });
 
 export class Ledger {
-  readonly #db: DatabaseSync;
+  readonly #db: Database;
   readonly #now: () => Date;
   readonly #newId: () => string;
   readonly #onAppend: ((event: StoredEvent) => void) | undefined;
@@ -107,7 +123,7 @@ export class Ledger {
   readonly #readMission: StatementSync;
   readonly #lastSeq: StatementSync;
 
-  private constructor(db: DatabaseSync, options: LedgerOptions) {
+  private constructor(db: Database, options: LedgerOptions) {
     this.#db = db;
     this.#now = options.now ?? (() => new Date());
     this.#newId = options.newId ?? randomUUID;
@@ -233,7 +249,7 @@ export class Ledger {
   }
 }
 
-function migrate(db: DatabaseSync): void {
+function migrate(db: Database): void {
   const version = userVersion(db);
   if (version > SCHEMA_VERSION) {
     throw new UnsupportedLedgerError(
@@ -259,7 +275,7 @@ function migrate(db: DatabaseSync): void {
     db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'events'")
       .all()
-      .map((row) => String(row["name"])),
+      .map((row: Record<string, unknown>) => String(row["name"])),
   );
   const missing = GUARD_TRIGGERS.filter((name) => !triggers.has(name));
   if (missing.length > 0) {
@@ -269,7 +285,7 @@ function migrate(db: DatabaseSync): void {
   }
 }
 
-function userVersion(db: DatabaseSync): number {
+function userVersion(db: Database): number {
   return Number(db.prepare("PRAGMA user_version").get()?.["user_version"] ?? 0);
 }
 
