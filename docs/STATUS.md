@@ -53,6 +53,12 @@ account. Everything below is what stands between here and that.
 
 ### Where we are
 
+**The whole loop has now run through the plugin**, which is what P0's acceptance criterion actually asked for:
+`/fanout` in a real Claude Code session launched a mission, that session ended, the daemon kept the agent
+working, and a different session entirely read the diff, reviewed it, ran the project's checks, proved the fix
+failed on the old code and merged it — `4db85b4` in a scratch repository, authored `codex via fanout` with
+`Approved-by` and `Fanout-run` trailers. No driver scripts anywhere in that sentence.
+
 P0 milestones **1–9 are done** and **10 is all but the video**, tagged `v0.1.0` … `v0.9.0`. `npm run check` is
 green: **762 tests** (50 files). **P0's acceptance run is done**: a real mission on this repository, through the MCP tools, went plan →
 safety → parallel launch → rework as resumed sessions → review → checks → proof → merge (`2d8f9fa`, `f1fcb44`),
