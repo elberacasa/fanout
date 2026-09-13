@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, rmSync, symlinkSync, type Dirent } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, symlinkSync, type Dirent } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { baseEnv } from "../env.ts";
 import { workSnapshot } from "./revision.ts";
@@ -164,9 +164,38 @@ export async function runChecks(options: ChecksOptions): Promise<ChecksResult> {
  */
 function lendDependencies(repoRoot: string, worktree: string): () => void {
   const lent: string[] = [];
+  const setAside: { was: string; now: string }[] = [];
+
   for (const source of dependencyDirectories(repoRoot)) {
     const destination = join(worktree, relative(repoRoot, source));
-    if (existsSync(destination)) continue;
+
+    /*
+     * A dependency directory already in the worktree is moved out of the way, not merged with and not skipped.
+     *
+     * Both of the gentler options were tried against a real mission and both were wrong. Skipping on "it exists"
+     * lent nothing, and four agents who had written four good files were all reported as having written code
+     * that does not build — a false failure, which is worse than no check, because it blames the one party that
+     * did nothing wrong. Filling in the missing entries then failed differently: an agent's sandboxed
+     * `pnpm install` leaves a `node_modules` holding a 262-entry `.pnpm` store and no `.bin` at all, so the
+     * lent `.bin/astro` resolved back into the agent's own half-downloaded store and could not find itself.
+     *
+     * A partial install cannot be repaired by symlinking around it, and it is not the agent's work: it is
+     * ignored by git, it is the residue of an install that failed, and the check is supposed to run against the
+     * developer's real dependencies. So it is renamed for the length of the check and put back afterwards —
+     * nothing is deleted, and a crash mid-check leaves it recoverable beside where it was.
+     */
+    if (existsSync(destination)) {
+      const parked = `${destination}.fanout-aside`;
+      try {
+        rmSync(parked, { recursive: true, force: true });
+        renameSync(destination, parked);
+        setAside.push({ was: destination, now: parked });
+      } catch {
+        // Could not move it, so leave it alone and let the check say what it could not find.
+        continue;
+      }
+    }
+
     try {
       mkdirSync(dirname(destination), { recursive: true });
       symlinkSync(source, destination, "dir");
@@ -175,8 +204,17 @@ function lendDependencies(repoRoot: string, worktree: string): () => void {
       // Nothing lent and nothing to clean up: the check will say what it could not find.
     }
   }
+
   return () => {
     for (const path of lent) rmSync(path, { force: true });
+    for (const { was, now } of setAside) {
+      try {
+        rmSync(was, { recursive: true, force: true });
+        renameSync(now, was);
+      } catch {
+        // It stays beside where it was, which is recoverable and visible, rather than silently gone.
+      }
+    }
   };
 }
 

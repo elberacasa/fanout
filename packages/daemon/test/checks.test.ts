@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -202,6 +202,61 @@ describe("dependencies a worktree does not have", () => {
     });
 
     expect(sawMarker).toBe(true);
+    rmSync(worktree, { recursive: true, force: true });
+  });
+
+  /*
+   * The failure this was written for, found by using the product: four agents wrote four good files and the gate
+   * reported all four as not building.
+   *
+   * An agent that runs `pnpm install` inside its sandbox gets as far as populating `node_modules/.pnpm` and no
+   * further, because the linking needs writes the sandbox refuses. The worktree is then left with a
+   * `node_modules` that exists and contains nothing runnable. Skipping on "the directory is there" lent nothing,
+   * every check died with `astro: command not found`, and the blame landed on the one party that did nothing
+   * wrong. A false failure is worse than no check at all.
+   */
+  it("fills in a dependency directory the agent half-created, rather than skipping it", async () => {
+    mkdirSync(join(repo, "node_modules", ".bin"), { recursive: true });
+    writeFileSync(join(repo, "node_modules", ".bin", "astro"), "#!/bin/sh\n");
+    const worktree = worktreeOf("partial");
+
+    // What a sandboxed `pnpm install` leaves behind: a store, and nothing that can be run.
+    mkdirSync(join(worktree, "node_modules", ".pnpm"), { recursive: true });
+    writeFileSync(join(worktree, "node_modules", ".pnpm", "half.txt"), "incomplete\n");
+
+    let sawBinary = false;
+    await runChecks({
+      cwd: worktree,
+      repoRoot: repo,
+      commands: ["true"],
+      run: (_command, cwd) => {
+        sawBinary = existsSync(join(cwd, "node_modules", ".bin", "astro"));
+        return Promise.resolve({ exitCode: 0, output: "", timedOut: false });
+      },
+    });
+
+    expect(sawBinary).toBe(true);
+    rmSync(worktree, { recursive: true, force: true });
+  });
+
+  it("puts the half-finished one back afterwards, rather than deleting it", async () => {
+    mkdirSync(join(repo, "node_modules"), { recursive: true });
+    const worktree = worktreeOf("restore");
+    mkdirSync(join(worktree, "node_modules"), { recursive: true });
+    writeFileSync(join(worktree, "node_modules", "half-downloaded.txt"), "the agent got this far\n");
+
+    await runChecks({
+      cwd: worktree,
+      repoRoot: repo,
+      commands: ["true"],
+      run: () => Promise.resolve({ exitCode: 0, output: "", timedOut: false }),
+    });
+
+    // Nothing is destroyed: it is moved for the length of the check and moved back.
+    expect(readFileSync(join(worktree, "node_modules", "half-downloaded.txt"), "utf8")).toContain(
+      "got this far",
+    );
+    expect(existsSync(join(worktree, "node_modules.fanout-aside"))).toBe(false);
     rmSync(worktree, { recursive: true, force: true });
   });
 

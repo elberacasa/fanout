@@ -20,6 +20,7 @@ Screenshot*.png
 *.dev.diff
 *.dev.json
 mission.dev.*
+site.dev.*
 
 # Copied into each package by scripts/prepack.mjs so every published tarball carries the licence.
 packages/**/LICENSE
