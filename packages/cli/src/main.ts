@@ -31,6 +31,7 @@ import {
   createWorkspaceManager,
   missionViewHtml,
   readOrCreateToken,
+  reconcile,
   readSeatPolicy,
   setPosture,
   startApi,
@@ -706,12 +707,88 @@ const SEAT_HELP = `  fanout seat <id> <preferred|normal|sparing|off> [why]
 async function daemon(home: FanoutHome, io: Io): Promise<number> {
   const ledger = Ledger.open(home.ledger);
   const token = readOrCreateToken(home.token);
+
+  // Runs left over from a session that ended: written off before anybody reads the ledger for an answer.
+  reconcile(ledger);
+
+  /*
+   * One runner per repository, made when that repository first asks for one.
+   *
+   * A daemon serves the whole machine while a mission belongs to one checkout, so the worktrees and the base
+   * commit differ per repository — one runner for all of them would put an agent's worktree under somebody
+   * else's project.
+   */
+  const runners = new Map<string, ReturnType<typeof createMissionRunner>>();
+  const runnerFor = (repoRoot: string): ReturnType<typeof createMissionRunner> => {
+    const existing = runners.get(repoRoot);
+    if (existing !== undefined) return existing;
+    const made = createMissionRunner({
+      ledger,
+      workspaces: createWorkspaceManager({ repoRoot, workspaceRoot: home.workspaces }),
+      adapters: adapters(),
+      runsRoot: home.runs,
+      limits: DEFAULT_LIMITS,
+    });
+    runners.set(repoRoot, made);
+    return made;
+  };
+
   const api = await startApi({
     ledger,
     token,
     crew: () =>
       detectSeats({ manifests: SEATS, ...(io.execute === undefined ? {} : { execute: io.execute }) }),
     view: missionViewHtml,
+    /*
+     * Answering as soon as the runs are under way, not when they finish. The session that asked may be gone in
+     * thirty seconds — that is the whole reason this daemon runs the mission instead of it.
+     */
+    launch: async (order) => {
+      try {
+        const plan = PlanGraph.parse(order.plan);
+        const baseCommit = (await git(["rev-parse", "HEAD"], { cwd: order.repoRoot })).trim();
+        const handle = runnerFor(order.repoRoot).launch({
+          missionId: order.missionId,
+          plan,
+          baseCommit,
+          maxParallel: order.maxParallel,
+        });
+
+        /*
+         * Recording the end, because nobody else will.
+         *
+         * The session that asked for this is very likely gone by now — that is the point of running it here — so
+         * there is no caller waiting on the handle to write the mission off. Without this the runs all finish
+         * and the mission reads `running` for ever, which is the same lie reconciliation exists to prevent, one
+         * level up.
+         */
+        void handle.finished.then((outcome) => {
+          ledger.append({
+            type: "mission.finished",
+            missionId: order.missionId,
+            outcome: outcome.failed === 0 && outcome.dropped === 0 ? "completed" : "aborted",
+            summary: `${String(outcome.done)} done, ${String(outcome.failed)} failed, ${String(outcome.dropped)} dropped`,
+          });
+        });
+
+        return { ok: true };
+      } catch (cause) {
+        return { ok: false, why: cause instanceof Error ? cause.message : String(cause) };
+      }
+    },
+  });
+
+  /*
+   * Where this daemon is, so a session can find it.
+   *
+   * It was only ever written by `fanout demo`, which meant the real daemon never advertised itself and the file
+   * held a stale entry from whenever somebody last ran the demo — pointing at a port nobody was listening on.
+   * Discovery that answers with an old address is worse than none: the caller believes it.
+   */
+  const advert = join(home.root, "daemon.json");
+  writeFileSync(advert, `${JSON.stringify({ url: api.url, pid: process.pid })}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
   });
 
   io.out(
@@ -722,6 +799,8 @@ async function daemon(home: FanoutHome, io: Io): Promise<number> {
   );
 
   await (io.until ?? interrupted());
+  // Taken down with the daemon: an address that outlives the process it names is the bug this file just had.
+  rmSync(advert, { force: true });
   await api.close();
   ledger.close();
   io.out("fanout daemon stopped.\n");
@@ -812,10 +891,17 @@ async function mcp(home: FanoutHome, io: Io): Promise<number> {
     api.publish(event);
   };
 
-  // Where the daemon is, for the mission view and any other client. Private, like everything else here.
-  writeFileSync(join(home.root, "daemon.json"), `${JSON.stringify({ url: api.url, pid: process.pid })}\n`, {
-    mode: 0o600,
-  });
+  /*
+   * This server does not advertise itself, and that is the fix for a real failure.
+   *
+   * `daemon.json` is the machine's one answer to "where is the daemon". This API belongs to a single Claude Code
+   * session and dies with it, so writing the address here overwrote the long-running daemon's — and the very
+   * next thing this process did was read that file, find itself, and hand its own mission to an API with no
+   * runner behind it. The mission sat in planning and never started.
+   *
+   * The url is printed instead. A session that wants a durable mission runs `fanout daemon`, which is the thing
+   * that actually owns the advert.
+   */
 
   const server = createFanoutServer({
     ledger,

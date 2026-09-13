@@ -25,6 +25,9 @@ import {
   workSnapshot,
   createMissionRunner,
   createWorkspaceManager,
+  daemonAnswers,
+  findDaemon,
+  type DaemonLink,
   reconcile,
   detectSeats,
   git,
@@ -69,6 +72,31 @@ export interface FanoutMcpOptions {
 }
 
 const MissionLimits = { maxParallel: z.int().min(1).max(16).default(3) };
+
+/**
+ * Asks the daemon to run a mission. Returns null when it took it, or the reason it would not.
+ *
+ * A refusal is passed back rather than swallowed and retried locally: the daemon is the one that knows why, and
+ * silently doing it here would turn "your repository is not where I thought" into a mission nobody can explain.
+ */
+async function handTo(
+  daemon: DaemonLink,
+  order: { missionId: string; goal: string; repoRoot: string; plan: unknown; maxParallel: number },
+): Promise<string | null> {
+  try {
+    const response = await fetch(`${daemon.url}/launch`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${daemon.token}`, "content-type": "application/json" },
+      body: JSON.stringify(order),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.ok) return null;
+    const said = (await response.json().catch(() => ({}))) as { error?: string };
+    return said.error ?? `it answered ${String(response.status)}`;
+  } catch (cause) {
+    return cause instanceof Error ? cause.message : String(cause);
+  }
+}
 
 export function createFanoutServer(options: FanoutMcpOptions): McpServer {
   const server = new McpServer(
@@ -250,6 +278,32 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
         { type: "safety.report", missionId, planRevision: 1, ok: report.ok, checks: report.checks },
       ]);
 
+      /*
+       * Hand the mission to the daemon when one is running, and only run it here when none is.
+       *
+       * A runner inside this process dies with the session that owns it, which is what left a run recorded as
+       * `running` for a quarter of an hour after the agent had gone (ADR 0024). A daemon outlives a terminal, so
+       * a mission it owns survives the lead closing the window and is waiting when they come back.
+       *
+       * The fallback is not a nicety: a session with no daemon still has to work, and it is better for a mission
+       * to be tied to this terminal than for `/fanout` to refuse until somebody runs another command.
+       */
+      const home = options.paths.home;
+      const away = home === undefined ? null : findDaemon(home);
+      if (away !== null && (await daemonAnswers(away))) {
+        const handed = await handTo(away, { missionId, goal, repoRoot: options.repoRoot, plan, maxParallel });
+        if (handed === null) {
+          return text(
+            `Mission ${missionId} is running ${plan.lines.length} line(s) from ${head.slice(0, 7)}, on the ` +
+              `daemon — so it will keep going if this session ends` +
+              `${override === undefined ? "" : `, with the safety report overridden: ${override}`}.`,
+            { missionId, baseCommit: head, lines: plan.lines.map((line) => line.id), owner: "daemon" },
+          );
+        }
+        // It answered and refused, which is a real answer: say what it said rather than quietly doing it here.
+        return text(`The daemon would not start this mission: ${handed}`, { missionId });
+      }
+
       const handle = runner.launch({ missionId, plan, baseCommit: head, maxParallel });
       missions.set(missionId, handle);
       void handle.finished.then((outcome) => {
@@ -263,8 +317,10 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
 
       return text(
         `Mission ${missionId} is running ${plan.lines.length} line(s) from ${head.slice(0, 7)}` +
-          `${override === undefined ? "" : `, with the safety report overridden: ${override}`}.`,
-        { missionId, baseCommit: head, lines: plan.lines.map((line) => line.id) },
+          (override === undefined ? "" : `, with the safety report overridden: ${override}`) +
+          `. It is running in this session, so it stops if the session does — start \`fanout daemon\` to ` +
+          `have missions outlive it.`,
+        { missionId, baseCommit: head, lines: plan.lines.map((line) => line.id), owner: "session" },
       );
     },
   );

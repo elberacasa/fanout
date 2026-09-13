@@ -41,12 +41,33 @@ export interface ApiOptions {
   /** 0 asks the operating system for a free port, which is what tests want. */
   port?: number;
   /**
+   * Starts a mission, when this daemon is one that can.
+   *
+   * Injected rather than built here, because running a mission needs adapters, manifests and limits — things the
+   * API has no business knowing. Absent, the daemon is what it has always been: a window onto the ledger.
+   *
+   * It exists so a mission can outlive the session that asked for it. A runner inside a Claude Code session dies
+   * with the terminal; one inside a daemon does not (ADR 0024).
+   */
+  launch?: (request: LaunchOrder) => Promise<{ ok: true } | { ok: false; why: string }>;
+
+  /**
    * The mission view's HTML, with `{{TOKEN}}` wherever the page needs this daemon's token.
    *
    * Passed in rather than read from disk here so the daemon has no opinion about where the page lives, and so a
    * test can serve a one-line page without a file.
    */
   view?: () => string;
+}
+
+/** What the daemon needs to start a mission on somebody else's behalf. */
+export interface LaunchOrder {
+  missionId: string;
+  goal: string;
+  /** The repository the work happens in. A daemon serves every repository on the machine, not one. */
+  repoRoot: string;
+  plan: unknown;
+  maxParallel: number;
 }
 
 export interface ApiServer {
@@ -188,6 +209,25 @@ async function handle(
     await approve(request, response, options);
     return;
   }
+
+  /*
+   * Handing a mission to something that will outlive the asker.
+   *
+   * The session that calls this may be gone in thirty seconds — that is the whole reason the route exists — so
+   * it answers as soon as the runs are under way rather than when they finish, and everything after that is in
+   * the ledger for whoever comes back.
+   */
+  if (request.method === "POST" && url.pathname === "/launch") {
+    if (options.launch === undefined) {
+      send(response, 501, { error: "this daemon only reads the ledger; it cannot run a mission" });
+      return;
+    }
+    await launch(request, response, {
+      start: options.launch,
+      knows: (missionId) => project(options.ledger.read({ missionId })).missions[missionId] !== undefined,
+    });
+    return;
+  }
   if (request.method !== "GET") {
     send(response, 405, { error: `${request.method ?? "that"} is not something this daemon does yet` });
     return;
@@ -291,6 +331,64 @@ async function approve(
     note,
   });
   send(response, 200, { ok: true, runId, revision });
+}
+
+/** Reads a launch order and starts it, or says exactly which part it could not read. */
+async function launch(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: {
+    start: (order: LaunchOrder) => Promise<{ ok: true } | { ok: false; why: string }>;
+    knows: (missionId: string) => boolean;
+  },
+): Promise<void> {
+  const { start } = options;
+  let body: Partial<LaunchOrder>;
+  try {
+    body = JSON.parse(await readBody(request, 2 * 1024 * 1024)) as Partial<LaunchOrder>;
+  } catch {
+    send(response, 400, { error: "that was not JSON this daemon could read" });
+    return;
+  }
+
+  const { missionId, goal, repoRoot, plan } = body;
+  if (
+    typeof missionId !== "string" ||
+    typeof goal !== "string" ||
+    typeof repoRoot !== "string" ||
+    plan === undefined
+  ) {
+    send(response, 400, { error: "a launch needs a missionId, a goal, a repoRoot and a plan" });
+    return;
+  }
+
+  /*
+   * The mission has to exist before it can be run.
+   *
+   * The caller records `mission.created` and the plan, then asks for it to be started; without that the runs
+   * this queues belong to a mission the ledger has never heard of, and every one of them lands as an anomaly.
+   * Found by calling this route by hand and watching a launch succeed into nothing.
+   */
+  if (!options.knows(missionId)) {
+    send(response, 409, {
+      error: `${missionId} has not been recorded yet — create the mission and its plan before launching it`,
+    });
+    return;
+  }
+
+  const outcome = await start({
+    missionId,
+    goal,
+    repoRoot,
+    plan,
+    maxParallel: typeof body.maxParallel === "number" ? body.maxParallel : 3,
+  });
+
+  if (!outcome.ok) {
+    send(response, 409, { error: outcome.why });
+    return;
+  }
+  send(response, 202, { ok: true, missionId });
 }
 
 /** The request's body, refusing anything large enough to be an attempt at exhausting the daemon. */
