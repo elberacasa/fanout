@@ -327,6 +327,11 @@
       .waiting .who {
         color: var(--fg);
       }
+      /* The other project's name, said quietly: it is context, not the subject of the row. */
+      .from {
+        color: var(--fg-faint);
+        font-size: var(--text-xs);
+      }
       .waiting .what {
         color: var(--fg-dim);
       }
@@ -615,7 +620,7 @@
        * of it; a page that worked out its own answer would eventually tell someone a run was ready while the
        * merge tool refused it.
        */
-      function waitingSection(waiting) {
+      function waitingSection(waiting, here) {
         const section = el("section");
         const head = el("h2");
         head.append(document.createTextNode("Waiting on you"));
@@ -639,6 +644,15 @@
           // The work, not the run id — the id is for the tools, and is on the row for anyone who needs it.
           row.title = item.runId;
           row.append(el("span", "who", item.task ?? item.runId));
+          /*
+           * Where it came from, when it did not come from here. One daemon serves the whole machine, so a row
+           * with no repository asks somebody to review work they may never have seen the project for.
+           */
+          if (item.repo && item.repo !== here) {
+            const from = el("span", "from", item.repo.split("/").pop());
+            from.title = item.repo;
+            row.append(from);
+          }
           row.append(
             el(
               "span",
@@ -801,7 +815,12 @@
         main.append(crew);
 
         // Above the runs: it is the only thing on this page that asks something of whoever is reading it.
-        main.append(waitingSection(snapshot.waiting ?? []));
+        /*
+         * The repository this page is about: the one the mission on screen belongs to. Rows from anywhere else
+         * are labelled, because one daemon serves the whole machine and an unlabelled row is a request to review
+         * work from a project the reader may not even have open.
+         */
+        main.append(waitingSection(snapshot.waiting ?? [], mission?.repo?.root));
 
         const runs = el("section");
         const runsHead = el("h2");

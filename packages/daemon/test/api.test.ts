@@ -326,6 +326,50 @@ describe("approving a merge from the mission view", () => {
     expect(ledger.read().some((event) => event.type === "merge.approved")).toBe(false);
   });
 
+  /*
+   * A run that was reworked keeps the `rework` verdict that caused the rework, so it can never become
+   * mergeable — and it sat in "Waiting on you" for ever, asking to be dealt with when the attempt that dealt
+   * with it had already been merged. Two were still there hours after their mission finished.
+   */
+  it("stops asking about a run that has already been reworked", async () => {
+    reviewedAndChecked();
+    ledger.appendAll([
+      {
+        type: "review.done",
+        missionId: "demo",
+        runId: "api-1",
+        revision: REV,
+        by: { id: "codex" },
+        verdict: "rework",
+        notes: "change the header row",
+      },
+      {
+        type: "run.queued",
+        missionId: "demo",
+        runId: "api-2",
+        lineId: "api",
+        seat: { id: "codex" },
+        attempt: 2,
+      },
+      { type: "run.started", missionId: "demo", runId: "api-2", workdir: "/w", argv: ["codex"] },
+      { type: "run.finished", missionId: "demo", runId: "api-2", status: "done", exitCode: 0 },
+    ]);
+
+    const { body } = await authorized("/state");
+    const waiting = (body as { waiting: { runId: string }[] }).waiting;
+
+    expect(waiting.map((item) => item.runId)).toEqual(["api-2"]);
+  });
+
+  it("says which repository a waiting run came from, since one daemon serves them all", async () => {
+    reviewedAndChecked();
+
+    const { body } = await authorized("/state");
+    const waiting = (body as { waiting: { repo: string }[] }).waiting;
+
+    expect(waiting[0]?.repo).toBe("/work");
+  });
+
   it("refuses a run it has never heard of", async () => {
     expect((await approve({ missionId: "demo", runId: "ghost-1" })).status).toBe(404);
   });

@@ -443,6 +443,7 @@ function waitingOnYou(state: ProjectionState): {
   missionId: string;
   runId: string;
   task: string;
+  repo: string;
   seat: string;
   ready: boolean;
   /**
@@ -461,6 +462,20 @@ function waitingOnYou(state: ProjectionState): {
     for (const runId of mission.runOrder) {
       const run = mission.runs[runId];
       if (run?.status !== "done") continue;
+
+      /*
+       * A run that has been reworked is finished with, whatever its own review said.
+       *
+       * Rework starts a new attempt on the same line, and the old one keeps the `rework` verdict that caused it
+       * — so it can never become mergeable and it sat in "Waiting on you" for ever, asking to be dealt with when
+       * the thing that deals with it had already been merged. Two of them were still there hours later, from a
+       * mission that finished.
+       */
+      const superseded = mission.runOrder.some((other) => {
+        const candidate = mission.runs[other];
+        return candidate?.lineId === run.lineId && candidate.attempt > run.attempt;
+      });
+      if (superseded) continue;
       const line = lines.get(run.lineId);
       if (line === undefined) continue;
 
@@ -473,6 +488,11 @@ function waitingOnYou(state: ProjectionState): {
         runId,
         // What the work was, not just which run it was. A row that says `api-1` makes a person go and look it up.
         task: line.title,
+        /*
+         * Which repository this belongs to. One daemon serves the whole machine, so without this a person is
+         * asked to review something with no way to tell it is not from the project they are looking at.
+         */
+        repo: mission.repo.root,
         seat: run.seat.id,
         ready: readiness.ready,
         approvable: !readiness.ready && blocksApproval(readiness).length === 0,
