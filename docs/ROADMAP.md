@@ -51,7 +51,13 @@ every milestone is tested; and the build log shows the crew's work.
 
 ## P1 · Smarter crew
 
-Plan editing in the mission view (the canvas: + New line, prompt cards, dependency arrows), steering and pause,
+**First: a mission that outlives its session.** The runner lives inside the session's MCP server today, so
+closing a terminal kills the crew mid-flight and loses the work — see ADR 0024 for why that was a defensible
+default and why it stops being one. Move the runner into `fanout daemon`, which is already long-lived, and have
+the MCP server drive it over the local API. Done when a mission survives the session that started it, a second
+terminal can watch it, and the lead that comes back finds its diffs waiting.
+
+Then: plan editing in the mission view (the canvas: + New line, prompt cards, dependency arrows), steering and pause,
 scorecards per seat and repo, full replay, and promoting community seats to supported as their capability profiles
 are recorded: Grok and Kimi first, then Gemini, Qwen and OpenCode as they are installed and verified.
 

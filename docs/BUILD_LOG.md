@@ -17,6 +17,46 @@ Next: <the next step>
 
 ---
 
+### 2026-09-13 · The plugin, used for the first time · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: 1 Codex agent, through the plugin
+
+The first time anybody — including us — ran Fanout the way a user will: `claude --plugin-dir`, then `/fanout` in
+a real session. Everything before this went through driver scripts straight to the MCP server, which skipped the
+plugin, the slash command and the hooks entirely.
+
+**It works.** All thirteen tools were exposed to the session. The lead read the repository, planned one line
+(right: the work was one coherent piece), launched it, and said it would review the diff, run the checks through
+the gate and use `prove_fix`. The Codex agent wrote a failing test first, ran it, and watched it fail with
+`-9000 !== 900` on a real off-by-100 discount bug.
+
+Then it broke, and the way it broke was the point.
+
+**Missions die with the session, and the ledger did not know.** The run log stops mid-work. No `run.finished`, no
+`mission.finished`, and `fanout status` reporting `running · 14m 55s` with no agent process alive anywhere. The
+supervisor lives inside the session's MCP server; print mode returned after one turn and took the crew with it.
+
+That is not an edge case — it is what happens every time somebody closes a terminal. Without a fix, every
+interrupted session leaves a phantom in the ledger for good.
+
+Fixed, `d8c583a`: `run.started` records the supervising process id and every daemon reconciles at startup. The
+care is in the refusal — only `ESRCH` counts as death, because `EPERM` means the process belongs to somebody
+else and is alive, and a run whose owner is alive belongs to a second terminal and is left strictly alone.
+Verified against the real orphan: `running · 14m 55s` became `aborted`.
+
+**`fanout status` was answering the wrong question**, `fb80335`. The ledger is one file per machine, so standing
+in a scratch repository it listed work on a website and on Fanout itself. Scoped to the repository the command
+was run in, with an honest count of what is elsewhere.
+
+**What is not fixed** is that the work itself is still lost when a session ends. ADR 0024 records why that was a
+defensible default — a mission whose lead has gone has nobody to read its diffs — and why it stops being one.
+The real answer is moving the runner into `fanout daemon`, which is now the first item of P1.
+
+Verified: 758 tests · CI green · the plugin loaded in a real session and its tools enumerated · reconciliation
+run against the live orphaned mission.
+
+---
+
 ### 2026-09-13 · The demo, and one package · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: none (a design pass is the lead's to own)

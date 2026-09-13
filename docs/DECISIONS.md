@@ -326,3 +326,33 @@ mistake would only surface on a stranger's machine.
 
 `fanout-core`, `fanout-daemon`, `fanout-mcp` and the four adapters remain on npm at `0.7.0` and always will. They
 should be deprecated with a pointer to `fanout-cli`.
+
+## 0024 · A mission lives and dies with the session that leads it (2026-09-13)
+
+**Choice:** for now, deliberately. The mission runner lives inside the session's MCP server, so when a Claude Code
+session ends its in-flight runs die with it. A daemon reconciles on next start and writes those runs off with a
+reason. This is recorded as a decision rather than left as an accident, because it was one until today.
+
+**Why it is not obviously wrong:** the lead reviews the work. A mission whose lead has gone has nobody to read its
+diffs, and work that arrives with no reader is the thing this product exists to prevent. A crew that keeps
+building into an empty room is not a feature.
+
+**Why it is not obviously right either:** the failure is silent and the loss is real. A session that crashes, or
+a terminal closed by accident, takes several minutes of paid agent work with it. Worse, the ledger recorded those
+runs as `running` for ever — found by running `/fanout` for the first time in a real session, where a print-mode
+lead returned after one turn and left a run "in flight" that had been dead for a quarter of an hour.
+
+**What is fixed now:** `run.started` records the supervising process id, and every daemon reconciles at startup —
+a run whose owner is provably gone is written off, and its mission closed. The record is honest. The work is
+still lost.
+
+**What the real fix looks like, when it is worth doing:** move the runner into `fanout daemon`, which already
+exists as a long-lived process serving the mission view, and have the MCP server drive it over the local API
+instead of owning it. A mission would then outlive any session, `fanout status` in a new terminal would show work
+still in progress, and the lead that returns would find its diffs waiting rather than gone.
+
+That is a real refactor — the runner, the supervisor and the gate all currently assume they share a process with
+the tools that call them — and it needs its own milestone rather than being smuggled into a bug fix. **P1.**
+
+**Consequences until then:** do not close the terminal during a mission, and expect print-mode (`claude -p`) to
+be unable to complete one. Both are now stated in the docs rather than discovered.
