@@ -719,6 +719,8 @@ async function daemon(home: FanoutHome, io: Io): Promise<number> {
    * else's project.
    */
   const runners = new Map<string, ReturnType<typeof createMissionRunner>>();
+  /** Missions this daemon is running, so a cancel can reach the one it names. */
+  const running = new Map<string, ReturnType<ReturnType<typeof createMissionRunner>["launch"]>>();
   const runnerFor = (repoRoot: string): ReturnType<typeof createMissionRunner> => {
     const existing = runners.get(repoRoot);
     if (existing !== undefined) return existing;
@@ -743,6 +745,16 @@ async function daemon(home: FanoutHome, io: Io): Promise<number> {
      * Answering as soon as the runs are under way, not when they finish. The session that asked may be gone in
      * thirty seconds — that is the whole reason this daemon runs the mission instead of it.
      */
+    /*
+     * Stopping matters more than starting. The handles live here now, so this is the only process that can act
+     * on one — a cancel that went to the session instead would find nothing and say so cheerfully.
+     */
+    cancel: async (missionId, reason) => {
+      const handle = running.get(missionId);
+      if (handle === undefined) return false;
+      await handle.cancel(reason);
+      return true;
+    },
     launch: async (order) => {
       try {
         const plan = PlanGraph.parse(order.plan);
@@ -762,7 +774,9 @@ async function daemon(home: FanoutHome, io: Io): Promise<number> {
          * and the mission reads `running` for ever, which is the same lie reconciliation exists to prevent, one
          * level up.
          */
+        running.set(order.missionId, handle);
         void handle.finished.then((outcome) => {
+          running.delete(order.missionId);
           ledger.append({
             type: "mission.finished",
             missionId: order.missionId,

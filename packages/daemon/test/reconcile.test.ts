@@ -96,6 +96,50 @@ describe("runs whose supervisor is gone", () => {
     expect(project(ledger.read()).missions[M]?.status).toBe("aborted");
   });
 
+  /*
+   * Seen for real: a daemon restarted after its runs had completed, and the mission read
+   * `running · 1 waiting for review` indefinitely. Nothing had dropped, so nothing closed it — the process that
+   * held the handle had died between the last run finishing and the finish being written.
+   */
+  it("closes a mission whose runs all settled, even when it dropped nothing", () => {
+    ledger.appendAll([
+      {
+        type: "run.started",
+        missionId: M,
+        runId: "api-1",
+        workdir: "/w",
+        argv: ["codex"],
+        owner: process.pid,
+      },
+      { type: "run.finished", missionId: M, runId: "api-1", status: "done", exitCode: 0 },
+    ]);
+
+    const { dropped } = reconcile(ledger);
+
+    expect(dropped).toEqual([]);
+    const mission = project(ledger.read()).missions[M];
+    expect(mission?.status).toBe("finished");
+    // "completed", not "aborted": nothing went wrong, the record was simply never closed.
+    expect(mission?.summary).toContain("nothing recorded the mission as over");
+  });
+
+  it("leaves a mission alone while one of its runs is still going", () => {
+    ledger.appendAll([
+      {
+        type: "run.started",
+        missionId: M,
+        runId: "api-1",
+        workdir: "/w",
+        argv: ["codex"],
+        owner: process.pid,
+      },
+    ]);
+
+    reconcile(ledger);
+
+    expect(project(ledger.read()).missions[M]?.status).toBe("running");
+  });
+
   it("says nothing about a run that already finished", () => {
     ledger.appendAll([
       { type: "run.started", missionId: M, runId: "api-1", workdir: "/w", argv: ["codex"], owner: DEAD },

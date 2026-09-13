@@ -98,6 +98,26 @@ async function handTo(
   }
 }
 
+/** Asks the daemon to stop a mission: true if it did, false if it is not running it, null if it could not be asked. */
+async function askDaemonToStop(
+  daemon: DaemonLink,
+  missionId: string,
+  reason: string,
+): Promise<boolean | null> {
+  try {
+    const response = await fetch(`${daemon.url}/cancel`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${daemon.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ missionId, reason }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return null;
+    return ((await response.json()) as { stopped?: boolean }).stopped === true;
+  } catch {
+    return null;
+  }
+}
+
 export function createFanoutServer(options: FanoutMcpOptions): McpServer {
   const server = new McpServer(
     { name: "fanout", version: versionOf(import.meta.url) },
@@ -399,9 +419,46 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
     },
     async ({ missionId, reason }) => {
       const handle = missions.get(missionId);
-      if (handle === undefined) return text(`Mission ${missionId} is not running here.`, { missionId });
-      await handle.cancel(reason);
-      return text(`Stopped ${missionId}: ${reason}`, { missionId });
+      if (handle !== undefined) {
+        await handle.cancel(reason);
+        return text(`Stopped ${missionId}: ${reason}`, { missionId });
+      }
+
+      /*
+       * Ask the daemon, because it may be the one running this.
+       *
+       * Missions can now live in a process that outlives this session, and a cancel that only looked in this
+       * one answered "not running here" while the agents carried on spending. Cancel is how somebody stops
+       * paying; it is the last control that may quietly do nothing.
+       */
+      const home = options.paths.home;
+      const away = home === undefined ? null : findDaemon(home);
+      if (away !== null && (await daemonAnswers(away))) {
+        const stopped = await askDaemonToStop(away, missionId, reason);
+        if (stopped === true) return text(`Stopped ${missionId}: ${reason}`, { missionId });
+        if (stopped === null) {
+          return text(`Could not reach the daemon to stop ${missionId}. It may still be running.`, {
+            missionId,
+          });
+        }
+      }
+
+      /*
+       * Nobody is running it, so the only thing left to record is the decision. A mission abandoned in planning
+       * otherwise sits in every future listing as though it were about to start.
+       */
+      const state = project(options.ledger.read({ missionId })).missions[missionId];
+      if (state !== undefined && (state.status === "planning" || state.status === "running")) {
+        options.ledger.append({
+          type: "mission.finished",
+          missionId,
+          outcome: "aborted",
+          summary: `cancelled before anything was running: ${reason}`,
+        });
+        return text(`Nothing was running. Recorded ${missionId} as cancelled: ${reason}`, { missionId });
+      }
+
+      return text(`Mission ${missionId} is not running here.`, { missionId });
     },
   );
 

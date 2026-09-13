@@ -52,6 +52,15 @@ export interface ApiOptions {
   launch?: (request: LaunchOrder) => Promise<{ ok: true } | { ok: false; why: string }>;
 
   /**
+   * Stops a mission this daemon is running. Absent when the daemon cannot run one in the first place.
+   *
+   * It matters more than launching. Cancel is how somebody says "stop spending my subscription", and a cancel
+   * that quietly does nothing because the mission is owned by a different process is the worst of both: the
+   * agents keep working and the person believes they stopped.
+   */
+  cancel?: (missionId: string, reason: string) => Promise<boolean>;
+
+  /**
    * The mission view's HTML, with `{{TOKEN}}` wherever the page needs this daemon's token.
    *
    * Passed in rather than read from disk here so the daemon has no opinion about where the page lives, and so a
@@ -217,6 +226,27 @@ async function handle(
    * it answers as soon as the runs are under way rather than when they finish, and everything after that is in
    * the ledger for whoever comes back.
    */
+  if (request.method === "POST" && url.pathname === "/cancel") {
+    let order: { missionId?: unknown; reason?: unknown };
+    try {
+      order = JSON.parse(await readBody(request)) as typeof order;
+    } catch {
+      send(response, 400, { error: "that was not JSON this daemon could read" });
+      return;
+    }
+    const missionId = typeof order.missionId === "string" ? order.missionId : "";
+    const reason = typeof order.reason === "string" ? order.reason : "cancelled";
+    if (missionId === "" || options.cancel === undefined) {
+      send(response, options.cancel === undefined ? 501 : 400, {
+        error: options.cancel === undefined ? "this daemon runs no missions" : "a cancel needs a missionId",
+      });
+      return;
+    }
+    // `stopped: false` is a real answer, not a failure: this daemon is simply not the one running it.
+    send(response, 200, { stopped: await options.cancel(missionId, reason) });
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/launch") {
     if (options.launch === undefined) {
       send(response, 501, { error: "this daemon only reads the ledger; it cannot run a mission" });

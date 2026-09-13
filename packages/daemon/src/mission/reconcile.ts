@@ -73,19 +73,29 @@ export function reconcile(ledger: Ledger, now = process.pid): ReconcileResult {
     }
 
     /*
-     * A mission with nothing left running is over, whatever it was last called. Left open, it shows up as in
-     * flight in every future listing — the same lie one level up.
+     * A mission with nothing left running is over, whatever it was last called.
+     *
+     * Not only when this pass dropped something. A mission is also left open when the process that owned its
+     * handle died between the last run finishing and the finish being written — every run settled, the mission
+     * still reading `running`, and nothing that would ever say otherwise. Seen for real: a daemon restarted
+     * after its runs had completed, and the mission showed `running · 1 waiting for review` indefinitely.
      */
-    if (dropped.length > 0 && mission.status === "running") {
-      const settled = mission.runOrder.every((id) => {
-        return mission.runs[id]?.status !== "running" || dropped.includes(id);
-      });
+    if (mission.status === "running" || mission.status === "planning") {
+      const settled =
+        mission.runOrder.length > 0 &&
+        mission.runOrder.every((id) => {
+          const status = mission.runs[id]?.status;
+          return (status !== "running" && status !== "queued") || dropped.includes(id);
+        });
       if (settled) {
         ledger.append({
           type: "mission.finished",
           missionId: mission.missionId,
-          outcome: "aborted",
-          summary: `${String(dropped.length)} run(s) ended when the session supervising them did`,
+          outcome: dropped.length > 0 ? "aborted" : "completed",
+          summary:
+            dropped.length > 0
+              ? `${String(dropped.length)} run(s) ended when the session supervising them did`
+              : "every run had finished; nothing recorded the mission as over",
         });
       }
     }
