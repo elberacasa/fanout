@@ -53,9 +53,26 @@ export function crewTable(seats: readonly SeatInfo[], policy: SeatPolicy = EMPTY
   return `Crew on this machine (${ready} ready)\n${lines.join("\n")}\n`;
 }
 
-export function missionLines(state: ProjectionState, now: Date = new Date()): string {
-  const missions = Object.values(state.missions);
-  if (missions.length === 0) return "No missions yet.\n";
+export function missionLines(state: ProjectionState, now: Date = new Date(), repoRoot?: string): string {
+  const all = Object.values(state.missions);
+  if (all.length === 0) return "No missions yet.\n";
+
+  /*
+   * Only this repository's missions, when we know which repository we are standing in.
+   *
+   * The ledger is one file for the whole machine, so without this a developer in their own project was shown
+   * missions from two unrelated ones — found by running `fanout status` in a scratch repo and being told about
+   * work on a website and on Fanout itself. The count of what is elsewhere is still worth a line, because
+   * silently hiding a running mission is its own kind of lie.
+   */
+  const missions = repoRoot === undefined ? all : all.filter((m) => m.repo.root === repoRoot);
+  const elsewhere = all.length - missions.length;
+  const footnote =
+    elsewhere === 0
+      ? ""
+      : `\n  ${String(elsewhere)} mission${elsewhere === 1 ? "" : "s"} in other repositories, not shown.\n`;
+
+  if (missions.length === 0) return `No missions in this repository.${footnote}`;
 
   const lines = missions.map((mission) => {
     const runs = Object.values(mission.runs);
@@ -81,5 +98,5 @@ export function missionLines(state: ProjectionState, now: Date = new Date()): st
       ? ""
       : `\n  ${state.anomalies.length} event(s) did not fit the story and were kept as anomalies.\n`;
 
-  return `Missions\n${lines.join("\n")}\n${anomalies}`;
+  return `Missions\n${lines.join("\n")}\n${footnote}${anomalies}`;
 }

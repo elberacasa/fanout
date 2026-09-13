@@ -398,6 +398,15 @@ async function demo(home: FanoutHome, io: Io, argv: readonly string[] = []): Pro
   return 0;
 }
 
+/** The repository a command was run in, or undefined outside one — which is not an error, just less context. */
+async function repoRootOf(cwd: string): Promise<string | undefined> {
+  try {
+    return (await git(["rev-parse", "--show-toplevel"], { cwd })).trim();
+  } catch {
+    return undefined;
+  }
+}
+
 async function status(home: FanoutHome, io: Io): Promise<number> {
   const seats = await detectSeats({
     manifests: SEATS,
@@ -417,7 +426,12 @@ async function status(home: FanoutHome, io: Io): Promise<number> {
   const ledger = Ledger.open(home.ledger);
   try {
     const state = project(ledger.read());
-    io.out(`\n${missionLines(state)}`);
+    /*
+     * Scoped to the repository the person is standing in. The ledger is one file for the whole machine, and
+     * without this `fanout status` in your own project lists work from every other project on it.
+     */
+    const here = await repoRootOf(io.cwd ?? process.cwd());
+    io.out(`\n${missionLines(state, new Date(), here)}`);
   } finally {
     ledger.close();
   }

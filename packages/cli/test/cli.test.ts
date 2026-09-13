@@ -143,7 +143,11 @@ describe("fanout status", () => {
     ]);
     ledger.close();
 
-    await main(["status"], io());
+    /*
+     * Run from outside any repository, so this stays a test of the summary rather than of the scoping. A mission
+     * list run inside a repository shows only that repository's work, which `format.test.ts` covers on its own.
+     */
+    await main(["status"], io({ cwd: home }));
     expect(printed()).toMatch(/csv-export\s+running\s+1 run · 1 running/);
   });
 });
