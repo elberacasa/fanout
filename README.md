@@ -89,10 +89,17 @@ npx fanout-cli demo
 Three simulated agents, three git worktrees, three real diffs, and a mission view on localhost to watch it
 happen. Everything is real except the thinking — real worktrees, the real safety gate, the real ledger.
 
-Then use it for real:
+Then use it for real, inside Claude Code:
 
 ```sh
-npm install -g fanout-cli
+/plugin marketplace add elberacasa/fanout
+/plugin install fanout@fanout
+```
+
+That gives you `/fanout <goal>`, the crew and watch commands, and the tools Claude leads with. The CLI comes with
+it for the terminal side:
+
+```sh
 fanout seat        # what is installed here, and what is signed in
 fanout help        # everything else
 ```
@@ -106,7 +113,7 @@ git config core.hooksPath .githooks
 npm run check      # typecheck + lint + the whole suite
 ```
 
-Then try it inside Claude Code. **No install step** — the plugin runs the CLI straight out of the checkout:
+Then try it inside Claude Code. **No install step** — the plugin finds the CLI in the checkout beside it:
 
 ```sh
 claude --plugin-dir "$PWD/plugin"         # /fanout, /fanout:crew, /fanout:watch

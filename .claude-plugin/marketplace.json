@@ -1,0 +1,18 @@
+{
+  "name": "fanout",
+  "description": "Fanout \u2014 run the coding agents you already pay for as a crew, led by Claude Code.",
+  "owner": {
+    "name": "elberacasa",
+    "url": "https://github.com/elberacasa"
+  },
+  "plugins": [
+    {
+      "name": "fanout",
+      "source": {
+        "source": "npm",
+        "package": "fanout-cli"
+      },
+      "description": "Let Claude Code lead the other coding-agent CLIs you already pay for. Plans a mission, fans it out into isolated git worktrees, watches it live, and merges nothing until it has been reviewed, checked, proven and approved."
+    }
+  ]
+}

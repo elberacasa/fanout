@@ -25,8 +25,14 @@ fanout demo        # the offline walkthrough
 fanout help        # everything else
 ```
 
-Then add the plugin so Claude Code can drive it. See
-[the repository](https://github.com/elberacasa/fanout) for the current instructions.
+Then add the plugin, which is what Claude Code drives:
+
+```
+/plugin marketplace add elberacasa/fanout
+/plugin install fanout@fanout
+```
+
+That gives you `/fanout <goal>` inside your session.
 
 ## What it will not do
 

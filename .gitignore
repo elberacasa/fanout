@@ -27,3 +27,6 @@ packages/**/LICENSE
 # The Codex CLI mirrors .claude/skills into here, rewritten for itself, whenever it runs in this repo.
 # Its copy, not ours, and it regenerates: nothing here is authored.
 .agents/
+
+# Copied in from the repository root by scripts/bundle-cli.mjs when publishing.
+packages/cli/plugin/

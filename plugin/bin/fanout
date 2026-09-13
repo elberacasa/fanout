@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+/*
+ * Run as `node bin/fanout`, never relied on as an executable. npm strips the executable bit from every file it
+ * does not list in `bin`, so the published copy of this arrives at mode 644 and spawning it directly fails with
+ * EACCES on a stranger's machine and nowhere else. Going through `node` removes the whole question, along with
+ * the same question on Windows.
+ */
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+/*
+ * Finding the CLI from inside the plugin, whichever way Fanout was installed.
+ *
+ * The plugin's `.mcp.json` and hooks used to point straight at `${CLAUDE_PLUGIN_ROOT}/../packages/cli/src/cli.ts`,
+ * which is the layout of a git checkout and of nothing else. Anyone who installed from npm got a plugin whose
+ * every entry point resolved to a file that was not there — and the README's first sentence calls this a Claude
+ * Code plugin, so the published package delivered half of what it claimed.
+ *
+ * There are two real layouts and this script is the one place that knows the difference:
+ *
+ *   published   <package>/plugin/bin/fanout  →  <package>/dist/cli.js
+ *   checkout    <repo>/plugin/bin/fanout     →  <repo>/packages/cli/src/cli.ts
+ *
+ * Ordered with the published layout first: that is the one a stranger has, and the one nobody here would notice
+ * was broken.
+ */
+
+const here = new URL(".", import.meta.url);
+const candidates = ["../../dist/cli.js", "../../packages/cli/src/cli.ts"];
+
+const cli = candidates.map((path) => fileURLToPath(new URL(path, here))).find((path) => existsSync(path));
+
+if (cli === undefined) {
+  process.stderr.write(
+    "fanout: this plugin cannot find the Fanout CLI beside it.\n" +
+      "  Looked for dist/cli.js and packages/cli/src/cli.ts next to the plugin directory.\n" +
+      "  If you installed from npm, reinstall fanout-cli; if this is a checkout, run pnpm install first.\n",
+  );
+  process.exit(69);
+}
+
+/*
+ * Imported rather than spawned. A second process would double the startup and, more importantly, put a pipe
+ * between Claude Code and an MCP server that speaks over stdin and stdout — the one place an extra hop can
+ * silently reorder or buffer a conversation.
+ */
+process.argv = [process.argv[0] ?? "node", cli, ...process.argv.slice(2)];
+await import(cli);

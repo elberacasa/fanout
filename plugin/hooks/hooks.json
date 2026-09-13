@@ -5,7 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node --disable-warning=ExperimentalWarning \"${CLAUDE_PLUGIN_ROOT}/../packages/cli/src/cli.ts\" status 2>/dev/null || true",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/fanout", "status"],
             "timeout": 20
           }
         ]
@@ -16,7 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node --disable-warning=ExperimentalWarning \"${CLAUDE_PLUGIN_ROOT}/../packages/cli/src/cli.ts\" owed 2>/dev/null || true",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/bin/fanout", "owed"],
             "timeout": 20
           }
         ]

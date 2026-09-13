@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,6 +88,28 @@ try {
 
   const fanout = join(project, "node_modules", ".bin", "fanout");
   const home = join(room, "home");
+
+  /*
+   * The plugin, from the layout a stranger actually has.
+   *
+   * For two releases the published package contained no plugin at all, and the one in the repository pointed at
+   * `../packages/cli/src/cli.ts` — a git checkout and nothing else. The README's first sentence calls this a
+   * Claude Code plugin, so what shipped was half of what it claimed, and nothing here could tell.
+   */
+  const launcher = join(project, "node_modules", "fanout-cli", "plugin", "bin", "fanout");
+  const manifest = join(project, "node_modules", "fanout-cli", "plugin", ".claude-plugin", "plugin.json");
+  if (!existsSync(manifest)) {
+    say("  ✗ the package ships no plugin, which is the half of it the README leads with");
+    failed = true;
+  } else {
+    const said = run(process.execPath, [launcher, "version"], { cwd: project }).trim();
+    if (!said.endsWith(version)) {
+      say(`  ✗ the plugin's launcher answered "${said}" rather than finding the bundled CLI`);
+      failed = true;
+    } else {
+      say(`  ✓ the plugin finds its CLI: ${said}`);
+    }
+  }
 
   const reported = run(fanout, ["version"], { cwd: project }).trim();
   if (!reported.endsWith(version)) {

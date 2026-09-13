@@ -56,7 +56,26 @@ cpSync(view, join(dist, "view.html"));
 const licence = fileURLToPath(new URL("../LICENSE", import.meta.url));
 cpSync(licence, join(cli, "LICENSE"));
 
-for (const required of ["cli.js", "fake-agent.js", "view.html"]) {
+/*
+ * The plugin, copied in beside the bundle.
+ *
+ * It lives at the repository root because that is where a checkout wants it, and npm cannot include a file from
+ * outside the package being packed — so publishing it means copying it in. Without this the published package
+ * contained no plugin at all, while the README's first sentence called Fanout a Claude Code plugin.
+ *
+ * `plugin/bin/fanout` then resolves `../../dist/cli.js`, which is exactly where the bundle above put it.
+ */
+const plugin = fileURLToPath(new URL("../plugin/", import.meta.url));
+rmSync(join(cli, "plugin"), { recursive: true, force: true });
+cpSync(plugin, join(cli, "plugin"), { recursive: true });
+
+for (const required of [
+  "cli.js",
+  "fake-agent.js",
+  "view.html",
+  "../plugin/bin/fanout",
+  "../plugin/.mcp.json",
+]) {
   const path = join(dist, required);
   if (!statSync(path, { throwIfNoEntry: false })?.isFile()) {
     throw new Error(`bundle is missing ${required}; refusing to publish a package that cannot run`);
