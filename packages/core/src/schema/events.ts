@@ -86,6 +86,17 @@ export const RunStarted = z.strictObject({
   ...run,
   workdir: z.string().min(1).max(1000),
   argv: z.array(z.string().max(200_000)).min(1).max(200),
+  /**
+   * The process id of the daemon supervising this run — not the agent's own.
+   *
+   * It exists to answer one question later: is anybody still watching this? A run whose supervisor is gone
+   * cannot still be running, however the ledger last left it. Without this a session that ends while a mission
+   * is in flight leaves a run recorded as running forever, and nothing can tell that apart from one that
+   * genuinely is.
+   *
+   * Absent on runs recorded before this existed; read those as unknown rather than as dead.
+   */
+  owner: z.int().positive().optional(),
 });
 
 /**

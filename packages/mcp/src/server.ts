@@ -25,6 +25,7 @@ import {
   workSnapshot,
   createMissionRunner,
   createWorkspaceManager,
+  reconcile,
   detectSeats,
   git,
   lines as splitLines,
@@ -79,6 +80,15 @@ export function createFanoutServer(options: FanoutMcpOptions): McpServer {
         "the diff yourself and apply it, or wait for the merge gate.",
     },
   );
+
+  /*
+   * Before anything reads the ledger for an answer: end the runs whose supervisor is gone.
+   *
+   * The supervisor lives in this process, so every session that closes leaves its in-flight runs recorded as
+   * running with nothing watching them. Written down at startup rather than guessed at on read — a projection
+   * that invented a status would be treating the ledger as a suggestion.
+   */
+  reconcile(options.ledger);
 
   const workspaces = createWorkspaceManager({
     repoRoot: options.repoRoot,

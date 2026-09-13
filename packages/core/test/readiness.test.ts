@@ -54,6 +54,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
     lineId: "api",
     seat: { id: "codex" },
     movedFrom: null,
+    owner: null,
     attempt: 1,
     status: "done",
     phase: "reporting",

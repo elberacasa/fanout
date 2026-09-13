@@ -39,6 +39,13 @@ export interface RunView {
    */
   workdir: string | null;
   /**
+   * The process id of the daemon that started this run, or null when it never started or predates the field.
+   *
+   * Kept so a later reader can ask whether anybody is still watching. A run whose supervisor is gone cannot be
+   * running, however the ledger last left it.
+   */
+  owner: number | null;
+  /**
    * The seat the plan asked for, when it is not the seat that ran — with the reason in the words the router used.
    *
    * Carried on the run rather than left on the mission because everything that shows a run needs it. A row saying
@@ -371,6 +378,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
           phase: null,
           sessionId: null,
           workdir: null,
+          owner: null,
           movedFrom: moved?.to.id === event.seat.id ? { seat: moved.from.id, reason: moved.reason } : null,
           lastTool: null,
           files: [],
@@ -409,6 +417,7 @@ function reduce(state: ProjectionState, event: StoredEvent): ProjectionState {
         startedSeq: event.seq,
         startedAt: event.ts,
         workdir: event.workdir,
+        owner: event.owner ?? null,
       }));
 
     case "run.session":

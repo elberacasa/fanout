@@ -145,7 +145,9 @@ export function startRun(options: StartRunOptions): ActiveRun {
     logPath: options.logPath,
     ...options.limits,
     onStarted: () => {
-      record({ type: "run.started", ...ids, workdir: spec.cwd, argv: spec.argv });
+      // The owner is this daemon's pid: how a later reader tells a run that is still going from one whose
+      // supervisor died with the session that started it.
+      record({ type: "run.started", ...ids, workdir: spec.cwd, argv: spec.argv, owner: process.pid });
     },
     onLine: (line, stream) => {
       const result =

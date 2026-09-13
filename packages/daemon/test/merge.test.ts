@@ -44,6 +44,7 @@ function run(overrides: Partial<RunView> = {}): RunView {
     sessionId: null,
     workdir: null,
     movedFrom: null,
+    owner: null,
     lastTool: null,
     files: [],
     diffStat: null,

@@ -27,6 +27,7 @@ export {
 
 export { startApi, LEAD_EVENTS, type ApiOptions, type ApiServer } from "./api/server.ts";
 export { originAllowed, readOrCreateToken, tokenMatches } from "./api/token.ts";
+export * from "./mission/reconcile.ts";
 export * from "./policy/route.ts";
 export * from "./policy/seats.ts";
 export * from "./gate/revision.ts";

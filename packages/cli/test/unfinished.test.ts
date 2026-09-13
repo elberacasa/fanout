@@ -44,6 +44,7 @@ function run(runId: string, lineId: string, overrides: Partial<RunView> = {}): R
     sessionId: null,
     workdir: null,
     movedFrom: null,
+    owner: null,
     lastTool: null,
     files: [],
     diffStat: null,
