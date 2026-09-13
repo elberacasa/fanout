@@ -17,6 +17,44 @@ Next: <the next step>
 
 ---
 
+### 2026-09-13 · The demo, and one package · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: none (a design pass is the lead's to own)
+
+The owner said the demo sucked. They were right, and it was worse than unpolished — it was inert.
+
+Built:
+- **A live, agent-first demo**, `ab9f29e`: `fanout demo` printed a header, went silent for half a minute while
+  three agents worked, then dropped a table of run ids. A row now names the agent, what it was asked for, and
+  what it is doing in its own words, redrawn in place. It ends by saying what it was demonstrating.
+- **The mission view, same shape**, `a6ebec0`: seven columns to five, and the run id off the front of the row.
+- **One package instead of eight**, `726c7cc`: ADR 0023. esbuild bundles the workspace into the CLI at publish
+  time. `fanout-cli@0.8.0`, 248 kB, three dependencies.
+- `v0.8.0` tagged, released, and published.
+
+Verified by the lead: 743 tests (47 files) · `verify:pack` green · **`npx fanout-cli@0.8.0 demo` run from the
+public registry in an empty directory with a fresh HOME, finishing three runs** · the mission view opened in a
+browser against a real mission and read back.
+
+Could not verify: nothing.
+
+What this session got wrong, which is the part worth keeping:
+- **The demo was never watched.** It had been called done for two sessions. `io.out(header)` then
+  `await handle.finished` is thirty seconds of a frozen screen, and no test can see that, because there is
+  nothing wrong with the output — there simply is none until the end.
+- **The eight-package smell was named and then filed as a nicety.** The lead wrote "nobody will ever install
+  `fanout-core` deliberately" and moved on. The cost only became visible when the owner had to touch a
+  fingerprint sensor eight times for one release and refused. A defect that is understood and not fixed is
+  indistinguishable from one that was missed.
+- **Three bugs fell out of the redesign**, all invisible until something was drawn: a finished row was one grid
+  cell short so diffs wrapped; a run whose diff was never measured reported "no changes"; and `.diff .add` was
+  scoped to a wrapper that had been deleted, so every diff rendered the same grey as the text around it.
+
+Next: the 30-second video, the last of P0. The seven `0.7.0` packages on npm should be deprecated toward
+`fanout-cli`.
+
+---
+
 ### 2026-09-13 · Published · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: none (packaging and naming are the lead's to own)
