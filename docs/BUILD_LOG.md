@@ -17,6 +17,53 @@ Next: <the next step>
 
 ---
 
+### 2026-09-13 · Missions that outlive their session · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: 1 Codex agent, through the plugin, on a scratch repository
+
+P1's first item, done and proven the same day it was written down.
+
+Built:
+- **`fanout daemon` runs missions**, `4a3b06a`. One runner per repository, `POST /launch` to hand it work, and
+  it answers as soon as the runs are under way because the asker may be gone in thirty seconds. The MCP server
+  delegates when a daemon is reachable and runs the mission itself when none is, saying which it did.
+- **Cancel reaches a daemon-run mission**, `2c93cd5`, and a mission nobody is running is recorded as cancelled
+  rather than left in planning for ever.
+- **A dropped run stops counting**, `5a7d11c`.
+
+Verified by the lead: 762 tests · CI green · **a mission launched through the plugin from a `claude -p` session
+that then exited, with the agent still working afterwards and the diff finished — `src/cart.js` fixed and a test
+added — with no session alive at any point** · a fresh session in that repository afterwards, told by the
+SessionStart hook that one run was waiting for review.
+
+Could not verify: nothing.
+
+Four bugs found by building it, three of them worse than the thing being built:
+
+- **`fanout mcp` was writing `daemon.json`.** That file is the machine's one answer to "where is the daemon", and
+  every session overwrote it with a short-lived server of its own — so the first thing the new code did was read
+  it, find itself, and hand its mission to an API with no runner behind it. The mission sat in planning and never
+  started, and the delegation logic would have taken the blame.
+- **`fanout daemon` had never written it at all**, so discovery had only ever pointed at whatever ran the demo
+  last. An address that outlives the process it names is worse than none: the caller believes it.
+- **`cancel_mission` looked only in the local handle map**, so for a daemon-run mission it answered "not running
+  here" while the agents carried on spending. Cancel is how somebody stops paying; it is the last control
+  allowed to quietly do nothing.
+- **`run.dropped` set a status and no end**, so `silentMs` never stopped counting. A real mission read
+  `aborted · 1h 24m · 1 quiet` — the run had been over for an hour, nobody was waiting on it, and "quiet" is the
+  word this product uses for an agent that has stopped responding.
+
+Worth recording about the product rather than the code: when the earlier orphaned mission failed, the lead
+recovered without being asked. It found that a dropped run had in fact completed its work, took that through
+review, `run_checks` and `prove_fix` — confirming the new test failed on the old code with `-9000 !== 900` — and
+then refused to merge without the owner's word. That is the gate behaving correctly under a failure nobody had
+designed for.
+
+Next: ship it. Everything since `v0.8.0` — the plugin in the package, the marketplace, durable missions, and
+every fix above — is on `main` and not on npm.
+
+---
+
 ### 2026-09-13 · The plugin, used for the first time · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: 1 Codex agent, through the plugin

@@ -17,6 +17,11 @@ account. Everything below is what stands between here and that.
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
+- [ ] The ledger holds 10 anomalies from a `POST /launch` made by hand against a mission that had never been
+      recorded. They are a true record and the ledger is append-only, so they stay; the route refuses that now.
+- [ ] Nothing tells a returning session about work waiting in *another* repository — the SessionStart hook shows
+      this one's missions and a count of the rest, which is honest but not actionable.
+
 - [x] ~~The mission view is blank before its first answer~~ — it now says it is asking, and a page that never
       gets an answer says that instead of showing nothing.
 - [ ] `fanout owed` runs as a Stop hook after every turn and reports any finished-but-unreviewed run forever, so
