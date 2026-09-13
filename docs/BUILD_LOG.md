@@ -17,6 +17,42 @@ Next: <the next step>
 
 ---
 
+### 2026-09-13 · v0.9.0, and the loop closed · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: 1 Codex agent, launched and merged entirely through the plugin
+
+**The whole loop ran without a driver script for the first time.** `/fanout` in a real Claude Code session
+launched a mission; that session ended; the daemon kept the agent working; a different session entirely read the
+diff, reviewed it, ran `npm run test` through the gate, proved the new test failed on the old code, and merged
+it. `4db85b4` in a scratch repository, authored `codex via fanout`, with `Approved-by` and `Fanout-run` trailers.
+Verified by the lead against git rather than taken from the session's report.
+
+The reviewing session also flagged something worth keeping: a discount that does not divide evenly leaves
+fractional pennies. It judged that out of scope for the task rather than blocking on it, which is the right call
+and not one it was told to make.
+
+Published `v0.9.0`, and verified **from the registry** rather than from the checkout: `npm install fanout-cli`
+prints no warnings, the package contains the plugin, its launcher resolves the bundled CLI, and loading that
+plugin in a real session exposes all thirteen tools.
+
+Fixed on the way, `82a6824`:
+- **"Waiting on you" asked about work that had already been reworked and merged.** A reworked run keeps the
+  `rework` verdict that caused the rework, so it can never become mergeable — two were still on the page hours
+  after their mission finished, from a repository the reader did not have open. A run with a later attempt on
+  the same line is finished with, whatever its own review said.
+- Waiting rows now name their repository when it is not the one on screen. One daemon serves the whole machine,
+  so an unlabelled row is a request to review work from a project the reader may never have seen.
+
+Verified by the lead: 764 tests (50 files) · CI green · `verify:pack` green · the published package installed
+into an empty directory and its plugin loaded in a real session.
+
+Could not verify: nothing.
+
+Next: the 30-second video is the last of P0, and the site is untouched since the owner called its sections
+forgettable — both are now the only things left that are not working software.
+
+---
+
 ### 2026-09-13 · Missions that outlive their session · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: 1 Codex agent, through the plugin, on a scratch repository
