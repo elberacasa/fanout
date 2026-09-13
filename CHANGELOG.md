@@ -167,3 +167,16 @@ configured: three simulated agents, three git worktrees, three real diffs, and a
   refused at merge; widening it names each path and leaves an `Outside-scope:` trailer in the commit (ADR 0022).
 - **Fanout built some of this.** Two Codex agents, one rework round each as resumed sessions, reviewed and proven
   through the gate, merged as `2d8f9fa` and `f1fcb44`.
+
+## 0.8.0 — 2026-09-13
+
+The demo shows the agents working.
+
+- **`fanout demo` is live.** It used to print a header, go silent for half a minute while three agents worked, and
+  then drop a table of run ids. A row now says who is working, what they were asked for, and what they are doing
+  in their own words — `edit add the csv writer`, not `api-1 · fake · ▪▪▫▫` — redrawn in place. It ends by saying
+  what it was demonstrating: three diffs arrived and none of them merged, and here is what has to happen first.
+- **The mission view reads the same way.** Seven columns became five and the run id left the front of the row; a
+  mission that reads one way in a terminal and another in a browser is two products.
+- **Honest again in two places.** A finished run whose diff was never measured said "no changes" — its worktree
+  had changed. It says "—". And the page no longer renders an empty body before its first answer arrives.
