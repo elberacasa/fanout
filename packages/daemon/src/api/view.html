@@ -127,7 +127,7 @@
 
       .runs {
         display: grid;
-        grid-template-columns: 14px 108px 104px 62px 52px 60px 1fr;
+        grid-template-columns: 14px 118px minmax(120px, 1fr) minmax(0, 1.3fr) 62px;
         align-items: baseline;
         column-gap: 14px;
       }
@@ -155,6 +155,29 @@
       }
       .mark.idle {
         color: var(--fg-faint);
+      }
+      /*
+       * The row reads left to right as a sentence: who, what they were asked for, what they are doing. The task
+       * carries the weight because it is the thing a person came to the page to follow; the action beside it is
+       * the agent's own words and sits back, because it changes every few seconds and must not pull the eye.
+       */
+      .who {
+        color: var(--fg-dim);
+      }
+      .task {
+        color: var(--fg);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .doing {
+        color: var(--fg-faint);
+        font-family: var(--mono);
+        font-size: 12px;
+        /* Truncated rather than wrapped: a row that grows a second line makes the whole list jump as it updates. */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .seat,
       .status,
@@ -187,10 +210,14 @@
         display: flex;
         gap: 12px;
       }
-      .diff .add {
+      /*
+       * Unscoped, because these live inside the action cell now rather than a `.diff` wrapper. Scoping them to a
+       * parent that no longer exists left every diff painted the faint grey of the text around it.
+       */
+      .add {
         color: var(--ok);
       }
-      .diff .del {
+      .del {
         color: var(--bad);
       }
       .quiet {
@@ -296,8 +323,9 @@
       .waiting.blocked .mark {
         color: var(--warn);
       }
+      /* Prose now, not an id: this column holds what the work was, and monospace made it read like a filename. */
       .waiting .who {
-        font-family: var(--mono);
+        color: var(--fg);
       }
       .waiting .what {
         color: var(--fg-dim);
@@ -507,48 +535,78 @@
       let snapshot = null;
       let lastOk = 0;
 
-      function runRow(run, now) {
+      /*
+       * One agent, described the way a person watching would describe it — the same shape the terminal uses, on
+       * purpose. Who is working, what they were asked for, and what they are doing right now in their own words.
+       *
+       * The run id used to be the first thing on the row. It is the one piece here nobody reading a live mission
+       * wants: it identifies the run to the tools, not the work to a person. It moved to the row's tooltip, where
+       * it is still there when you are debugging and out of the way when you are not.
+       */
+      function runRow(run, mission, seats, now) {
         const wrap = document.createDocumentFragment();
         const [glyph, tone] = MARK[run.status] ?? ["·", "idle"];
         const row = el("div", `row ${tone}`);
+        row.title = `${run.runId} · ${run.status}${run.phase ? ` · ${run.phase}` : ""}`;
         row.append(el("span", `mark ${tone}`, glyph));
-        row.append(el("span", "lane", run.runId));
-        const seat = el("span", "seat", run.seat.id);
-        if (run.movedFrom) seat.append(el("span", "moved", ` ←${run.movedFrom.seat}`));
-        row.append(seat);
-        row.append(el("span", "status", run.status));
-        row.append(phaseBar(run.phase));
+
+        const crew = seats.find((seat) => seat.id === run.seat.id);
+        const who = el("span", "who", crew ? crew.displayName : run.seat.id);
+        if (run.movedFrom) who.append(el("span", "moved", ` ←${run.movedFrom.seat}`));
+        row.append(who);
+
+        const line = (mission.plan?.lines ?? []).find((entry) => entry.id === run.lineId);
+        row.append(el("span", "task", line ? line.title : run.lineId));
+
+        /*
+         * What it is doing, in its own words, replaced by what it produced once it stops. A phase name says
+         * "coding"; the agent says "edit add the csv writer", and that is the thing worth a person's attention.
+         */
+        const finished = run.endedAt !== null;
 
         // Computed here from a real stamp, so the clock ticks without the daemon being asked again.
         const started = run.startedAt ? Date.parse(run.startedAt) : null;
         const ended = run.endedAt ? Date.parse(run.endedAt) : null;
         const elapsed = started === null ? null : Math.max(0, (ended ?? now) - started);
-        row.append(el("span", "elapsed num", elapsed === null ? "—" : duration(elapsed)));
 
-        const right = el("span", "diff");
+        /*
+         * One cell, holding whichever of the two is true right now: what the agent is doing, or what it produced.
+         * They never appear together, and giving each its own column left a finished row one cell short — the
+         * grid shifted everything after it and the diff wrapped onto a second line. Every row has the same cells.
+         */
+        const said = el("span", "doing");
         if (run.diffStat) {
-          const stat = el("span");
-          stat.append(el("span", "add", `+${run.diffStat.insertions}`));
-          stat.append(document.createTextNode(" "));
-          stat.append(el("span", "del", `−${run.diffStat.deletions}`));
-          right.append(stat);
+          said.append(el("span", "add", `+${run.diffStat.insertions}`));
+          said.append(document.createTextNode(" "));
+          said.append(el("span", "del", `−${run.diffStat.deletions}`));
         } else if (run.files.length > 0) {
-          right.append(el("span", null, `${run.files.length} file${run.files.length === 1 ? "" : "s"}`));
+          said.append(el("span", "quiet", `${run.files.length} file${run.files.length === 1 ? "" : "s"}`));
+        } else if (finished) {
+          /*
+           * A finished run with no diff recorded is not a run that changed nothing — it is a run whose diff
+           * nobody measured, which is what happens to a reworked run continuing in an earlier worktree. Saying
+           * "no changes" there is the exact failure the sixth non-negotiable names: a zero that reads as a fact.
+           */
+          const unknown = el("span", "quiet", "—");
+          unknown.title = "no diff was recorded for this run";
+          said.append(unknown);
+        } else {
+          said.textContent = run.lastTool
+            ? `${run.lastTool.tool}${run.lastTool.summary ? ` ${run.lastTool.summary}` : ""}`
+            : (run.phase ?? "starting up");
         }
         // Only a run that is actually working can be quiet; a queued one has not started and a finished one is over.
         if (started !== null && ended === null) {
           const silent = now - Date.parse(run.updatedAt);
-          if (silent >= 60000) right.append(el("span", "quiet", `quiet ${duration(silent)}`));
+          if (silent >= 60000) said.append(el("span", "quiet", ` · quiet ${duration(silent)}`));
         }
-        row.append(right);
+
+        row.append(said);
+        row.append(el("span", "elapsed num", elapsed === null ? "—" : duration(elapsed)));
         wrap.append(row);
 
         if (run.movedFrom) wrap.append(el("div", "reroute", run.movedFrom.reason));
 
-        if (run.status === "running" && run.lastTool) {
-          const summary = run.lastTool.summary ? `: ${run.lastTool.summary}` : "";
-          wrap.append(el("div", "tool", `${run.lastTool.tool}${summary}`));
-        }
         return wrap;
       }
 
@@ -578,7 +636,9 @@
         for (const item of [...waiting].sort((a, b) => Number(b.ready) - Number(a.ready))) {
           const row = el("div", `waiting ${item.ready ? "ready" : "blocked"}`);
           row.append(el("span", "mark", item.ready ? "✓" : "…"));
-          row.append(el("span", "who", item.runId));
+          // The work, not the run id — the id is for the tools, and is on the row for anyone who needs it.
+          row.title = item.runId;
+          row.append(el("span", "who", item.task ?? item.runId));
           row.append(
             el(
               "span",
@@ -771,7 +831,7 @@
           runs.append(empty);
         } else {
           const grid = el("div", "runs");
-          for (const id of mission.runOrder) grid.append(runRow(mission.runs[id], now));
+          for (const id of mission.runOrder) grid.append(runRow(mission.runs[id], mission, seats, now));
           runs.append(grid);
         }
         main.append(runs);

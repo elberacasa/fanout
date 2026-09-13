@@ -314,6 +314,7 @@ async function readBody(request: IncomingMessage, limit = 8 * 1024): Promise<str
 function waitingOnYou(state: ProjectionState): {
   missionId: string;
   runId: string;
+  task: string;
   seat: string;
   ready: boolean;
   /**
@@ -342,6 +343,8 @@ function waitingOnYou(state: ProjectionState): {
       waiting.push({
         missionId: mission.missionId,
         runId,
+        // What the work was, not just which run it was. A row that says `api-1` makes a person go and look it up.
+        task: line.title,
         seat: run.seat.id,
         ready: readiness.ready,
         approvable: !readiness.ready && blocksApproval(readiness).length === 0,
