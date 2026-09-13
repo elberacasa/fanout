@@ -8,6 +8,7 @@ Turn the AI coding subscriptions you already pay for into one crew: a lead that 
 teammates that work in parallel, and nothing merged until it is proven.
 
 [![check](https://github.com/elberacasa/fanout/actions/workflows/ci.yml/badge.svg)](https://github.com/elberacasa/fanout/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/fanout-cli?label=npm&color=CB3837&logo=npm)](https://www.npmjs.com/package/fanout-cli)
 [![status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)](docs/STATUS.md)
 [![node](https://img.shields.io/badge/node-%E2%89%A522.18-5FA04E?logo=node.js&logoColor=white)](package.json)
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.base.json)
@@ -37,9 +38,10 @@ the run that wrote the diff, Codex's own `review` so a second vendor checks the 
 routing runs on facts. Anything else joins through the [seat kit](docs/ADAPTERS.md), and Grok already has.
 
 > [!NOTE]
-> **Pre-alpha.** The engine is real and tested: isolated runs, an append-only ledger, the review contract. The
-> plugin, the mission view and the demo are being built in the open — see [Status](#status) and
-> [docs/STATUS.md](docs/STATUS.md). Nothing is published to npm yet.
+> **Pre-alpha, and published.** `0.7.0` is on npm and `npx fanout-cli demo` runs on a clean machine. The engine
+> is real and tested — isolated runs, an append-only ledger, the merge gate — and it has built and merged its own
+> code through its own gate. Pre-alpha means the surface will still move: expect breaking changes before 1.0, and
+> read [docs/STATUS.md](docs/STATUS.md) for what is true today rather than what is planned.
 
 ## How it works
 
@@ -78,7 +80,24 @@ confirmed only if it was explicitly confirmed; anything skipped or garbled comes
 
 ## Quickstart
 
-Nothing is published yet, so this is the contributor path:
+See a whole mission run, with no accounts and nothing configured:
+
+```sh
+npx fanout-cli demo
+```
+
+Three simulated agents, three git worktrees, three real diffs, and a mission view on localhost to watch it
+happen. Everything is real except the thinking — real worktrees, the real safety gate, the real ledger.
+
+Then use it for real:
+
+```sh
+npm install -g fanout-cli
+fanout seat        # what is installed here, and what is signed in
+fanout help        # everything else
+```
+
+### Working on Fanout itself
 
 ```sh
 git clone https://github.com/elberacasa/fanout.git && cd fanout
@@ -149,7 +168,7 @@ into two places is a number that will disagree with itself, and this one already
 | 7 · Merge gate — review, checks, proof, approval, `git apply -3` | ✅ done |
 | 8 · Mission view — live, with the review queue, reroutes, and your own approval | ✅ done |
 | 9 · Routing when a seat hits its limit — work moves, the reason is on the row | ✅ done |
-| 10 · Offline demo ✅, packages install from empty ✅ — left: publishing, and the video | 🔨 in progress |
+| 10 · Offline demo, `npx fanout-cli` published to npm — left: the video | 🔨 in progress |
 
 Full plan in [docs/ROADMAP.md](docs/ROADMAP.md); what changed and who built it in
 [docs/BUILD_LOG.md](docs/BUILD_LOG.md).

@@ -17,6 +17,38 @@ Next: <the next step>
 
 ---
 
+### 2026-09-13 · Published · session 2 (continued)
+
+Lead: Claude Code (Opus 5) · Teammates: none (packaging and naming are the lead's to own)
+
+Built:
+- **`v0.7.0` on npm**, eight packages led by `fanout-cli`: by the lead, published by the owner.
+- **Renamed to unscoped `fanout-*`**, `6f7d3c7`: the `fanout` org on npm is taken, so `@fanout/*` was never ours
+  to have. All eight unscoped names were checked free against the registry before renaming.
+- README, STATUS, CHANGELOG and the `v0.7.0` tag brought in line with what is now true.
+
+Verified by the lead: 733 tests (46 files) · CI green · `verify:pack` green after the rename · **and the one that
+matters — `npx fanout-cli@0.7.0 demo --once` run from the public registry in an empty directory with a fresh
+HOME, finishing three runs.** That is a stranger's install, not ours.
+
+Could not verify: nothing.
+
+What publishing taught us, none of which was in the plan:
+- **`pnpm publish` cannot do WebAuthn.** The owner's npm 2FA is a passkey; `pnpm -r publish` fails with `EOTP`
+  and no browser. Only `npm` implements the browser flow. The working shape is pnpm to pack — it resolves
+  `workspace:*` — and npm to upload the tarballs, in dependency order so `fanout-cli` can never land ahead of
+  what it imports.
+- **`npm profile get` said `two-factor auth: auth-only`**, which reads as "publishing needs no code". It did.
+  Publishing was gated anyway, and the login notice had said so: tokens that bypass 2FA are being restricted for
+  direct publishing. A setting that means less than it says is worth knowing about before a release, not during.
+- **Eight packages is the honest smell.** Seven exist only because `fanout-cli` imports them, and nobody will ever
+  install `fanout-core` on purpose. Bundling them into one package is a real v0.8 option; the cost of having
+  published is that all eight stay installable at `0.7.0` forever.
+
+Next: the 30-second video, which is the last of P0 and now has a published product behind it.
+
+---
+
 ### 2026-09-12 · A real mission on our own repository · session 2 (continued)
 
 Lead: Claude Code (Opus 5) · Teammates: 2 Codex agents (0.154.0), one rework round each

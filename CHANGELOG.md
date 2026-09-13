@@ -148,3 +148,22 @@ Foundations: the contract everything else is built on.
 - **Projections** (`@fanout/core`): the crew, usage per seat, and each mission's plan, safety report, runs and
   routes, derived purely from events. Events that don't fit are kept as anomalies rather than crashing a view.
 - **Seat adapter contract** (`@fanout/core`): how every agent CLI is driven and how its output becomes events.
+
+## 0.7.0 — 2026-09-13
+
+The first published release. `npx fanout-cli demo` runs a whole mission on a machine with no accounts and nothing
+configured: three simulated agents, three git worktrees, three real diffs, and a mission view on localhost.
+
+- **On npm**, eight packages led by `fanout-cli`. Unscoped `fanout-*` rather than `@fanout/*` — the `fanout` org
+  was taken. Published tarballs carry compiled JavaScript: Node refuses to strip types under `node_modules`, so
+  shipping TypeScript was never possible (ADR 0021). The repository itself still has no build step.
+- **Routing on limits.** A line whose seat has run out moves to another, and the reason is on the row that moved.
+  A CLI that cannot report its own sign-in is kept when the plan named it and refused only as a fallback; a move
+  carries the seat id and not the model.
+- **A person approves their own merge.** `merge.approved` records how we know: `direct` when the daemon received
+  the click itself, `relayed` when the lead reports a conversation (ADR 0020). `POST /approve` is the daemon's
+  only write route, and it refuses a browser origin, a missing token, and anything not yet reviewed and checked.
+- **The write scope is enforced, not merely reported.** A run that writes outside what its plan declared is
+  refused at merge; widening it names each path and leaves an `Outside-scope:` trailer in the commit (ADR 0022).
+- **Fanout built some of this.** Two Codex agents, one rework round each as resumed sessions, reviewed and proven
+  through the gate, merged as `2d8f9fa` and `f1fcb44`.

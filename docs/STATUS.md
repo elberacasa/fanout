@@ -13,7 +13,7 @@ account. Everything below is what stands between here and that.
 | 7 | Merge gate | ✅ | review, rework, checks, proof, approval, `git apply -3` — run on real work through the gate itself |
 | 8 | Mission view | ✅ | live, with the review queue, the gate's own reasons, reroutes, and a person's own approval — `f9263b1` |
 | 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
-| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · packages build, install from empty and run (`pnpm verify:pack`, in CI) ✅ · left: **the owner's word to publish**, then a 30-second video |
+| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ · **published: `npx fanout-cli demo` runs from the registry on a clean machine** (`v0.7.0`, 2026-09-13) ✅ · left: a 30-second video |
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
@@ -44,16 +44,23 @@ account. Everything below is what stands between here and that.
 4. Anything that can be enforced structurally is, rather than remembered — one spawn list, one git helper, one
    renderer. Four rules were re-implemented wrongly in a single day; that is the cost of remembering.
 
-## Resume here (2026-09-12, session 2)
+## Resume here (2026-09-13, session 2)
 
 ### Where we are
 
-P0 milestones **1–9 are done**, tagged `v0.1.0` … `v0.6.0`. `npm run check` is green: **731 tests**
-(45 files). **P0's acceptance run is done**: a real mission on this repository, through the MCP tools, went plan →
+P0 milestones **1–9 are done** and **10 is all but the video**, tagged `v0.1.0` … `v0.7.0`. `npm run check` is
+green: **733 tests** (46 files). **P0's acceptance run is done**: a real mission on this repository, through the MCP tools, went plan →
 safety → parallel launch → rework as resumed sessions → review → checks → proof → merge (`2d8f9fa`, `f1fcb44`),
 and exposed two real gate defects that are now fixed (`7c19f4a`, `c9052a4`). Repository: https://github.com/elberacasa/fanout (**public**).
 
-**Only #10 is left**, and most of it is done. Every package builds, installs into an empty directory and runs the
+**Only the video is left.** Eight packages are on npm at `0.7.0`, tagged `v0.7.0`, and `npx fanout-cli demo` was
+run from the public registry in an empty directory with a fresh HOME: three agents, three worktrees, three diffs.
+
+The `fanout` npm org was taken, so the packages are unscoped `fanout-*` rather than `@fanout/*`. Publishing needed
+`npm` rather than `pnpm` — the owner's 2FA is a passkey, and only npm implements the WebAuthn browser flow; pnpm
+fails with `EOTP`. The packages are packed by pnpm (which resolves `workspace:*`) and uploaded by npm.
+
+Earlier note, kept because it was the plan until it was not: Every package builds, installs into an empty directory and runs the
 demo end to end — `pnpm verify:pack`, now a CI job. What remains is not engineering:
 
 1. **Publishing needs the owner's explicit word.** Nothing has been pushed to npm. `fanout-cli` and the `@fanout`
