@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { mergeReadiness, pathInScope, type PlanLine, type RunView } from "@fanout/core";
+import { mergeReadiness, pathInScope, type PlanLine, type RunView } from "fanout-core";
 import { git, lines, zeroSeparated } from "../workspace/git.ts";
 
 /*

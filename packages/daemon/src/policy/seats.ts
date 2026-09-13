@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { EMPTY_POLICY, SeatPolicy, type SeatPosture } from "@fanout/core";
+import { EMPTY_POLICY, SeatPolicy, type SeatPosture } from "fanout-core";
 
 /*
  * Where the owner's seat preferences live, and — more importantly — what happens when that file is unreadable.

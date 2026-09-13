@@ -1,4 +1,4 @@
-import type { LaunchSpec } from "@fanout/core";
+import type { LaunchSpec } from "fanout-core";
 
 export type OutputStream = "stdout" | "stderr";
 

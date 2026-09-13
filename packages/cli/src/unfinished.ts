@@ -1,4 +1,4 @@
-import { mergeReadiness, type ClaimCheck, type MissionView, type PlanLine, type RunView } from "@fanout/core";
+import { mergeReadiness, type ClaimCheck, type MissionView, type PlanLine, type RunView } from "fanout-core";
 
 /*
  * What is still owed, for the Stop hook.

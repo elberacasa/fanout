@@ -1,5 +1,5 @@
 {
-  "name": "@fanout/mcp",
+  "name": "fanout-mcp",
   "version": "0.7.0",
   "license": "MIT",
   "type": "module",
@@ -26,8 +26,7 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    },
-    "access": "public"
+    }
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -35,12 +34,12 @@
     "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
-    "@fanout/core": "workspace:*",
-    "@fanout/daemon": "workspace:*",
+    "fanout-core": "workspace:*",
+    "fanout-daemon": "workspace:*",
     "@modelcontextprotocol/sdk": "1.30.0",
     "zod": "4.6.2"
   },
   "devDependencies": {
-    "@fanout/adapter-fake": "workspace:*"
+    "fanout-adapter-fake": "workspace:*"
   }
 }

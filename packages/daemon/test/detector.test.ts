@@ -1,4 +1,4 @@
-import { AdapterManifest, SeatInfo } from "@fanout/core";
+import { AdapterManifest, SeatInfo } from "fanout-core";
 import { describe, expect, it, vi } from "vitest";
 import { detectSeats, type CommandResult } from "../src/detector/detect.ts";
 import { compareVersions, parseVersion, satisfies } from "../src/detector/version.ts";

@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { AdapterContext, ParseResult, SeatAdapter } from "@fanout/core";
+import type { AdapterContext, ParseResult, SeatAdapter } from "fanout-core";
 import { OutputLine } from "./protocol.ts";
 import { Scenario, type ScenarioInput } from "./scenario.ts";
 

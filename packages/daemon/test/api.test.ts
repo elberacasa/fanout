@@ -1,4 +1,4 @@
-import { Ledger, type SeatInfo, type StoredEvent } from "@fanout/core";
+import { Ledger, type SeatInfo, type StoredEvent } from "fanout-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startApi, type ApiServer } from "../src/api/server.ts";
 

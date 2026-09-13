@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { AdapterManifest } from "@fanout/core";
+import { AdapterManifest } from "fanout-core";
 import { describe, expect, it } from "vitest";
 import { checkClaims, readVerdicts } from "../src/gate/claims.ts";
 import { agentText, fillTemplate } from "../src/gate/run-seat.ts";

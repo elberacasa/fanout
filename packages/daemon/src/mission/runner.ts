@@ -7,8 +7,8 @@ import {
   type PlanGraph,
   type PlanLine,
   type SeatAdapter,
-} from "@fanout/core";
-import type { Routing } from "@fanout/core";
+} from "fanout-core";
+import type { Routing } from "fanout-core";
 import { baseEnv } from "../env.ts";
 import { startRun, type RunLimits } from "../run.ts";
 import type { RunExitStatus } from "../supervisor/types.ts";

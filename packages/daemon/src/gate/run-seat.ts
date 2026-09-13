@@ -1,4 +1,4 @@
-import type { AdapterManifest } from "@fanout/core";
+import type { AdapterManifest } from "fanout-core";
 import { baseEnv } from "../env.ts";
 
 /*

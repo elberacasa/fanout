@@ -1,4 +1,4 @@
-import { PlanGraph, type ClaimCheck, type MissionView, type RunView } from "@fanout/core";
+import { PlanGraph, type ClaimCheck, type MissionView, type RunView } from "fanout-core";
 import { describe, expect, it } from "vitest";
 import { ownWorkOwed, unfinishedReport, whatIsOwed } from "../src/unfinished.ts";
 

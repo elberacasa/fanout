@@ -10,7 +10,7 @@ import {
   type FanoutEventInput,
   type ParseResult,
   type SeatAdapter,
-} from "@fanout/core";
+} from "fanout-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { baseEnv } from "../src/env.ts";
 import { startRun, type RunLimits } from "../src/run.ts";

@@ -1,4 +1,4 @@
-import { pathInScope, validatePlan, type LaunchSpec, type PlanGraph, type SafetyCheck } from "@fanout/core";
+import { pathInScope, validatePlan, type LaunchSpec, type PlanGraph, type SafetyCheck } from "fanout-core";
 import type { SafetyCheckId, SafetyInput, SafetyReport } from "./types.ts";
 
 /*

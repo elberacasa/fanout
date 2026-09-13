@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { Ledger, PlanLine, RunView, SeatAdapter } from "@fanout/core";
+import type { Ledger, PlanLine, RunView, SeatAdapter } from "fanout-core";
 import { baseEnv } from "../env.ts";
 import { startRun, type ActiveRun, type RunLimits } from "../run.ts";
 

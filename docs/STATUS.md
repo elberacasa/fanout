@@ -71,10 +71,10 @@ repositories, and every job before that was refused before it started by a billi
 
 | Package | What works |
 |---|---|
-| `@fanout/core` | Event, plan, scope and manifest schemas; plan validation; append-only ledger (with an on-append listener); projections; the `SeatAdapter` contract |
-| `@fanout/daemon` | Supervisor, environment allowlist, run glue, workspaces, safety gate (8 checks), detector, mission runner, localhost API (HTTP + WebSocket, token, Origin check) |
-| `@fanout/adapters/*` | `fake`, `codex`, `grok`, `claude` (opt-in) — each parser built from a recorded real run |
-| `@fanout/mcp` | Thirteen tools, including `check_claims` and the gate's `merge_run`, which refuses anything `mergeReadiness` has not cleared |
+| `fanout-core` | Event, plan, scope and manifest schemas; plan validation; append-only ledger (with an on-append listener); projections; the `SeatAdapter` contract |
+| `fanout-daemon` | Supervisor, environment allowlist, run glue, workspaces, safety gate (8 checks), detector, mission runner, localhost API (HTTP + WebSocket, token, Origin check) |
+| `fanout-adapter-*` | `fake`, `codex`, `grok`, `claude` (opt-in) — each parser built from a recorded real run |
+| `fanout-mcp` | Thirteen tools, including `check_claims` and the gate's `merge_run`, which refuses anything `mergeReadiness` has not cleared |
 | `fanout-cli` | `fanout status \| seat \| check \| review \| owed \| daemon \| clean \| mcp \| version \| help` |
 | `plugin/` | `/fanout`, `/fanout:crew`, `/fanout:watch`, the lead's skill, hooks. **Zero install** — runs the CLI out of the checkout via `${CLAUDE_PLUGIN_ROOT}`. Passes `claude plugin validate` |
 

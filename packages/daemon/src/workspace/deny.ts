@@ -1,4 +1,4 @@
-import { pathInScope } from "@fanout/core";
+import { pathInScope } from "fanout-core";
 import { git, zeroSeparated } from "./git.ts";
 
 /*

@@ -41,13 +41,13 @@
     "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
-    "@fanout/adapter-claude": "workspace:*",
-    "@fanout/adapter-codex": "workspace:*",
-    "@fanout/adapter-grok": "workspace:*",
-    "@fanout/core": "workspace:*",
-    "@fanout/daemon": "workspace:*",
-    "@fanout/mcp": "workspace:*",
+    "fanout-adapter-claude": "workspace:*",
+    "fanout-adapter-codex": "workspace:*",
+    "fanout-adapter-grok": "workspace:*",
+    "fanout-core": "workspace:*",
+    "fanout-daemon": "workspace:*",
+    "fanout-mcp": "workspace:*",
     "@modelcontextprotocol/sdk": "1.30.0",
-    "@fanout/adapter-fake": "workspace:*"
+    "fanout-adapter-fake": "workspace:*"
   }
 }

@@ -152,7 +152,7 @@ Next: rework as a resumed session, then routing (P0 · 9) and the video (P0 · 1
 Lead: Claude Code (Opus 5) · Teammates: codex (gpt-6-astra, high) × 2, plus Codex as the reader for every claim
 
 Built:
-- **The merge gate's contract** (`@fanout/core`): every step records the `revision` it judged, and `mergeReadiness`
+- **The merge gate's contract** (`fanout-core`): every step records the `revision` it judged, and `mergeReadiness`
   merges only what review, checks, proof and a person all agreed on — the tie that makes "reviewed and checked"
   mean something when a worktree can move between the two. `merge.approved` answers who authorised a change;
   `merge.applied` records where it landed. `PlanLine.fixesBug` declares a fix when the mission is planned, not
@@ -216,7 +216,7 @@ Built:
   review, previously P1), `codex exec fork` (best-of-N later), `claude auth status --json` → `subscriptionType`.
   New standing rule in AGENTS.md: build this project on the owner's expensive seats only; never spend a cheap
   subscription on our own tree.
-- **Run timing and the quiet signal** (`@fanout/core`): by the lead. `RunView` gained `queuedAt`, `startedAt`,
+- **Run timing and the quiet signal** (`fanout-core`): by the lead. `RunView` gained `queuedAt`, `startedAt`,
   `endedAt` and `updatedAt`; `elapsedMs` and `silentMs` compute against the caller's clock so a finished run's
   duration never changes while a running one grows. 7 tests, failing first.
 - **One renderer for every surface** (`core/src/format/`): by the lead. `mission_status` and the CLI now share it,

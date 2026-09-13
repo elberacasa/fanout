@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { SeatInfo, type AdapterManifest } from "@fanout/core";
+import { SeatInfo, type AdapterManifest } from "fanout-core";
 import { baseEnv } from "../env.ts";
 import { parseVersion, satisfies } from "./version.ts";
 

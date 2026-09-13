@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { pathInScope } from "@fanout/core";
+import { pathInScope } from "fanout-core";
 import { DEFAULT_DENY_LIST } from "../workspace/deny.ts";
 import { git, zeroSeparated } from "../workspace/git.ts";
 

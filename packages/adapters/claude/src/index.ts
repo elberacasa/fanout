@@ -7,7 +7,7 @@ import {
   type LaunchSpec,
   type ParseResult,
   type SeatAdapter,
-} from "@fanout/core";
+} from "fanout-core";
 import manifestJson from "../manifest.json" with { type: "json" };
 import { ClaudeLine, ToolUse } from "./protocol.ts";
 

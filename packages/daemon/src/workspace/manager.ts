@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { pathInScope, type DiffStat, type PlanLine } from "@fanout/core";
+import { pathInScope, type DiffStat, type PlanLine } from "fanout-core";
 import { deniedFiles, DenyListError } from "./deny.ts";
 import { git, lines, zeroSeparated, GitError } from "./git.ts";
 import type {

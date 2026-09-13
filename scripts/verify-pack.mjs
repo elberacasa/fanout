@@ -49,15 +49,16 @@ try {
   const version = JSON.parse(readFileSync(join(repo, "packages/cli/package.json"), "utf8")).version;
 
   /*
-   * `overrides` because the scoped packages are not on the registry yet, and the point is to test these tarballs
-   * rather than whatever a registry happens to hold.
+   * `overrides` so the install resolves to these tarballs rather than to whatever the registry happens to hold —
+   * which, the first time this runs for a version, is nothing at all.
+   *
+   * A tarball is named `<package>-<version>.tgz`, so stripping the version suffix gives the package name back.
    */
   /** @type {Record<string, string>} */
   const overrides = {};
   for (const name of packed) {
-    if (name.startsWith("fanout-cli-")) continue;
-    overrides[`@fanout/${name.replace(/^fanout-/, "").replace(`-${version}.tgz`, "")}`] =
-      `file:${join(tarballs, name)}`;
+    if (name === `fanout-cli-${version}.tgz`) continue;
+    overrides[name.replace(`-${version}.tgz`, "")] = `file:${join(tarballs, name)}`;
   }
 
   run("mkdir", ["-p", project]);

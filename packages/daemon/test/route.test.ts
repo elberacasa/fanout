@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { SeatInfo } from "@fanout/core";
+import type { SeatInfo } from "fanout-core";
 import { chooseSeat } from "../src/policy/route.ts";
 import { POLICY_FILE } from "../src/policy/seats.ts";
 

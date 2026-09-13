@@ -121,7 +121,7 @@ The lead never sees raw logs, only summaries and the diffs it asks for. That kee
 ## UI
 
 - **One renderer, three surfaces.** The lead reads a mission in a chat, the owner in a terminal, and later in a
-  browser. The human-readable rendering lives once in `@fanout/core` (`src/format/`) as pure functions over the
+  browser. The human-readable rendering lives once in `fanout-core` (`src/format/`) as pure functions over the
   projection, so the three can never disagree — a mission that looks stalled in one surface and healthy in another
   is worse than either answer alone. `elapsedMs` and `silentMs` stay in the projection; the formatter only shapes
   them, and the clock is always passed in so nothing is timing-dependent in a test.

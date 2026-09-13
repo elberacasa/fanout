@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createFakeAdapter, type ScenarioInput } from "@fanout/adapter-fake";
-import { Ledger, PlanGraph, project, type AdapterContext, type AdapterSignal } from "@fanout/core";
+import { createFakeAdapter, type ScenarioInput } from "fanout-adapter-fake";
+import { Ledger, PlanGraph, project, type AdapterContext, type AdapterSignal } from "fanout-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { baseEnv } from "../src/env.ts";
 import { startRun, type RunLimits } from "../src/run.ts";

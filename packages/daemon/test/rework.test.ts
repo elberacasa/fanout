@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Ledger, PlanGraph, type RunView, type SeatAdapter } from "@fanout/core";
+import { Ledger, PlanGraph, type RunView, type SeatAdapter } from "fanout-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MAX_REWORKS, reworkPrompt, reworkRun } from "../src/gate/rework.ts";
 

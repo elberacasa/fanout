@@ -1,4 +1,4 @@
-import type { DiffStat, PlanLine } from "@fanout/core";
+import type { DiffStat, PlanLine } from "fanout-core";
 
 /*
  * Where an agent works. An editing run gets its own git worktree on a throwaway branch from the mission's base

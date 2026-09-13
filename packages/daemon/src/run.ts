@@ -8,7 +8,7 @@ import {
   type FanoutEventInput,
   type Ledger,
   type SeatAdapter,
-} from "@fanout/core";
+} from "fanout-core";
 import { supervise } from "./supervisor/supervise.ts";
 import type { RunExit, RunHandle, SuperviseOptions } from "./supervisor/types.ts";
 

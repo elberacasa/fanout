@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AdapterManifest } from "@fanout/core";
+import { AdapterManifest } from "fanout-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buddyReview, BuddyUnavailable } from "../src/gate/buddy.ts";
 

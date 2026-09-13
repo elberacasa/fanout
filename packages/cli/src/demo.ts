@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PlanLine } from "@fanout/core";
-import type { ScenarioInput } from "@fanout/adapter-fake";
+import type { PlanLine } from "fanout-core";
+import type { ScenarioInput } from "fanout-adapter-fake";
 
 /*
  * A whole mission, on a machine with no accounts on it.

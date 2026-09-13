@@ -9,7 +9,7 @@ import {
   type ProjectionState,
   type SeatInfo,
   type StoredEvent,
-} from "@fanout/core";
+} from "fanout-core";
 import { WebSocketServer, type WebSocket } from "ws";
 import { originAllowed, tokenMatches } from "./token.ts";
 

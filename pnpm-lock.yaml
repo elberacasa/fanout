@@ -32,7 +32,7 @@ importers:
 
   packages/adapters/claude:
     dependencies:
-      '@fanout/core':
+      'fanout-core':
         specifier: workspace:*
         version: link:../../core
       zod:
@@ -41,7 +41,7 @@ importers:
 
   packages/adapters/codex:
     dependencies:
-      '@fanout/core':
+      'fanout-core':
         specifier: workspace:*
         version: link:../../core
       zod:
@@ -50,7 +50,7 @@ importers:
 
   packages/adapters/fake:
     dependencies:
-      '@fanout/core':
+      'fanout-core':
         specifier: workspace:*
         version: link:../../core
       zod:
@@ -59,7 +59,7 @@ importers:
 
   packages/adapters/grok:
     dependencies:
-      '@fanout/core':
+      'fanout-core':
         specifier: workspace:*
         version: link:../../core
       zod:
@@ -68,25 +68,25 @@ importers:
 
   packages/cli:
     dependencies:
-      '@fanout/adapter-claude':
+      'fanout-adapter-claude':
         specifier: workspace:*
         version: link:../adapters/claude
-      '@fanout/adapter-codex':
+      'fanout-adapter-codex':
         specifier: workspace:*
         version: link:../adapters/codex
-      '@fanout/adapter-fake':
+      'fanout-adapter-fake':
         specifier: workspace:*
         version: link:../adapters/fake
-      '@fanout/adapter-grok':
+      'fanout-adapter-grok':
         specifier: workspace:*
         version: link:../adapters/grok
-      '@fanout/core':
+      'fanout-core':
         specifier: workspace:*
         version: link:../core
-      '@fanout/daemon':
+      'fanout-daemon':
         specifier: workspace:*
         version: link:../daemon
-      '@fanout/mcp':
+      'fanout-mcp':
         specifier: workspace:*
         version: link:../mcp
       '@modelcontextprotocol/sdk':
@@ -101,14 +101,14 @@ importers:
 
   packages/daemon:
     dependencies:
-      '@fanout/core':
+      'fanout-core':
         specifier: workspace:*
         version: link:../core
       ws:
         specifier: 8.21.3
         version: 8.21.3
     devDependencies:
-      '@fanout/adapter-fake':
+      'fanout-adapter-fake':
         specifier: workspace:*
         version: link:../adapters/fake
       '@types/ws':
@@ -117,10 +117,10 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@fanout/core':
+      'fanout-core':
         specifier: workspace:*
         version: link:../core
-      '@fanout/daemon':
+      'fanout-daemon':
         specifier: workspace:*
         version: link:../daemon
       '@modelcontextprotocol/sdk':
@@ -130,7 +130,7 @@ importers:
         specifier: 4.6.2
         version: 4.6.2
     devDependencies:
-      '@fanout/adapter-fake':
+      'fanout-adapter-fake':
         specifier: workspace:*
         version: link:../adapters/fake
 

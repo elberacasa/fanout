@@ -1,4 +1,4 @@
-import { PlanGraph, type LaunchSpec, type PlanLine, type SeatInfo } from "@fanout/core";
+import { PlanGraph, type LaunchSpec, type PlanLine, type SeatInfo } from "fanout-core";
 import { describe, expect, it } from "vitest";
 import { safetyReport, type RepositoryState, type SafetyDependencies } from "../src/safety/report.ts";
 import type { SafetyInput } from "../src/safety/types.ts";

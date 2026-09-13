@@ -2,8 +2,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Ledger } from "@fanout/core";
-import type { CommandResult } from "@fanout/daemon";
+import { Ledger } from "fanout-core";
+import type { CommandResult } from "fanout-daemon";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { main, type Io } from "../src/main.ts";
 

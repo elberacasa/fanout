@@ -1,4 +1,4 @@
-import { routeLine, type Routing, type SeatHeadroom, type SeatInfo } from "@fanout/core";
+import { routeLine, type Routing, type SeatHeadroom, type SeatInfo } from "fanout-core";
 import { readSeatPolicy } from "./seats.ts";
 
 /*

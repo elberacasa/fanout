@@ -1,8 +1,8 @@
 import { existsSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createClaudeAdapter, manifest as claude } from "@fanout/adapter-claude";
-import { createCodexAdapter, manifest as codex } from "@fanout/adapter-codex";
-import { createGrokAdapter, manifest as grok } from "@fanout/adapter-grok";
+import { createClaudeAdapter, manifest as claude } from "fanout-adapter-claude";
+import { createCodexAdapter, manifest as codex } from "fanout-adapter-codex";
+import { createGrokAdapter, manifest as grok } from "fanout-adapter-grok";
 import {
   Ledger,
   missionReport,
@@ -18,7 +18,7 @@ import {
   EMPTY_POLICY,
   type SeatInfo,
   type StoredEvent,
-} from "@fanout/core";
+} from "fanout-core";
 import {
   detectSeats,
   git,
@@ -36,10 +36,10 @@ import {
   writeSeatPolicy,
   type CommandResult,
   type RunLimits,
-} from "@fanout/daemon";
-import { createFanoutServer } from "@fanout/mcp";
+} from "fanout-daemon";
+import { createFanoutServer } from "fanout-mcp";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createFakeAdapter } from "@fanout/adapter-fake";
+import { createFakeAdapter } from "fanout-adapter-fake";
 import { fanoutHome, type FanoutHome } from "./home.ts";
 import { buildDemoRepo, demoClaims, demoLines, demoScenario, DEMO_GOAL } from "./demo.ts";
 import { crewTable, missionLines } from "./format.ts";

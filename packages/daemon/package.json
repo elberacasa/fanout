@@ -1,5 +1,5 @@
 {
-  "name": "@fanout/daemon",
+  "name": "fanout-daemon",
   "version": "0.7.0",
   "license": "MIT",
   "type": "module",
@@ -26,8 +26,7 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    },
-    "access": "public"
+    }
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -35,11 +34,11 @@
     "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
-    "@fanout/core": "workspace:*",
+    "fanout-core": "workspace:*",
     "ws": "8.21.3"
   },
   "devDependencies": {
-    "@fanout/adapter-fake": "workspace:*",
+    "fanout-adapter-fake": "workspace:*",
     "@types/ws": "^8.18.1"
   }
 }

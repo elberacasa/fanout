@@ -1,4 +1,4 @@
-import { RunProgress } from "@fanout/core";
+import { RunProgress } from "fanout-core";
 import { z } from "zod";
 
 /*

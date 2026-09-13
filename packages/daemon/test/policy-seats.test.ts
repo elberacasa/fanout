@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EMPTY_POLICY, stanceFor, type SeatInfo } from "@fanout/core";
+import { EMPTY_POLICY, stanceFor, type SeatInfo } from "fanout-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { policyPath, readSeatPolicy, setPosture, writeSeatPolicy } from "../src/policy/seats.ts";
 

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { AdapterManifest, FanoutEvent, PlanGraph, type AdapterContext, type PlanLine } from "@fanout/core";
+import { AdapterManifest, FanoutEvent, PlanGraph, type AdapterContext, type PlanLine } from "fanout-core";
 import { describe, expect, it } from "vitest";
 import { createGrokAdapter, manifest } from "../src/index.ts";
 

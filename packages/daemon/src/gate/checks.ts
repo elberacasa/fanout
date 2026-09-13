@@ -48,7 +48,7 @@ const DEPENDENCY_NAMES = new Set(["node_modules", ".venv", "vendor"]);
  * Every dependency directory in the repository, not only the one at the top.
  *
  * A workspace puts a package's links inside that package: without `packages/daemon/node_modules`, a test there
- * cannot resolve `@fanout/core` however complete the root is. Lending only the root ran 90 of 656 tests — a
+ * cannot resolve `fanout-core` however complete the root is. Lending only the root ran 90 of 656 tests — a
  * suite that looks like it ran and did not, which is the most expensive kind of green there is.
  *
  * The depth is generous rather than tight because the first attempt stopped at three and missed

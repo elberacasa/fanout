@@ -7,7 +7,7 @@ import {
   type ProjectionState,
   type SeatInfo,
   type SeatPolicy,
-} from "@fanout/core";
+} from "fanout-core";
 
 /*
  * How the crew reads in a terminal. The rule everywhere: say what is known, say plainly what is not, and never let

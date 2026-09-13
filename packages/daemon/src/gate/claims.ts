@@ -1,4 +1,4 @@
-import type { AdapterManifest, FanoutEventInput, SeatRef } from "@fanout/core";
+import type { AdapterManifest, FanoutEventInput, SeatRef } from "fanout-core";
 import { isolateWork } from "./isolate.ts";
 import { CLEAN_REVISION, workSnapshot, type WorkSnapshot } from "./revision.ts";
 import { runSeat, type SeatExecute } from "./run-seat.ts";

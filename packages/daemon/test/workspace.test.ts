@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { PlanGraph, type PlanLine } from "@fanout/core";
+import { PlanGraph, type PlanLine } from "fanout-core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkspaceManager, DenyListError } from "../src/workspace/manager.ts";
 import type { WorkspaceManager } from "../src/workspace/types.ts";

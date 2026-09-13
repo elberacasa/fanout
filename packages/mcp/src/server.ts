@@ -12,7 +12,7 @@ import {
   type Ledger,
   type SeatAdapter,
   type SeatInfo,
-} from "@fanout/core";
+} from "fanout-core";
 import {
   checkClaims,
   chooseSeat,
@@ -32,7 +32,7 @@ import {
   zeroSeparated,
   type MissionHandle,
   type RunLimits,
-} from "@fanout/daemon";
+} from "fanout-daemon";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 

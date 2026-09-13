@@ -1,4 +1,4 @@
-import type { LaunchSpec, PlanGraph, SafetyCheck, SeatInfo } from "@fanout/core";
+import type { LaunchSpec, PlanGraph, SafetyCheck, SeatInfo } from "fanout-core";
 
 /*
  * The gate between a plan and running it. The report is computed from the plan, the repository and the seats that
