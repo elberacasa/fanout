@@ -5,7 +5,7 @@ import { createCodexAdapter, manifest as codex } from "fanout-adapter-codex";
 import { createGrokAdapter, manifest as grok } from "fanout-adapter-grok";
 import {
   Ledger,
-  missionReport,
+  elapsedMs,
   PlanGraph,
   project,
   SeatPosture,
@@ -16,6 +16,8 @@ import {
   routeLine,
   versionOf,
   EMPTY_POLICY,
+  type PlanLine,
+  type RunView,
   type SeatInfo,
   type StoredEvent,
 } from "fanout-core";
@@ -41,6 +43,7 @@ import { createFanoutServer } from "fanout-mcp";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createFakeAdapter } from "fanout-adapter-fake";
 import { fanoutHome, type FanoutHome } from "./home.ts";
+import { createLive, type LiveRow } from "./live.ts";
 import { buildDemoRepo, demoClaims, demoLines, demoScenario, DEMO_GOAL } from "./demo.ts";
 import { crewTable, missionLines } from "./format.ts";
 import { ownWorkOwed, unfinishedReport, whatIsOwed } from "./unfinished.ts";
@@ -98,6 +101,13 @@ export interface Io {
   until?: Promise<void>;
   /** Where the command was run; tests point it at a temporary repository. */
   cwd?: string;
+  /**
+   * Whether `out` is going to a terminal a person is watching.
+   *
+   * Injected rather than read from `process.stdout` here so a test can render both ways, and so a pipe never
+   * gets cursor-movement codes it would print as garbage.
+   */
+  tty?: boolean;
 }
 
 export async function main(argv: readonly string[], io: Io): Promise<number> {
@@ -135,6 +145,43 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       io.err(`fanout: there is no "${command}" command.\n\n${HELP}`);
       return 64;
   }
+}
+
+/**
+ * One agent, described the way someone watching would describe it.
+ *
+ * `doing` is the agent's own last words — the file it opened, the edit it made, the command it ran — because a
+ * phase name ("coding") says less than the thing being coded. When it has nothing to say yet, the phase is the
+ * honest fallback rather than an invented action.
+ */
+function demoRow(run: RunView, line: PlanLine, who: string, now: Date): LiveRow {
+  const elapsed = elapsedMs(run, now);
+  const finished = run.status === "done";
+  const failed = run.status === "failed" || run.status === "killed" || run.status === "timeout";
+
+  const doing =
+    run.lastTool === null
+      ? (run.phase ?? "starting up")
+      : run.lastTool.summary === null
+        ? run.lastTool.tool
+        : `${run.lastTool.tool} ${run.lastTool.summary}`;
+
+  const stat = run.diffStat;
+  const result =
+    stat === null
+      ? run.files.length === 0
+        ? "no changes"
+        : `${String(run.files.length)} file${run.files.length === 1 ? "" : "s"}`
+      : `+${String(stat.insertions)} −${String(stat.deletions)}`;
+
+  return {
+    who,
+    task: line.title,
+    doing,
+    ...(finished || failed ? { result } : {}),
+    state: failed ? "failed" : finished ? "done" : run.status === "queued" ? "waiting" : "working",
+    elapsedMs: elapsed,
+  };
 }
 
 /**
@@ -232,13 +279,48 @@ async function demo(home: FanoutHome, io: Io, argv: readonly string[] = []): Pro
     { type: "plan.proposed", missionId, plan, by: "lead" },
   ]);
 
-  io.out(`\n  ${DEMO_GOAL}\n\n`);
-  io.out(`  Watch it at  ${api.url}/\n`);
-  io.out(`  The repo it is changing is ${repo}\n`);
-  io.out(`  Three simulated agents, three worktrees, no accounts. Ctrl-C when you have seen enough.\n\n`);
+  /*
+   * The opening. Short, because nobody reads a paragraph before the thing they ran starts moving, and the crew
+   * below is the actual answer to "what is this".
+   */
+  io.out(`\n  \u001B[1mFanout\u001B[0m \u001B[2m· a crew of coding agents, led by Claude Code\u001B[0m\n\n`);
+  io.out(`  \u001B[2mGoal\u001B[0m   ${DEMO_GOAL}\n`);
+  io.out(`  \u001B[2mCrew\u001B[0m   3 simulated agents — nothing to sign into, nothing to pay for\n`);
+  io.out(`  \u001B[2mRepo\u001B[0m   ${repo} \u001B[2m(throwaway)\u001B[0m\n\n`);
 
   const handle = runner.launch({ missionId, plan, baseCommit: head, maxParallel: 3 });
-  await handle.finished;
+
+  /*
+   * The crew, live. Each line of the plan is one agent, named the way a person would name them, and the mission
+   * is watched through the same projection every other surface reads — so this can never show a state the
+   * mission view and the ledger disagree with.
+   */
+  const names = new Map(plan.lines.map((line, index) => [line.id, `Agent ${String(index + 1)}`]));
+  const live = createLive({
+    write: io.out,
+    tty: io.tty ?? process.stdout.isTTY,
+  });
+  const draw = (): void => {
+    const current = project(ledger.read({ missionId })).missions[missionId];
+    if (current === undefined) return;
+    live.render(
+      current.runOrder.flatMap((runId) => {
+        const run = current.runs[runId];
+        const line = plan.lines.find((entry) => entry.id === run?.lineId);
+        if (run === undefined || line === undefined) return [];
+        return [demoRow(run, line, names.get(line.id) ?? run.seat.id, new Date())];
+      }),
+    );
+  };
+
+  const ticking = setInterval(draw, 90);
+  try {
+    await handle.finished;
+  } finally {
+    clearInterval(ticking);
+    draw();
+    live.stop();
+  }
 
   /*
    * The claim check the demo shows is written, not read: real verdicts need a real second vendor. It is recorded
@@ -257,9 +339,35 @@ async function demo(home: FanoutHome, io: Io, argv: readonly string[] = []): Pro
     },
   ]);
 
+  /*
+   * The ending, which the demo never had. Three diffs arrive and none of them merge, and that is the product
+   * rather than a shortcoming — so it is said plainly instead of being left for the viewer to notice.
+   */
   const state = project(ledger.read({ missionId }));
   const mission = state.missions[missionId];
-  if (mission !== undefined) io.out(`\n${missionReport(mission, new Date())}\n`);
+  if (mission !== undefined) {
+    const runs = mission.runOrder.flatMap((id) => (mission.runs[id] === undefined ? [] : [mission.runs[id]]));
+    const written = runs.reduce((total, run) => total + (run.diffStat?.insertions ?? 0), 0);
+    const refuted = demoClaims().filter((claim) => claim.verdict === "refuted").length;
+
+    io.out(`\n  \u001B[2m${"─".repeat(62)}\u001B[0m\n\n`);
+    io.out(
+      `  ${String(runs.length)} agents wrote ${String(written)} lines, each in its own worktree. ` +
+        `\u001B[1mNone of it is merged.\u001B[0m\n\n`,
+    );
+    io.out(`  \u001B[2mThat is the point. Before anything reaches your branch:\u001B[0m\n`);
+    io.out(`  \u001B[2m  · a reader who did not write it reviews the diff\u001B[0m\n`);
+    io.out(`  \u001B[2m  · your own checks run against that exact revision\u001B[0m\n`);
+    io.out(`  \u001B[2m  · a bug fix ships with a test proven to fail on the old code\u001B[0m\n`);
+    io.out(`  \u001B[2m  · and you say yes\u001B[0m\n\n`);
+    if (refuted > 0) {
+      io.out(
+        `  A second agent read the work cold and \u001B[1mrefuted ${String(refuted)} of their claims\u001B[0m.\n` +
+          `  \u001B[2mSimulated here; real the moment you have a second CLI signed in.\u001B[0m\n\n`,
+      );
+    }
+    io.out(`  \u001B[2mThe whole run, diff by diff:\u001B[0m  ${api.url}/\n`);
+  }
   /*
    * `--once` exits when the mission does, instead of holding the view open. It is what a script wants: the
    * packaging check runs this to prove an installed Fanout actually works, and a command that never returns
@@ -271,7 +379,7 @@ async function demo(home: FanoutHome, io: Io, argv: readonly string[] = []): Pro
     return 0;
   }
 
-  io.out(`  Still watching at ${api.url}/ — Ctrl-C to stop.\n`);
+  io.out(`  \u001B[2mStill watching — Ctrl-C when you have seen enough.\u001B[0m\n`);
 
   await (io.until ?? new Promise<void>(() => undefined));
   await api.close();

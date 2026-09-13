@@ -105,22 +105,30 @@ try {
     timeout: 180_000,
   });
 
-  const ended = /(\d+) (?:done|ended badly)/.exec(demo);
-  if (demo.includes("ended badly") || demo.includes("✗")) {
+  /*
+   * Read from the demo's own rows rather than a summary line. Piped, each agent prints one line per state it
+   * reaches — `Agent 1 · CSV export endpoint · done — +13 −0` — so counting them says both that the agents ran
+   * and that they finished, which a single summary number cannot distinguish from a mission that dropped two.
+   */
+  const rows = demo.split("\n");
+  const done = rows.filter((line) => line.includes(" · done — "));
+  const broken = rows.filter((line) => line.includes(" · failed — "));
+
+  if (broken.length > 0) {
     say("  ✗ the demo ran but its agents failed:");
+    say(broken.map((line) => `      ${line.trim()}`).join("\n"));
+    failed = true;
+  } else if (done.length !== 3) {
+    say(`  ✗ the demo finished ${String(done.length)} of its 3 agents`);
     say(
-      demo
-        .split("\n")
-        .filter((line) => line.includes("✗") || line.includes("ended badly"))
-        .map((line) => `      ${line.trim()}`)
+      rows
+        .slice(-12)
+        .map((line) => `      ${line}`)
         .join("\n"),
     );
     failed = true;
-  } else if (ended === null) {
-    say("  ✗ the demo produced no run summary at all");
-    failed = true;
   } else {
-    say(`  ✓ the demo finished: ${ended[0]}`);
+    say(`  ✓ the demo finished: ${String(done.length)} agents, none failed`);
   }
 } catch (cause) {
   // The end of a failed command's output is where it says why, and that is the whole value of this script failing.
