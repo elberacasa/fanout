@@ -53,7 +53,11 @@ green: **743 tests** (47 files). **P0's acceptance run is done**: a real mission
 safety → parallel launch → rework as resumed sessions → review → checks → proof → merge (`2d8f9fa`, `f1fcb44`),
 and exposed two real gate defects that are now fixed (`7c19f4a`, `c9052a4`). Repository: https://github.com/elberacasa/fanout (**public**).
 
-**Only the video is left.** Eight packages are on npm at `0.7.0`, tagged `v0.7.0`, and `npx fanout-cli demo` was
+**Only the video is left.** The registry is tidy: `fanout-cli@0.8.0` is the only thing anyone should install, the
+seven bundled-away packages and `fanout-cli@0.7.0` are deprecated with a pointer to it, and a fresh
+`npm install fanout-cli` prints no warnings at all.
+
+Earlier, when it was still eight packages: Eight packages are on npm at `0.7.0`, tagged `v0.7.0`, and `npx fanout-cli demo` was
 run from the public registry in an empty directory with a fresh HOME: three agents, three worktrees, three diffs.
 
 The `fanout` npm org was taken, so the packages are unscoped `fanout-*` rather than `@fanout/*`. Publishing needed
