@@ -689,3 +689,32 @@ confirming the fixture came back with the log intact.
 
 **Still unrun:** the whole plugin path — the setup prompt, `/fanout`, the plan and its scopes, parallel runs,
 closing the session mid-run, the merge gate, and the revision rule. That is run 1, and it needs a fresh session.
+
+## 2026-09-13 · The Stop hook stops nagging about other people's repositories
+
+`fanout owed` runs after every turn, which is the point of it — a tool the lead chooses to call cannot catch a
+lead who believes the work is already finished. It also means anything it reports, it reports relentlessly.
+The logged debt called this "one abandoned mission nags indefinitely". Looking properly, it was two bugs.
+
+**It asked the ledger for every mission on the machine.** The ledger is one file per machine, so a run abandoned
+in one project was read out at the end of every turn in every *other* project, for good. `missionLines` had
+already learned this exact lesson — `fanout status` in a scratch repository listing work on a website and on
+Fanout itself — and the fix never reached the hook, which is the noisier of the two by a long way. Now scoped to
+the repository the hook is running in, and still reporting everything when git cannot say where it is standing,
+because saying too much beats silence about work that cannot merge.
+
+**There was no way to conclude work you had decided not to do.** Merging ends a run, reworking ends it, a dead
+supervisor ends it. "I am not going to bother" had no verb, so the reminder was correct and permanent — and a
+permanent reminder is one people learn to ignore. `fanout drop <runId> "why"` is that verb. The reason is
+required, and it is recorded as a decision by a person: `reconcile` also writes `run.dropped`, but that is an
+inference about a process, and six months later the difference between the two is the whole value of the record.
+It refuses a run that is still going rather than writing something the machine can contradict.
+
+The hook's own message had been ending with **"Review them, or drop them on purpose"** for months, advising an
+action that did not exist. It now names the command.
+
+### Verified
+
+`npm run check`: 775 tests across 53 files, up nine, typecheck and lint clean. Both fixes have tests that fail
+on the old code. Then the loop itself, by hand in two scratch repositories: `owed` reports the run in the repo
+that owns it, says nothing in a different repo, `drop` writes it off with a reason, and `owed` goes quiet.

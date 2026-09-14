@@ -66,11 +66,20 @@ export interface Owed {
  *
  * Runs still working are deliberately not here. They are not owed by anyone; they are simply not done, and the
  * mission view says so already.
+ *
+ * `repoRoot` scopes this to the repository the hook is running in, and it matters more here than anywhere else:
+ * this runs after every turn, so anything it reports it reports relentlessly. The ledger is one file for the
+ * whole machine, and without the scope a run abandoned in one project was read out at the end of every turn in
+ * every other project on the machine, for good. `missionLines` already learned this; the hook had not. When the
+ * caller does not know where it is standing — not a repository, or git was unhappy — everything is reported,
+ * because saying too much beats saying nothing about work that cannot merge.
  */
-export function whatIsOwed(missions: readonly MissionView[]): Owed[] {
+export function whatIsOwed(missions: readonly MissionView[], repoRoot?: string): Owed[] {
   const owed: Owed[] = [];
+  const here =
+    repoRoot === undefined ? missions : missions.filter((mission) => mission.repo.root === repoRoot);
 
-  for (const mission of missions) {
+  for (const mission of here) {
     const lines = new Map<string, PlanLine>((mission.plan?.lines ?? []).map((line) => [line.id, line]));
 
     for (const runId of mission.runOrder) {
@@ -113,7 +122,9 @@ export function unfinishedReport(owed: readonly Owed[], own = ""): string {
     const count = `${String(owed.length)} run${owed.length === 1 ? "" : "s"}`;
     parts.push(
       `${count} still waiting on you before anything can merge.\n${lines.join("\n")}\n` +
-        `Nothing has been merged. Review them, or drop them on purpose.`,
+        // Naming the command matters: this line said "drop them on purpose" for months while there was no way
+        // to do that, so the one escape from a reminder that repeats every turn was a verb that did not exist.
+        `Nothing has been merged. Review them, or write one off: fanout drop <runId> "why".`,
     );
   }
   if (own !== "") parts.push(`Your own changes:\n${own}`);

@@ -32,9 +32,13 @@ installed.
 
 - [x] ~~The mission view is blank before its first answer~~ — it now says it is asking, and a page that never
       gets an answer says that instead of showing nothing.
-- [ ] `fanout owed` runs as a Stop hook after every turn and reports any finished-but-unreviewed run forever, so
-      one abandoned mission nags indefinitely. A cold reader refuted a claim of mine about this; the claim was
-      wrong, and the nagging is still a real question.
+- [x] ~~`fanout owed` nags indefinitely about one abandoned mission~~ — two bugs, not one. It asked the ledger
+      for every mission on the machine, so a run abandoned in one project was read out after every turn in every
+      other project, for good; it is now scoped to the repository the hook is running in. And there was no way
+      to conclude work you had decided not to do — merging, reworking and a dead supervisor all end a run, but
+      "I am not going to bother" had no verb. `fanout drop <runId> "why"` is that verb, and it records that a
+      person decided rather than that a process died. The hook's own message had been advising people to "drop
+      them on purpose" the whole time.
 
 - [x] ~~`pre-push` does not check lockfile drift~~ — `e2540f6`, written by a Codex agent, reworked once, merged
       through the gate.

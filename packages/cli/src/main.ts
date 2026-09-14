@@ -81,6 +81,7 @@ const HELP = `fanout — Claude Code leads, your other agents build
   fanout status     the crew on this machine, and any missions on the go
   fanout seat       how freely to spend a seat: preferred | normal | sparing | off
   fanout owed       what is waiting on you before anything can merge (the Stop hook runs this)
+  fanout drop       write off a finished run you are not going to review, and say why
   fanout review     ask a second vendor to read your own uncommitted changes
   fanout check      state what you believe; a cold reader tries to disprove each claim
   fanout daemon     run the daemon the lead and the mission view talk to
@@ -124,6 +125,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       return seat(home, argv.slice(1), io);
     case "owed":
       return owed(home, io);
+    case "drop":
+      return drop(home, argv.slice(1), io);
     case "review":
       return buddy(home, io);
     case "check":
@@ -627,8 +630,14 @@ async function owed(home: FanoutHome, io: Io): Promise<number> {
 
   // The working tree is asked about first, because that is where the lead's own unread code lives.
   let own = "";
+  /*
+   * Which repository to scope the report to. Left undefined when git could not tell us, in which case the hook
+   * reports everything — too much is better than silence about work that cannot merge.
+   */
+  let scopeRoot: string | undefined;
   try {
     const snapshot = await workSnapshot({ cwd: repoRoot });
+    scopeRoot = snapshot.repoRoot;
     if (!existsSync(home.ledger)) {
       own = ownWorkOwed({ revision: snapshot.revision, files: snapshot.files.length, checked: undefined });
     } else {
@@ -656,12 +665,90 @@ async function owed(home: FanoutHome, io: Io): Promise<number> {
   const ledger = Ledger.open(home.ledger);
   try {
     const state = project(ledger.read());
-    const report = unfinishedReport(whatIsOwed(Object.values(state.missions)), own);
+    /*
+     * `snapshot.repoRoot` rather than `io.cwd`: the hook runs wherever the session happens to be, which may be
+     * a subdirectory, and a mission records the repository's root.
+     */
+    const report = unfinishedReport(whatIsOwed(Object.values(state.missions), scopeRoot), own);
     if (report !== "") io.out(report);
   } finally {
     ledger.close();
   }
   return 0;
+}
+
+/**
+ * `fanout drop <runId> [reason…]` — a person writing off work they are not going to do.
+ *
+ * The missing verb. A run that finished and was never reviewed is owed, truthfully, for good: merging concludes
+ * it, reworking concludes it, a dead supervisor concludes it, but "I have decided not to bother" had no way to
+ * be said. So the Stop hook was right to keep asking and there was no answer that made it stop — which is how a
+ * correct reminder becomes a thing people learn to ignore.
+ *
+ * The reason is required and recorded. `reconcile` writes off runs whose supervisor died, and the ledger must
+ * not blur the two: one is an inference about a process, this is a decision by a person, and six months later
+ * the difference is the whole value of the record.
+ */
+function drop(home: FanoutHome, args: readonly string[], io: Io): number {
+  const [runId, ...rest] = args;
+  const reason = rest.join(" ").trim();
+
+  if (runId === undefined) {
+    io.err('fanout drop: which run? Try: fanout drop <runId> "why you are not doing it"\n');
+    return 64;
+  }
+  if (reason === "") {
+    // An unexplained write-off is indistinguishable from a mistake by the time anyone reads it back.
+    io.err(`fanout drop: say why. Try: fanout drop ${runId} "superseded by the rewrite"\n`);
+    return 64;
+  }
+  if (!existsSync(home.ledger)) {
+    io.err("fanout drop: no ledger yet, so there is nothing to drop.\n");
+    return 1;
+  }
+
+  const ledger = Ledger.open(home.ledger);
+  try {
+    const state = project(ledger.read());
+    const mission = Object.values(state.missions).find((found) => found.runs[runId] !== undefined);
+    const run = mission?.runs[runId];
+
+    if (mission === undefined || run === undefined) {
+      io.err(`fanout drop: no run "${runId}". \`fanout status\` lists the missions in this repository.\n`);
+      return 1;
+    }
+
+    /*
+     * Only work that has stopped. A running run has a supervisor and a process; calling it dropped here would
+     * put a statement in the ledger that the machine can contradict, and the ledger is the thing everything
+     * else is derived from.
+     */
+    if (run.status === "running" || run.status === "queued") {
+      io.err(
+        `fanout drop: ${runId} is still ${run.status}. Cancel it first; this is for work that has stopped.\n`,
+      );
+      return 1;
+    }
+    if (run.status === "merged") {
+      io.err(`fanout drop: ${runId} is already merged, so there is nothing waiting on you.\n`);
+      return 1;
+    }
+    if (run.status === "dropped") {
+      io.out(`${runId} was already dropped.\n`);
+      return 0;
+    }
+
+    ledger.append({
+      type: "run.dropped",
+      missionId: mission.missionId,
+      runId,
+      reason: `written off by the owner: ${reason}`,
+    });
+    io.out(`Dropped ${runId}. Nothing was merged, and the worktree is still there until \`fanout clean\`.\n`);
+    return 0;
+  } finally {
+    ledger.close();
+  }
 }
 
 /** `fanout seat <id> <posture> [note]` — the one setting, and it is always the owner's to make. */
