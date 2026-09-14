@@ -757,3 +757,37 @@ both paths, and was verified by running it against the drift before fixing it.
 runs the demo end to end — three agents, none failed.
 
 **Not published.** That needs the owner's passkey and their explicit word.
+
+## 2026-09-13 · A lab, and the experiment that was contaminated before it ran
+
+The owner asked for the testing to be run as experiments — numbered, with steps and prompts written down. Doing
+that properly surfaced a flaw in what had been built an hour earlier, without running anything.
+
+**The subject was telling the agents it was a test.** The proving ground's README explained that the repository
+existed to be worked on by Fanout, that `src/due.ts` held a deliberate bug the eighteen tests did not catch, and
+that nobody should fix it by hand. `docs/SCRIPT.md` and `docs/RUNS.md` said more. Agents are handed a git
+worktree of HEAD, so an agent asked to fix that bug would have received the location of the answer, the
+knowledge that it was being tested, and an instruction not to do the task — and every result would have been
+contaminated in a flattering direction with nothing in the record to show it.
+
+`~/fanout-lab` now holds everything that would tip off a reader. The proving ground reads as an ordinary small
+project: `git grep` for "fanout", "fixture" or "deliberate" across its tracked files returns two innocent uses
+of "deliberately" in code comments and nothing else. The README's "known rough edges" section went too — naming
+the cause ("compared as timestamps rather than calendar days") hands over the fix, and a README listing exactly
+the three things the mission asks for is suspiciously convenient.
+
+### What the lab is
+
+`PROTOCOL.md` is eight rules, and the first does most of the work: **the prediction is written and committed
+before the run**, because a prediction written afterwards is a description. The others cover keeping the subject
+naive, restoring rather than resetting it, recording the environment, writing down friction as well as failures,
+stating what was *not* tested, ending every finding in a fix or a reason, and labelling a result as void when
+the protocol was broken rather than quietly keeping it.
+
+Experiment 000 is the cold-reader work from earlier today, kept and labelled not-pre-registered under rule 8.
+**Experiment 001 is pre-registered and unrun**: a first mission through the front door, eight numbered
+predictions, separate pass and fail criteria, and — the part that makes it an experiment — a written statement
+of where it is expected to fail, which is the proof step and the scope overlap on `src/format.ts`.
+
+It also records what makes the result invalid, including the one that applies right now: the session that built
+the proving ground knows where the bug is and must not be the session that runs it.

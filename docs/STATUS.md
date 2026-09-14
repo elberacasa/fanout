@@ -15,13 +15,16 @@ account. Everything below is what stands between here and that.
 | 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
 | 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ live and agent-first · **published: `npx fanout-cli demo` runs from the registry on a clean machine** (`v0.8.0`, one package) ✅ · **site live at https://fanout-site.vercel.app** ✅ · left: a 30-second video |
 
-**The proving ground.** `~/fanout-proving-ground` is a separate repository that exists to be worked on by
-Fanout: a small task-list CLI with a real bug in `src/due.ts` that its eighteen passing tests do not catch, so
-the gate's proof condition can actually be exercised. `docs/SCRIPT.md` there is the acceptance script;
-`docs/RUNS.md` is the log. Fanout's own repository is a bad place to test Fanout — everyone working on it
-already knows it. Run 0 found a real bug on first use (the `/privatesrc/…` citation, fixed in `8fa859e`).
-Stages 1–3 and the gate stages are still unrun, because they need a session started after the plugin was
-installed.
+**Three repositories, one job each.** `~/fanout` is the product. `~/fanout-proving-ground` is the subject: a
+small task-list CLI with a real bug in `src/due.ts` that its eighteen passing tests do not catch, so the gate's
+proof condition can be exercised — and it reads as an ordinary project, because agents are handed a worktree of
+it. `~/fanout-lab` is the notebook: `PROTOCOL.md`, one folder per experiment, and `FINDINGS.md` where every bug
+ends in a fix or a stated reason it is not being fixed.
+
+The protocol's first rule is that the prediction is written and committed **before** the run. Experiment 000
+(the cold-reader path) is kept but labelled not-pre-registered, and found `/privatesrc/…` (`8fa859e`).
+**Experiment 001 is pre-registered and unrun** — a first mission through the front door — and it must not be run
+by a session that already knows where the fixture bug is.
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
