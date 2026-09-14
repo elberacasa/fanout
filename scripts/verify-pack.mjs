@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +24,9 @@ import { fileURLToPath } from "node:url";
 const repo = fileURLToPath(new URL("..", import.meta.url));
 const room = mkdtempSync(join(tmpdir(), "fanout-pack-"));
 const tarballs = join(room, "tarballs");
+// `npm pack` will not create its own `--pack-destination`; pnpm did, which is one more way the two
+// tools differ and one more reason the check should use the one that publishes.
+mkdirSync(tarballs, { recursive: true });
 const project = join(room, "project");
 let failed = false;
 
@@ -39,9 +42,19 @@ const run = (command, args, options = {}) =>
   String(execFileSync(command, args, { encoding: "utf8", ...options }));
 
 try {
+  /*
+   * `npm pack`, because `npm publish` is what uploads it.
+   *
+   * This said `pnpm pack` and that is how `0.9.1` reached the registry unusable. pnpm rewrites the manifest
+   * from `publishConfig` as it packs and npm does not, so this check was verifying a tarball nobody would ever
+   * install — it passed, cheerfully, on a package whose `bin` pointed at TypeScript.
+   *
+   * A verification that uses a different tool from the release verifies a different artifact. The manifest no
+   * longer depends on either tool's rewriting, and this now uses the one that ships.
+   */
   say("packing the package…");
-  run("pnpm", ["--filter", "fanout-cli", "pack", "--pack-destination", tarballs], {
-    cwd: repo,
+  run("npm", ["pack", "--pack-destination", tarballs], {
+    cwd: join(repo, "packages/cli"),
     stdio: ["ignore", "ignore", "inherit"],
   });
 
@@ -159,7 +172,9 @@ try {
   // The end of a failed command's output is where it says why, and that is the whole value of this script failing.
   const error = /** @type {{ message?: string; stdout?: string }} */ (cause);
   say(`  ✗ ${error.message ?? String(cause)}`);
-  if (error.stdout !== undefined) say(error.stdout.split("\n").slice(-15).join("\n"));
+  // `null`, not `undefined`, when the command ran with stdio ignored — and `!== undefined` let a
+  // null through, so the handler written to show the failure crashed instead of showing it.
+  if (typeof error.stdout === "string") say(error.stdout.split("\n").slice(-15).join("\n"));
   failed = true;
 } finally {
   rmSync(room, { recursive: true, force: true });

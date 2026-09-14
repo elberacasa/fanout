@@ -791,3 +791,50 @@ of where it is expected to fail, which is the proof step and the scope overlap o
 
 It also records what makes the result invalid, including the one that applies right now: the session that built
 the proving ground knows where the bug is and must not be the session that runs it.
+
+## 2026-09-14 · 0.9.1 shipped broken, and why nothing caught it
+
+`fanout-cli@0.9.1` reached the registry unusable. Its `bin` pointed at `./src/cli.ts` and its `exports` at
+`./src/main.ts` — raw TypeScript, which Node refuses to strip under `node_modules`. A clean
+`npm install fanout-cli` could not run `fanout version`, and `npx fanout-cli demo` — which the live website
+tells people to run — was dead. Proven by installing it into an empty directory, not inferred.
+
+**The cause was an indirection that only worked under one tool.** `publishConfig.bin` and `publishConfig.exports`
+are a pnpm feature: pnpm rewrites the manifest as it packs, npm ignores it. The release had always been "pnpm to
+pack, npm to upload", so the trick held. The staged command for this release was a plain `npm publish`, which
+shipped the checkout's own paths. npm said so — `"bin[fanout]" script name src/cli.ts was invalid and removed` —
+in a warning among nine others.
+
+That staged command was written here, in the build log, as "pnpm to pack, npm to upload", and then not followed.
+
+**Why `verify:pack` passed anyway, which is the worse half.** It packed with `pnpm pack` while the release
+published with `npm publish`. It was verifying a tarball nobody would ever install, and it passed cheerfully on
+a package whose `bin` pointed at TypeScript. A verification that uses a different tool from the release verifies
+a different artifact.
+
+### Fixed in three places
+
+1. **The manifest names `dist/` directly.** `publishConfig`'s `bin`/`exports` rewriting is gone, so there is
+   nothing left for a tool to do differently.
+2. **`verify:pack` now uses `npm pack`** — the tool that ships. Re-verified by reverting the manifest to
+   0.9.1's exact shape: it fails, with the `prepublishOnly` guard removed, so it catches this on its own.
+3. **`scripts/check-publish.mjs` runs as `prepublishOnly`**, which fires for npm and pnpm alike. It checks that
+   every path in `bin` and `exports` exists in the package and is not TypeScript, and refuses a `publishConfig`
+   that rewrites `bin`, `exports` or `main`. Mutation-tested against 0.9.1's manifest: it names all four
+   problems and exits 1.
+
+### Also found
+
+`verify:pack`'s error handler crashed on the way to reporting a failure: `error.stdout` is `null` rather than
+`undefined` when a command runs with stdio ignored, and the guard was `!== undefined`. The handler written to
+show the failure hid it instead, and the first symptom was a `TypeError` about `split`.
+
+`npm pack` does not create its own `--pack-destination`; pnpm did. One more way the two differ.
+
+### Verified
+
+780 tests across 54 files, typecheck, lint, version and publish guards. `pnpm verify:pack` packs `0.9.2` with
+npm, installs into an empty directory, the plugin finds its CLI, and the demo runs three agents with none
+failing.
+
+**0.9.1 cannot be unpublished usefully and is still the latest tag until someone moves it.**
