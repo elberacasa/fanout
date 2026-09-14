@@ -13,7 +13,7 @@ account. Everything below is what stands between here and that.
 | 7 | Merge gate | ✅ | review, rework, checks, proof, approval, `git apply -3` — run on real work through the gate itself |
 | 8 | Mission view | ✅ | live, with the review queue, the gate's own reasons, reroutes, and a person's own approval — `f9263b1` |
 | 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
-| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ live and agent-first · **published: `npx fanout-cli demo` runs from the registry on a clean machine** (`v0.8.0`, one package) ✅ · left: a 30-second video |
+| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ live and agent-first · **published: `npx fanout-cli demo` runs from the registry on a clean machine** (`v0.8.0`, one package) ✅ · **site live at https://fanout-site.vercel.app** ✅ · left: a 30-second video |
 
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
