@@ -8,12 +8,5 @@
   "homepage": "https://github.com/elberacasa/fanout",
   "repository": "https://github.com/elberacasa/fanout",
   "license": "MIT",
-  "keywords": [
-    "agents",
-    "orchestration",
-    "codex",
-    "grok",
-    "worktrees",
-    "local-first"
-  ]
+  "keywords": ["agents", "orchestration", "codex", "grok", "worktrees", "local-first"]
 }

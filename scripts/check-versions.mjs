@@ -35,13 +35,34 @@ const say = (line) => process.stdout.write(`${line}\n`);
 /** @param {string} line */
 const warn = (line) => process.stderr.write(`${line}\n`);
 
-/** Every file that states the product's version, and the field that states it. */
+/**
+ * Every place the product's version is written down.
+ *
+ * The marketplace entry was added after `claude plugin list` reported `Version: unknown` for an installed
+ * plugin — the entry carried no version, so nothing had one to report. That is a third copy of the same fact,
+ * which is a third chance to drift, which is why it is here rather than only fixed.
+ */
 const SOURCES = [
-  { path: "packages/cli/package.json", field: "version" },
-  { path: "plugin/.claude-plugin/plugin.json", field: "version" },
+  { path: "packages/cli/package.json", at: ["version"] },
+  { path: "plugin/.claude-plugin/plugin.json", at: ["version"] },
+  { path: ".claude-plugin/marketplace.json", at: ["plugins", "0", "version"] },
 ];
 
-const found = SOURCES.map((source) => ({ ...source, value: String(read(source.path)[source.field]) }));
+/** Walks a path of keys without ever handing `any` back out. */
+const dig = (/** @type {unknown} */ node, /** @type {readonly string[]} */ keys) => {
+  /** @type {unknown} */
+  let here = node;
+  for (const key of keys) {
+    if (typeof here !== "object" || here === null) return undefined;
+    here = /** @type {Record<string, unknown>} */ (here)[key];
+  }
+  return here;
+};
+
+const found = SOURCES.map((source) => ({
+  path: source.path,
+  value: String(dig(read(source.path), source.at)),
+}));
 // SOURCES is a non-empty literal, so there is always a first; the check is for the typechecker, not for a case.
 const first = found[0];
 if (first === undefined) throw new Error("check-versions: no sources to compare");

@@ -838,3 +838,20 @@ npm, installs into an empty directory, the plugin finds its CLI, and the demo ru
 failing.
 
 **0.9.1 cannot be unpublished usefully and is still the latest tag until someone moves it.**
+
+### Verified from the registry, after 0.9.2
+
+`latest` is `0.9.2`; `0.9.0` was made `latest` first so the website's command was never broken for longer than
+it had to be. A clean `npm install fanout-cli` in an empty directory reports `bin` and `exports` both pointing
+at `./dist/cli.js`, and `fanout version` prints `fanout 0.9.2`. `npx fanout-cli@latest demo --once` with a fresh
+`HOME` runs the whole mission and ends on the gate. That is the website's own command, run the way a stranger
+runs it.
+
+**`claude plugin list` still says `Version: unknown`** for the installed plugin. The plugin's own manifest has
+had a version since this morning, but the marketplace entry did not, and that is what is read. Added, and added
+to `scripts/check-versions.mjs` — a third copy of the same fact is a third chance to drift, so the guard now
+holds all three together and was mutation-tested against the new one.
+
+It will keep reporting `unknown` until the repository is pushed: `claude plugin marketplace add` clones GitHub,
+and GitHub is nine commits behind. The plugin's *content* is correct regardless — the marketplace entry sources
+it from npm, and the installed copy has the restate fix that the GitHub clone does not.
