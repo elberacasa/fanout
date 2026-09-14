@@ -137,8 +137,21 @@ export async function isolateWork(options: IsolateOptions): Promise<IsolatedWork
   const run = (args: readonly string[], cwd: string = options.repoRoot): Promise<string> =>
     git(args, { cwd, ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }) });
 
-  const root = mkdtempSync(join(tmpdir(), "fanout-review-"));
-  const patches = mkdtempSync(join(tmpdir(), "fanout-patch-"));
+  /*
+   * Resolved, not as the platform spells it.
+   *
+   * `os.tmpdir()` is a symlink on macOS — `/var/folders/…` pointing at `/private/var/folders/…` — so the review
+   * copy's path has two spellings, and we hand the reviewer the one that is a lie. Found by reading a real
+   * review: Codex cited the file as `/privatesrc/due.ts:18`, having resolved the cwd we gave it to its real
+   * path and then subtracted the unresolved one we told it about. The comment was right and the citation was
+   * unusable, which is the worst shape for a review to take — a reader who cannot find the line stops believing
+   * the finding.
+   *
+   * Everything downstream inherits this: the worktree git registers, the cwd the seat runs in, the paths in its
+   * output. One `realpath` here is the whole fix.
+   */
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "fanout-review-")));
+  const patches = realpathSync.native(mkdtempSync(join(tmpdir(), "fanout-patch-")));
   const path = join(root, "work");
   let created = false;
 
