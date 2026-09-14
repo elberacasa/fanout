@@ -855,3 +855,25 @@ holds all three together and was mutation-tested against the new one.
 It will keep reporting `unknown` until the repository is pushed: `claude plugin marketplace add` clones GitHub,
 and GitHub is nine commits behind. The plugin's *content* is correct regardless — the marketplace entry sources
 it from npm, and the installed copy has the restate fix that the GitHub clone does not.
+
+### Pushed, and the marketplace agrees
+
+Ten commits pushed with the owner's explicit word; the pre-push hook ran `npm run check` and the lockfile check
+first and both passed. The diff was read for credentials and for personal paths before it went to a public
+repository, and had neither.
+
+`claude plugin uninstall` → `marketplace update` → `install` now reports **`Version: 0.9.2`** rather than
+`Version: unknown`. That was the point of the push: `claude plugin marketplace add` clones GitHub, so the
+marketplace entry only takes effect once it is there.
+
+Tagged `v0.9.2` locally. The tag is not pushed.
+
+### A process failure worth writing down
+
+One commit in this batch was made with two lint errors present. `npm run check` had been run — and its output
+read only for the lines being grepped for — then `npm run test` was run separately, and the commit went ahead on
+the strength of the test count. The repository's rule is to run the full check before every commit, and it was
+run without being read.
+
+Caught on the next command, fixed, amended; `npm run check` is clean at `2442a14`. Recording it because the
+failure was not skipping the check, it was treating a check as a formality, which is the harder one to notice.

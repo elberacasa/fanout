@@ -13,7 +13,7 @@ account. Everything below is what stands between here and that.
 | 7 | Merge gate | ✅ | review, rework, checks, proof, approval, `git apply -3` — run on real work through the gate itself |
 | 8 | Mission view | ✅ | live, with the review queue, the gate's own reasons, reroutes, and a person's own approval — `f9263b1` |
 | 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
-| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ live and agent-first · **published: `npx fanout-cli demo` runs from the registry on a clean machine** (`v0.8.0`, one package) ✅ · **site live at https://fanout-site.vercel.app** ✅ · left: a 30-second video |
+| 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ live and agent-first · **published: `npx fanout-cli@latest demo` runs from the registry with a fresh HOME** (`0.9.2`) ✅ · **site live at https://fanout-site.vercel.app** ✅ · left: a 30-second video |
 
 **Three repositories, one job each.** `~/fanout` is the product. `~/fanout-proving-ground` is the subject: a
 small task-list CLI with a real bug in `src/due.ts` that its eighteen passing tests do not catch, so the gate's
