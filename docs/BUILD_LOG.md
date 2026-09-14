@@ -718,3 +718,20 @@ action that did not exist. It now names the command.
 `npm run check`: 775 tests across 53 files, up nine, typecheck and lint clean. Both fixes have tests that fail
 on the old code. Then the loop itself, by hand in two scratch repositories: `owed` reports the run in the repo
 that owns it, says nothing in a different repo, `drop` writes it off with a reason, and `owed` goes quiet.
+
+### Later the same day · and the counterpart to it
+
+Scoping the Stop hook created an obligation: something still has to say that work is waiting in another project,
+and now nothing else did. `fanout status` — which the SessionStart hook runs — ended with a bare count, "3
+missions in other repositories, not shown". True and useless: it tells you something is waiting without telling
+you where, so the only way to act on it was to open every project you have.
+
+It now names them, with what is waiting in each, most-waiting first, capped at five with a count for the rest.
+Only repositories with something actually pending are named — a merged mission is waiting on nobody.
+
+One of the tests was wrong in a way worth recording. Its "nothing waiting here" fixture marked the *mission*
+finished but left the run `done` and unreviewed, which is still work waiting on a person. The code was right and
+the test was wrong, which is the better way round to find out, and the fixture now merges the run.
+
+`npm run check`: 780 tests across 54 files. Checked against the real ledger on this machine, which has five
+missions in four repositories.

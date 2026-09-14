@@ -27,8 +27,12 @@ installed.
 
 - [ ] The ledger holds 10 anomalies from a `POST /launch` made by hand against a mission that had never been
       recorded. They are a true record and the ledger is append-only, so they stay; the route refuses that now.
-- [ ] Nothing tells a returning session about work waiting in *another* repository — the SessionStart hook shows
-      this one's missions and a count of the rest, which is honest but not actionable.
+- [x] ~~Nothing tells a returning session about work waiting in *another* repository~~ — `fanout status` now
+      names the repositories that have work waiting or running, with what is waiting in each, capped at five
+      with a count for the rest. Only repositories with something actually pending are named: a merged mission
+      is waiting on nobody, and listing it every session is how a useful block becomes one people skip. This
+      matters more since the Stop hook was scoped, because that hook now deliberately says nothing about
+      elsewhere.
 
 - [x] ~~The mission view is blank before its first answer~~ — it now says it is asking, and a page that never
       gets an answer says that instead of showing nothing.

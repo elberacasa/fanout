@@ -1,9 +1,12 @@
+import { homedir } from "node:os";
+
 import {
   elapsedMs,
   EMPTY_POLICY,
   formatDuration,
   silentMs,
   stanceFor,
+  type MissionView,
   type ProjectionState,
   type SeatInfo,
   type SeatPolicy,
@@ -53,6 +56,61 @@ export function crewTable(seats: readonly SeatInfo[], policy: SeatPolicy = EMPTY
   return `Crew on this machine (${ready} ready)\n${lines.join("\n")}\n`;
 }
 
+/** How many repositories to name before falling back to a count. Enough to act on, few enough to read. */
+const MOST_LISTED = 5;
+
+/**
+ * What to say about missions in other repositories.
+ *
+ * This used to be a bare count — "3 missions in other repositories, not shown" — which is true and useless: it
+ * tells you something is waiting without telling you where, so the only way to act on it was to open every
+ * project you have. It matters more since the Stop hook was scoped to the current repository, because that hook
+ * now deliberately says nothing about elsewhere and this is the only thing that does.
+ *
+ * Only repositories with work that is actually waiting or still going are named. A mission that finished and
+ * merged is waiting on nobody, and listing it at the start of every session is how a useful block becomes one
+ * people skip.
+ */
+function elsewhereNote(missions: readonly MissionView[]): string {
+  if (missions.length === 0) return "";
+
+  const byRepo = new Map<string, { waiting: number; running: number }>();
+  for (const mission of missions) {
+    const tally = byRepo.get(mission.repo.root) ?? { waiting: 0, running: 0 };
+    for (const run of Object.values(mission.runs)) {
+      if (run.status === "done" && run.review === null) tally.waiting += 1;
+      if (run.status === "running" || run.status === "queued") tally.running += 1;
+    }
+    byRepo.set(mission.repo.root, tally);
+  }
+
+  const busy = [...byRepo.entries()]
+    .filter(([, tally]) => tally.waiting > 0 || tally.running > 0)
+    // Most waiting first: the thing that cannot merge without you is the thing worth walking to.
+    .sort((left, right) => right[1].waiting - left[1].waiting || right[1].running - left[1].running);
+
+  const count = `${String(missions.length)} mission${missions.length === 1 ? "" : "s"} in other repositories`;
+  if (busy.length === 0) return `\n  ${count}, none of it waiting on you.\n`;
+
+  const lines = busy.slice(0, MOST_LISTED).map(([root, tally]) => {
+    const parts = [
+      tally.waiting > 0 ? `${String(tally.waiting)} waiting for review` : "",
+      tally.running > 0 ? `${String(tally.running)} running` : "",
+    ].filter((part) => part !== "");
+    return `    ${shorten(root)}  ${parts.join(" · ")}`;
+  });
+
+  const rest = busy.length - lines.length;
+  const more = rest > 0 ? `\n    and ${String(rest)} more repositories with work waiting` : "";
+  return `\n  ${count}:\n${lines.join("\n")}${more}\n`;
+}
+
+/** `~` for the home directory, because an absolute path to somewhere familiar is harder to read, not easier. */
+function shorten(path: string): string {
+  const home = homedir();
+  return home !== "" && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
+}
+
 export function missionLines(state: ProjectionState, now: Date = new Date(), repoRoot?: string): string {
   const all = Object.values(state.missions);
   if (all.length === 0) return "No missions yet.\n";
@@ -66,11 +124,7 @@ export function missionLines(state: ProjectionState, now: Date = new Date(), rep
    * silently hiding a running mission is its own kind of lie.
    */
   const missions = repoRoot === undefined ? all : all.filter((m) => m.repo.root === repoRoot);
-  const elsewhere = all.length - missions.length;
-  const footnote =
-    elsewhere === 0
-      ? ""
-      : `\n  ${String(elsewhere)} mission${elsewhere === 1 ? "" : "s"} in other repositories, not shown.\n`;
+  const footnote = elsewhereNote(all.filter((mission) => !missions.includes(mission)));
 
   if (missions.length === 0) return `No missions in this repository.${footnote}`;
 
