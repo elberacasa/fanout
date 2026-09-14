@@ -634,3 +634,58 @@ Built:
 Verified by the lead: documents cross-checked against each other; no code yet.
 Could not verify: the CLI flags in ADAPTERS.md (session 1 verifies them on the owner's machine).
 Next: session 1, P0 milestone 1 (see KICKOFF.md).
+
+## 2026-09-13 · A proving ground, and the first thing it found
+
+Everything verified so far had been verified in Fanout's own repository or in a throwaway scratch directory.
+Neither is a fair test: the first is a codebase every agent working on it already knows, and the second has no
+tests, no bug and no checks worth running. So `~/fanout-proving-ground` now exists — a separate repository that
+is only there to be worked on.
+
+It is a small task-list CLI: no dependencies, `node --test`, `npm run check` in about a second. Three modules
+that do not import each other, so several agents can hold non-overlapping write scopes at once. And, on purpose,
+**a real bug in `src/due.ts` that the eighteen passing tests do not catch** — `daysUntil` floors a millisecond
+difference, so something due tomorrow at 09:00 reads as "today" when you ask at 10:00, and something a day
+overdue reads as two. A repository with no bugs can never exercise the gate's proof condition; this one can.
+
+`docs/SCRIPT.md` there is the acceptance script — five stages, with the specific lie to look for at each gate
+condition, and the instruction to change a file in a reviewed worktree and confirm all four conditions expire.
+`docs/RUNS.md` is the log.
+
+### What run 0 found
+
+Only the cold-reader path could run: `/fanout` needs a session started after the plugin was installed, and this
+one was not — the same restart the website's prompt warns about, met from the inside.
+
+A deliberately *plausible but wrong* fix was planted for the fixture bug (`Math.floor` → `Math.ceil`, which
+makes the reported symptom disappear and breaks deadlines later the same day). All 18 tests still passed. Then
+`fanout review`.
+
+The review was excellent: it found the regression, gave concrete times, derived the consequence nobody had
+mentioned — that `pressing` would drop the task, so `tasks now` breaks its own promise — and noted the tests
+pass without covering it. Against a trap written to be tempting, the cold reader held.
+
+**But it cited `/privatesrc/due.ts:18`, a path that does not exist.** `os.tmpdir()` on macOS is `/var/folders/…`
+symlinked to `/private/var/folders/…`; the review copy was built at the symlinked spelling, the reviewer
+resolved it and emitted the difference. A correct finding nobody can open is close to the worst shape a review
+can take, because a reader who cannot find the line stops believing the finding.
+
+Fixed in `8fa859e`: one realpath where the copy is created. The test forces `TMPDIR` through a symlink so it
+fails on the old code on every platform rather than only on a Mac — mutation-verified by reverting the fix via
+a file copy and watching it fail. Re-run against the fixed build with the same change and the same seat:
+`src/due.ts:18-18`.
+
+### Also found, in the harness itself
+
+The acceptance script's own first draft opened with `git reset --hard proving-ground-v1`, which would have
+deleted `docs/RUNS.md` — the only thing in that repository that cannot be regenerated — before every run. It now
+restores `src test bin` from the tag and never resets. Verified by mutating a source file, restoring, and
+confirming the fixture came back with the log intact.
+
+### Verified
+
+`npm run check` in Fanout: 766 tests, 51 files, typecheck and lint clean. `npm run check` in the proving ground:
+18 tests, typecheck clean, fixture bug present.
+
+**Still unrun:** the whole plugin path — the setup prompt, `/fanout`, the plan and its scopes, parallel runs,
+closing the session mid-run, the merge gate, and the revision rule. That is run 1, and it needs a fresh session.

@@ -15,6 +15,14 @@ account. Everything below is what stands between here and that.
 | 9 | Routing on limits | ✅ | a seat hits its limit mid-mission, work moves, the reason is on screen — `afcbfdc`, `41a8bec` |
 | 10 | Demo, video, npm | 🔨 | `fanout demo` ✅ live and agent-first · **published: `npx fanout-cli demo` runs from the registry on a clean machine** (`v0.8.0`, one package) ✅ · **site live at https://fanout-site.vercel.app** ✅ · left: a 30-second video |
 
+**The proving ground.** `~/fanout-proving-ground` is a separate repository that exists to be worked on by
+Fanout: a small task-list CLI with a real bug in `src/due.ts` that its eighteen passing tests do not catch, so
+the gate's proof condition can actually be exercised. `docs/SCRIPT.md` there is the acceptance script;
+`docs/RUNS.md` is the log. Fanout's own repository is a bad place to test Fanout — everyone working on it
+already knows it. Run 0 found a real bug on first use (the `/privatesrc/…` citation, fixed in `8fa859e`).
+Stages 1–3 and the gate stages are still unrun, because they need a session started after the plugin was
+installed.
+
 **Debts, logged and unpaid.** Small, real, and each one is how a future bug gets in:
 
 - [ ] The ledger holds 10 anomalies from a `POST /launch` made by hand against a mission that had never been
