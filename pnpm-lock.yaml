@@ -70,17 +70,10 @@ importers:
         version: 4.6.2
 
   packages/cli:
-    dependencies:
+    devDependencies:
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0
         version: 1.30.0(zod@4.6.2)
-      ws:
-        specifier: 8.21.3
-        version: 8.21.3
-      zod:
-        specifier: 4.6.2
-        version: 4.6.2
-    devDependencies:
       fanout-adapter-claude:
         specifier: workspace:*
         version: link:../adapters/claude
@@ -102,6 +95,12 @@ importers:
       fanout-mcp:
         specifier: workspace:*
         version: link:../mcp
+      ws:
+        specifier: 8.21.3
+        version: 8.21.3
+      zod:
+        specifier: 4.6.2
+        version: 4.6.2
 
   packages/core:
     dependencies:
