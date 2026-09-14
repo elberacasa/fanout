@@ -1,6 +1,6 @@
 {
   "name": "fanout-cli",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Let Claude Code lead the other coding-agent CLIs you already pay for.",
   "license": "MIT",
   "type": "module",
@@ -22,8 +22,13 @@
     }
   },
   "files": [
+    ".claude-plugin",
+    ".mcp.json",
+    "bin",
+    "commands",
     "dist",
-    "plugin",
+    "hooks",
+    "skills",
     "README.md",
     "LICENSE"
   ],

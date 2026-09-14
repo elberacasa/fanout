@@ -30,4 +30,11 @@ packages/**/LICENSE
 .agents/
 
 # Copied in from the repository root by scripts/bundle-cli.mjs when publishing.
+# The plugin, copied into the package root by prepack so the installed package *is* the plugin root.
+packages/cli/.claude-plugin/
+packages/cli/.mcp.json
+packages/cli/bin/
+packages/cli/commands/
+packages/cli/hooks/
+packages/cli/skills/
 packages/cli/plugin/

@@ -109,10 +109,22 @@ try {
    * `../packages/cli/src/cli.ts` — a git checkout and nothing else. The README's first sentence calls this a
    * Claude Code plugin, so what shipped was half of what it claimed, and nothing here could tell.
    */
-  const launcher = join(project, "node_modules", "fanout-cli", "plugin", "bin", "fanout");
-  const manifest = join(project, "node_modules", "fanout-cli", "plugin", ".claude-plugin", "plugin.json");
+  /*
+   * The manifest has to be at the *root* of the installed package, not inside it.
+   *
+   * This checked `plugin/.claude-plugin/plugin.json` and passed for every release while the plugin loaded
+   * nothing at all. Claude Code treats the installed package's own directory as the plugin root, so a manifest
+   * one level down is invisible: the plugin installs, `claude plugin list` calls it enabled, and there are no
+   * commands, no skills and no MCP server. Nothing said so — the symptom was `Version: unknown`, which is easy
+   * to read as cosmetic and was.
+   */
+  const installed = join(project, "node_modules", "fanout-cli");
+  const launcher = join(installed, "bin", "fanout");
+  const manifest = join(installed, ".claude-plugin", "plugin.json");
   if (!existsSync(manifest)) {
-    say("  ✗ the package ships no plugin, which is the half of it the README leads with");
+    say(
+      "  ✗ no .claude-plugin/plugin.json at the package root: this installs as a plugin that loads nothing",
+    );
     failed = true;
   } else {
     const said = run(process.execPath, [launcher, "version"], { cwd: project }).trim();
@@ -121,6 +133,26 @@ try {
       failed = true;
     } else {
       say(`  ✓ the plugin finds its CLI: ${said}`);
+    }
+  }
+
+  /*
+   * And ask Claude Code itself, when it is here. Our own `existsSync` only knows the rule we remembered to
+   * write down; `claude plugin validate` knows the rule that is actually enforced at load time.
+   */
+  try {
+    run("claude", ["plugin", "validate", installed], { stdio: ["ignore", "pipe", "pipe"] });
+    say("  ✓ claude plugin validate: the installed package is a plugin root");
+  } catch (cause) {
+    const error = /** @type {{ stdout?: string; stderr?: string }} */ (cause);
+    const detail = `${error.stdout ?? ""}${error.stderr ?? ""}`.trim();
+    if (detail.includes("not found") || detail.includes("command not found")) {
+      say("  · claude is not on PATH, so its validator was not consulted");
+    } else {
+      say(
+        `  ✗ claude plugin validate refused the installed package:\n${detail.split("\n").slice(-6).join("\n")}`,
+      );
+      failed = true;
     }
   }
 

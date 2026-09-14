@@ -877,3 +877,62 @@ run without being read.
 
 Caught on the next command, fixed, amended; `npm run check` is clean at `2442a14`. Recording it because the
 failure was not skipping the check, it was treating a check as a formality, which is the harder one to notice.
+
+## 2026-09-14 · The plugin had never loaded when installed the advertised way
+
+Experiment 001's stage 1 passed and stage 2 came back with two words: `Unknown command: /fanout`.
+
+The plugin was installed. `claude plugin list` called it enabled and, since this morning, reported `0.9.2`. A
+naive session in that repository had **no `/fanout` command, no `fanout:` skills, and none of the thirteen MCP
+tools**. Another installed plugin's skill loaded in the same session, which ruled out the obvious explanation
+that print mode does not load plugins.
+
+**Claude Code treats the installed package's own root as the plugin root.** It looks for
+`.claude-plugin/plugin.json` there. Ours was one level down, at `plugin/.claude-plugin/plugin.json`, because the
+package carried the plugin as a subdirectory. The product's own validator says it in one line:
+
+```
+$ claude plugin validate ~/.claude/plugins/cache/fanout/fanout/0.9.2
+  ❯ directory: No manifest found in directory. Expected .claude-plugin/marketplace.json or .claude-plugin/plugin.json
+```
+
+So every install through the marketplace — the path the website tells people to take — produced a plugin that
+installed cleanly, reported itself enabled, and did nothing.
+
+**`Version: unknown` was this bug.** It was "fixed" an hour earlier by giving the marketplace entry a version.
+That was papering over the symptom: Claude Code had no manifest to read a version from, said so in the only way
+it could, and the patch made it stop saying so. Worth remembering as a shape — a cosmetic-looking wrong value is
+sometimes the only report you get of something structural.
+
+### The fix
+
+`prepack` now copies the plugin's contents to the package **root** rather than into `plugin/`, so the published
+package *is* a plugin root. `bin/fanout` resolves `../dist/cli.js` instead of `../../dist/cli.js`, `files` lists
+the plugin's directories, and `.gitignore` covers the new generated paths.
+
+Confirmed against the docs before building it: for an npm source the package root is the plugin root, and while
+a marketplace entry can redirect individual component paths, flattening needs no redirection at all.
+
+### Verified by loading it, not by validating it
+
+`npm pack`, `npm install` of the tarball into an empty project, a marketplace pointing at the installed package,
+then a naive session asked what it could see:
+
+- **thirteen tools**, `mcp__plugin_fanout_fanout__{cancel_mission, check_claims, launch, merge_run,
+  mission_status, plan_check, prove_fix, repo_overview, review_run, rework_run, run_checks, run_diff, seats}`
+- **three commands**, `fanout:fanout`, `fanout:crew`, `fanout:watch`
+
+An earlier attempt with the plugin copied without its `node_modules` reported `Connection closed` for every
+tool, which is worth writing down: the MCP server's dependencies are real and a plugin directory lifted out of
+its install is not the same thing.
+
+### The pattern, three times in one day
+
+`verify:pack` packed with pnpm while the release published with npm. The plugin was verified from a directory
+that had its manifest at the root, while npm installs one that does not. And `Version: unknown` was treated as
+cosmetic. Each time the check was adjacent to the real thing rather than the real thing.
+
+`verify:pack` now asserts `.claude-plugin/plugin.json` at the installed package's root **and** runs
+`claude plugin validate` against it when Claude Code is on the machine — our check knows the rule we remembered,
+its validator knows the rule that is enforced. Both were mutation-tested against the layout that shipped: both
+refuse it.

@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { cpSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,24 +57,33 @@ const licence = fileURLToPath(new URL("../LICENSE", import.meta.url));
 cpSync(licence, join(cli, "LICENSE"));
 
 /*
- * The plugin, copied in beside the bundle.
+ * The plugin, copied in *as* the package root rather than into a `plugin/` subdirectory.
  *
  * It lives at the repository root because that is where a checkout wants it, and npm cannot include a file from
- * outside the package being packed — so publishing it means copying it in. Without this the published package
- * contained no plugin at all, while the README's first sentence called Fanout a Claude Code plugin.
+ * outside the package being packed — so publishing it means copying it in.
  *
- * `plugin/bin/fanout` then resolves `../../dist/cli.js`, which is exactly where the bundle above put it.
+ * The subdirectory is what broke it. Claude Code treats the installed package's own root as the plugin root and
+ * looks for `.claude-plugin/plugin.json` there; ours was one level down at `plugin/.claude-plugin/plugin.json`,
+ * so the plugin installed, reported itself enabled, and loaded nothing at all — no commands, no skills, no MCP
+ * server. `claude plugin validate` on the installed package says it plainly: "No manifest found in directory."
+ *
+ * So the contents are flattened. `bin/fanout` then resolves `../dist/cli.js`, which is where the bundle above
+ * put it.
  */
 const plugin = fileURLToPath(new URL("../plugin/", import.meta.url));
 rmSync(join(cli, "plugin"), { recursive: true, force: true });
-cpSync(plugin, join(cli, "plugin"), { recursive: true });
+for (const entry of readdirSync(plugin)) {
+  rmSync(join(cli, entry), { recursive: true, force: true });
+  cpSync(join(plugin, entry), join(cli, entry), { recursive: true });
+}
 
 for (const required of [
   "cli.js",
   "fake-agent.js",
   "view.html",
-  "../plugin/bin/fanout",
-  "../plugin/.mcp.json",
+  "../bin/fanout",
+  "../.mcp.json",
+  "../.claude-plugin/plugin.json",
 ]) {
   const path = join(dist, required);
   if (!statSync(path, { throwIfNoEntry: false })?.isFile()) {

@@ -1,7 +1,7 @@
 {
   "name": "fanout",
   "description": "Lead a crew of the coding-agent CLIs you already pay for: plan, fan out into isolated git worktrees, watch, and review before anything merges.",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "author": {
     "name": "elberacasa"
   },

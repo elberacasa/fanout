@@ -18,22 +18,26 @@ import { fileURLToPath } from "node:url";
  *
  * There are two real layouts and this script is the one place that knows the difference:
  *
- *   published   <package>/plugin/bin/fanout  →  <package>/dist/cli.js
- *   checkout    <repo>/plugin/bin/fanout     →  <repo>/packages/cli/src/cli.ts
+ *   published   <package>/bin/fanout      →  <package>/dist/cli.js
+ *   checkout    <repo>/plugin/bin/fanout  →  <repo>/packages/cli/src/cli.ts
+ *
+ * The published path lost a level when the plugin was flattened into the package root, which it had to be:
+ * Claude Code treats the installed package's own root as the plugin root, and a manifest one directory down is
+ * a plugin that installs, reports itself enabled, and loads nothing.
  *
  * Ordered with the published layout first: that is the one a stranger has, and the one nobody here would notice
  * was broken.
  */
 
 const here = new URL(".", import.meta.url);
-const candidates = ["../../dist/cli.js", "../../packages/cli/src/cli.ts"];
+const candidates = ["../dist/cli.js", "../../packages/cli/src/cli.ts"];
 
 const cli = candidates.map((path) => fileURLToPath(new URL(path, here))).find((path) => existsSync(path));
 
 if (cli === undefined) {
   process.stderr.write(
     "fanout: this plugin cannot find the Fanout CLI beside it.\n" +
-      "  Looked for dist/cli.js and packages/cli/src/cli.ts next to the plugin directory.\n" +
+      "  Looked for ../dist/cli.js and ../../packages/cli/src/cli.ts from this script.\n" +
       "  If you installed from npm, reinstall fanout-cli; if this is a checkout, run pnpm install first.\n",
   );
   process.exit(69);
