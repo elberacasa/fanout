@@ -10,7 +10,7 @@
     "typecheck": "pnpm -r typecheck && tsc -p scripts/tsconfig.json",
     "lint": "eslint . && prettier --check .",
     "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning vitest run",
-    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "check": "node scripts/check-versions.mjs && pnpm typecheck && pnpm lint && pnpm test",
     "format": "prettier --write .",
     "build": "node scripts/bundle-cli.mjs",
     "verify:pack": "node scripts/verify-pack.mjs"

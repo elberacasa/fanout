@@ -735,3 +735,25 @@ the test was wrong, which is the better way round to find out, and the fixture n
 
 `npm run check`: 780 tests across 54 files. Checked against the real ledger on this machine, which has five
 missions in four repositories.
+
+## 2026-09-13 · 0.9.1 prepared, and a version that had been lying for three releases
+
+Three user-visible fixes were sitting unreleased — the reviewer's unusable citation, the Stop hook nagging
+across repositories, and `fanout drop` — so `packages/cli/package.json` went to `0.9.1`.
+
+Bumping it found something. **`plugin/.claude-plugin/plugin.json` still said `0.6.0`.** It had said `0.6.0`
+through `0.7.0`, `0.8.0` and `0.9.0`; nothing had ever noticed, because nothing was looking. Claude Code shows
+that manifest's version when it lists an installed plugin, so the only symptom is a user being told they are
+running something they are not — which is a quiet violation of the honesty rule rather than a crash.
+
+Same shape as the site's undefined-token bug earlier today: one fact written in two files with nothing holding
+them together. `scripts/check-versions.mjs` now fails `npm run check` when they disagree, prints both values and
+both paths, and was verified by running it against the drift before fixing it.
+
+### Verified
+
+`npm run check` clean: 780 tests across 54 files, typecheck, lint, and the new version guard.
+`pnpm verify:pack` packs `0.9.1`, installs it into an empty directory, confirms the plugin finds its CLI, and
+runs the demo end to end — three agents, none failed.
+
+**Not published.** That needs the owner's passkey and their explicit word.
