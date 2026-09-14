@@ -11,9 +11,16 @@ import { fileURLToPath } from "node:url";
  * not tidiness — it was that every release meant eight uploads, and on an account with a passkey that is eight
  * separate touches of a fingerprint sensor. A release process that tiring is a release process that gets skipped.
  *
- * So the workspace code is bundled into the CLI at publish time. `zod`, `ws` and the MCP SDK stay external and
- * remain real dependencies: they are somebody else's published packages, and inlining them would bloat the
- * tarball and bury their licences.
+ * So the workspace code is bundled into the CLI at publish time — and so is everything else.
+ *
+ * `zod`, `ws` and the MCP SDK were external at first, on the reasoning that they are somebody else's published
+ * packages and inlining them bloats the tarball and buries their licences. That reasoning was wrong for this
+ * package, because this package is also a Claude Code plugin: Claude Code copies an installed plugin into its
+ * own cache **without its `node_modules`**, so `dist/cli.js` could not resolve `zod` and the MCP server died on
+ * startup with `ERR_MODULE_NOT_FOUND`. The user saw "Connection closed" and no tools.
+ *
+ * A plugin cannot assume its dependencies were installed. Nothing is external now, `dependencies` is empty, and
+ * `legalComments: "inline"` keeps every bundled licence in the output rather than burying it.
  *
  * Two entry points, not one. The simulated agent is spawned as a separate process, so it has to exist as its own
  * file — bundled into the CLI it would be unreachable, and `FAKE_CLI_PATH` would resolve to the lead's own CLI
@@ -24,7 +31,12 @@ const cli = fileURLToPath(new URL("../packages/cli/", import.meta.url));
 const dist = join(cli, "dist");
 
 /** Left to npm, not bundled: other people's packages, with their own versions and licences. */
-const EXTERNAL = ["zod", "ws", "@modelcontextprotocol/sdk", "@modelcontextprotocol/sdk/*"];
+/*
+ * Nothing. A plugin is copied without its `node_modules`, so anything left external is a module the published
+ * plugin cannot find at run time.
+ */
+/** @type {string[]} */
+const EXTERNAL = [];
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
@@ -41,6 +53,19 @@ await build({
   target: "node22",
   // Node 22.18 is the floor we claim; anything newer is the user's business and not ours to assume.
   external: EXTERNAL,
+  /*
+   * A real `require`, for the CommonJS we now inline.
+   *
+   * `ws` is CommonJS, and bundling it into an ESM output leaves esbuild's own `require` shim, which throws
+   * `Dynamic require of "events" is not supported` the moment anything asks for a builtin. The bundle died on
+   * its first line. `createRequire` gives those calls somewhere real to go.
+   */
+  banner: {
+    js: [
+      'import { createRequire as __fanoutCreateRequire } from "node:module";',
+      "const require = __fanoutCreateRequire(import.meta.url);",
+    ].join("\n"),
+  },
   sourcemap: true,
   legalComments: "inline",
   logLevel: "warning",

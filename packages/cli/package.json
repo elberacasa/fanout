@@ -1,6 +1,6 @@
 {
   "name": "fanout-cli",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "Let Claude Code lead the other coding-agent CLIs you already pay for.",
   "license": "MIT",
   "type": "module",
@@ -38,11 +38,6 @@
     "prepack": "node ../../scripts/bundle-cli.mjs",
     "prepublishOnly": "node ../../scripts/check-publish.mjs"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
-    "ws": "8.21.3",
-    "zod": "4.6.2"
-  },
   "devDependencies": {
     "fanout-adapter-claude": "workspace:*",
     "fanout-adapter-codex": "workspace:*",
@@ -50,6 +45,9 @@
     "fanout-adapter-grok": "workspace:*",
     "fanout-core": "workspace:*",
     "fanout-daemon": "workspace:*",
-    "fanout-mcp": "workspace:*"
+    "fanout-mcp": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "ws": "8.21.3",
+    "zod": "4.6.2"
   }
 }

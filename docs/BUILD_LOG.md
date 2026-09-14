@@ -936,3 +936,45 @@ cosmetic. Each time the check was adjacent to the real thing rather than the rea
 `claude plugin validate` against it when Claude Code is on the machine — our check knows the rule we remembered,
 its validator knows the rule that is enforced. Both were mutation-tested against the layout that shipped: both
 refuse it.
+
+## 2026-09-14 · The plugin loaded, and then could not start
+
+With the manifest at the package root, `0.9.3` installed and its three commands and skills appeared. The
+thirteen MCP tools did not: **`Connection closed`**, and no tools at all.
+
+Claude Code copies an installed plugin into `~/.claude/plugins/cache/…` **without its `node_modules`**. So
+`dist/cli.js` could not resolve `zod`, the server exited before it said anything, and the client reported the
+only thing it could see — that the pipe closed.
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'zod' imported from
+  ~/.claude/plugins/cache/fanout/fanout/0.9.3/dist/cli.js
+```
+
+**A plugin cannot assume its dependencies were installed.** `zod`, `ws` and the MCP SDK were external on the
+reasoning that inlining somebody else's packages bloats the tarball and buries their licences. True in general,
+wrong here: this package is also a plugin, and a plugin is a directory that gets copied. Nothing is external
+now, `dependencies` is empty, and `legalComments: "inline"` keeps every bundled licence in the output. The
+bundle went from 238 kB to 1.7 MB, which is the price of being a plugin that starts.
+
+Bundling `ws` — CommonJS — into an ESM output then broke it differently: esbuild's `require` shim throws
+`Dynamic require of "events" is not supported`, and the bundle died on its first line. A `createRequire` banner
+gives those calls somewhere real to go.
+
+### The check that would have caught it
+
+Every check in `verify:pack` ran inside a project where npm had installed the dependencies, so none of them
+could see this. It now copies the installed package somewhere with no `node_modules` and runs it there, which
+is exactly what Claude Code does. Mutation-tested by making the three dependencies external again: it fails,
+while every other check in the script still passes — which is the point.
+
+Verified standalone by hand as well: `fanout version` prints, and an MCP `initialize` gets a full response
+naming the server and its thirteen tools, from a directory with nothing installed anywhere above it.
+
+### Four releases in one evening, and the same lesson each time
+
+0.9.1 shipped unrunnable because `verify:pack` packed with pnpm and the release published with npm. 0.9.2 could
+not load as a plugin because the manifest was verified in a directory that was a plugin root while npm installs
+one that is not. 0.9.3 loaded but could not start, because everything was verified where the dependencies were
+already installed. Each check was adjacent to the real thing. The fix each time was to make the check run the
+artifact the way a stranger's machine runs it.

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -154,6 +154,35 @@ try {
       );
       failed = true;
     }
+  }
+
+  /*
+   * And run it the way Claude Code runs a plugin: copied out of its install, with no `node_modules` anywhere.
+   *
+   * This is not a hypothetical. Claude Code copies an installed plugin into `~/.claude/plugins/cache/…` and does
+   * not bring its dependencies, so `dist/cli.js` could not resolve `zod`, the MCP server exited before it said
+   * anything, and the user saw "Connection closed" and no tools. Every check here passed while that was true,
+   * because every check here ran inside a project where npm had installed the dependencies.
+   *
+   * The package has to be self-contained. The only way to know it is to take it somewhere that has nothing.
+   */
+  const alone = join(room, "no-node-modules");
+  cpSync(installed, alone, { recursive: true });
+  rmSync(join(alone, "node_modules"), { recursive: true, force: true });
+  try {
+    const said = run(process.execPath, [join(alone, "bin", "fanout"), "version"], { cwd: alone }).trim();
+    if (!said.endsWith(version)) {
+      say(`  ✗ standalone, the launcher answered "${said}"`);
+      failed = true;
+    } else {
+      say(`  ✓ runs with no node_modules at all: ${said}`);
+    }
+  } catch (cause) {
+    const error = /** @type {{ stdout?: string; stderr?: string }} */ (cause);
+    const detail = `${error.stdout ?? ""}${error.stderr ?? ""}`.trim();
+    say(`  ✗ the package cannot run without its node_modules, which is how a plugin runs:`);
+    say(detail.split("\n").slice(0, 6).join("\n"));
+    failed = true;
   }
 
   const reported = run(fanout, ["version"], { cwd: project }).trim();
